@@ -1,0 +1,9 @@
+node_modules
+.next
+.git
+.github
+*.log
+*.zip
+.DS_Store
+*.tsbuildinfo
+repomix-output.*
