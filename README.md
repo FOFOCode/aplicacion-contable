@@ -2,7 +2,7 @@
 
 > **Universidad Católica de El Salvador (UNICAES)**  
 > **Actividad:** Ciclo Contable Automático con Partida Doble y Estados Financieros  
-> **Rama de desarrollo:** `harry`  
+> **Rama principal:** `main`  
 > **Tecnologías:** Next.js 16 (Turbopack, App Router), React 19, Tailwind CSS v4, TypeScript, PostgreSQL 14+
 
 ---
@@ -47,9 +47,8 @@ Sistema integral para la automatización del ciclo contable, desarrollado para p
 
 ### Paso 1: Clonar o ingresar al repositorio
 ```bash
-git clone <URL_DEL_REPOSITORIO>
+git clone https://github.com/FOFOCode/aplicacion-contable.git
 cd aplicacion-contable
-git checkout harry
 ```
 
 ### Paso 2: Instalar dependencias
@@ -142,16 +141,15 @@ aplicacion-contable/
 
 ## 7. Control de Versiones e Historial Git
 
-- **Rama principal de trabajo:** `harry`
+- **Rama principal:** `main`
 - **Flujo de trabajo sugerido:**
   ```bash
   # Verificar estado y rama actual
   git status
   git branch
 
-  # Crear o confirmar cambios en la rama harry
-  git checkout -b harry
+  # Confirmar cambios
   git add .
-  git commit -m "feat: modulo contable completado con partida doble, estados financieros y scripts sql"
-  git push origin harry
+  git commit -m "feat: tu mensaje conciso"
+  git push origin main
   ```
