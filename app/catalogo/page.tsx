@@ -68,6 +68,7 @@ export default function CatalogoPage() {
       nombre: nombre.trim(),
       tipo,
       naturaleza: NATURALEZA_POR_TIPO[tipo],
+      activa: true,
     })
     setCodigo("")
     setNombre("")

@@ -1,4 +1,4 @@
-import type { Asiento, AsientoLinea, Cuenta, SaldoCuenta, TipoCuenta } from "./types"
+import type { Asiento, AsientoLinea, Cuenta, Naturaleza, SaldoCuenta, TipoCuenta } from "./types"
 import { subgrupoResultados } from "./types"
 
 export function redondear(n: number): number {
@@ -89,7 +89,7 @@ export function calcularMayor(cuentas: Cuenta[], asientos: Asiento[]): SaldoCuen
       debe = redondear(debe)
       haber = redondear(haber)
       const saldo = redondear(debe - haber)
-      const naturalezaSaldo = saldo === 0 ? null : saldo > 0 ? "deudora" : "acreedora"
+      const naturalezaSaldo: Naturaleza | null = saldo === 0 ? null : saldo > 0 ? "deudora" : "acreedora"
       return { cuenta, debe, haber, saldo, naturalezaSaldo }
     })
     .filter((s) => s.debe !== 0 || s.haber !== 0)
