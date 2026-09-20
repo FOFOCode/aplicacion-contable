@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 import { useState, type ReactNode } from "react"
 import { cn } from "@/lib/utils"
+import { useContabilidad } from "@/components/contabilidad-provider"
 
 const NAV = [
   { href: "/", label: "Panel principal", icon: LayoutDashboard },
@@ -25,6 +26,7 @@ const NAV = [
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
+  const { dbConnected } = useContabilidad()
 
   return (
     <div className="flex min-h-svh bg-background">
@@ -93,7 +95,20 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span className="text-sm font-semibold">Módulo Contable</span>
         </header>
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8 md:py-8">
-          <div className="mb-5 flex justify-end print:hidden">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 print:hidden">
+            <div className="flex items-center gap-2">
+              {dbConnected ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                  <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Base de Datos: PostgreSQL Conectado
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-300">
+                  <span className="size-1.5 rounded-full bg-amber-500" />
+                  Modo Navegador (Sin BD activa)
+                </span>
+              )}
+            </div>
             <Link href="/" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground" aria-label="Ir al panel principal">
               <Home className="size-4" />
               Panel principal
