@@ -241,6 +241,162 @@ export function calcularBalanceGeneral(mayor: SaldoCuenta[], utilidadEjercicio: 
   }
 }
 
+export interface EstadoResultadosAnalitico {
+  ventasBrutas: number
+  devolucionesVentas: number
+  ventasNetas: number
+  inventarioInicial: number
+  compras: number
+  devolucionesCompras: number
+  comprasNetas: number
+  mercaderiaDisponible: number
+  inventarioFinal: number
+  costoVentas: number
+  utilidadBruta: number
+  gastosOperacion: LineaReporte[]
+  gastosFinancieros: LineaReporte[]
+  totalGastosOperacion: number
+  totalGastosFinancieros: number
+  totalGastos: number
+  utilidad: number
+}
+
+/**
+ * Estado de Resultados con MÉTODO ANALÍTICO (Paso 4 del proceso):
+ *  Ventas brutas - Devoluciones = Ventas netas
+ *  Inventario inicial + Compras netas = Mercadería disponible
+ *  Mercadería disponible - Inventario final (conteo físico) = Costo de ventas
+ *  Ventas netas - Costo de ventas = Utilidad bruta
+ *  Utilidad bruta - Gastos operación/financieros = Utilidad del ejercicio
+ * Las contra-cuentas (devoluciones) se identifican por la naturaleza del saldo:
+ * una cuenta de resultado con naturaleza contraria resta del grupo.
+ */
+export function calcularEstadoResultadosAnalitico(
+  mayor: SaldoCuenta[],
+  inventarioInicial: number,
+  inventarioFinal: number,
+): EstadoResultadosAnalitico {
+  let ventasBrutas = 0
+  let devolucionesVentas = 0
+  let compras = 0
+  let devolucionesCompras = 0
+  const gastosOperacion: LineaReporte[] = []
+  const gastosFinancieros: LineaReporte[] = []
+
+  for (const s of mayor) {
+    if (s.cuenta.tipo === "ingreso") {
+      if (s.cuenta.naturaleza === "deudora") {
+        devolucionesVentas = redondear(devolucionesVentas + (s.debe - s.haber))
+      } else {
+        ventasBrutas = redondear(ventasBrutas + (s.haber - s.debe))
+      }
+    } else if (s.cuenta.tipo === "gasto") {
+      const p = s.cuenta.codigo.trim().slice(0, 2)
+      const importe =
+        s.cuenta.naturaleza === "deudora" ? redondear(s.debe - s.haber) : redondear(s.haber - s.debe)
+      if (p === "41") {
+        if (s.cuenta.naturaleza === "deudora") compras = redondear(compras + importe)
+        else devolucionesCompras = redondear(devolucionesCompras + importe)
+      } else if (p === "43") {
+        gastosFinancieros.push({ cuenta: s.cuenta, monto: importe })
+      } else {
+        gastosOperacion.push({ cuenta: s.cuenta, monto: importe })
+      }
+    }
+  }
+
+  const ventasNetas = redondear(ventasBrutas - devolucionesVentas)
+  const comprasNetas = redondear(compras - devolucionesCompras)
+  const mercaderiaDisponible = redondear(inventarioInicial + comprasNetas)
+  const costoVentas = redondear(mercaderiaDisponible - inventarioFinal)
+  const utilidadBruta = redondear(ventasNetas - costoVentas)
+  const totalGastosOperacion = redondear(gastosOperacion.reduce((a, b) => a + b.monto, 0))
+  const totalGastosFinancieros = redondear(gastosFinancieros.reduce((a, b) => a + b.monto, 0))
+  const totalGastos = redondear(totalGastosOperacion + totalGastosFinancieros)
+  const utilidad = redondear(utilidadBruta - totalGastos)
+
+  return {
+    ventasBrutas,
+    devolucionesVentas,
+    ventasNetas,
+    inventarioInicial,
+    compras,
+    devolucionesCompras,
+    comprasNetas,
+    mercaderiaDisponible,
+    inventarioFinal,
+    costoVentas,
+    utilidadBruta,
+    gastosOperacion,
+    gastosFinancieros,
+    totalGastosOperacion,
+    totalGastosFinancieros,
+    totalGastos,
+    utilidad,
+  }
+}
+
+export interface BalanceGeneralAnalitico {
+  activos: LineaReporte[]
+  pasivos: LineaReporte[]
+  capital: LineaReporte[]
+  totalActivo: number
+  totalPasivo: number
+  totalCapitalContable: number
+  utilidadEjercicio: number
+  totalPasivoMasCapital: number
+  cuadra: boolean
+}
+
+/**
+ * Balance General para el método analítico (Paso 5):
+ * el inventario (cuenta 1104) se muestra a su saldo FINAL (conteo físico)
+ * y la utilidad del ejercicio se toma del Estado de Resultados analítico,
+ * manteniendo la ecuación Activo = Pasivo + Capital contable.
+ */
+export function calcularBalanceGeneralAnalitico(
+  mayor: SaldoCuenta[],
+  utilidadEjercicio: number,
+  codigoInventario: string,
+  inventarioFinal: number,
+): BalanceGeneralAnalitico {
+  const activos: LineaReporte[] = []
+  const pasivos: LineaReporte[] = []
+  const capital: LineaReporte[] = []
+
+  for (const s of mayor) {
+    if (s.cuenta.tipo === "activo") {
+      const monto =
+        s.cuenta.codigo === codigoInventario
+          ? redondear(inventarioFinal)
+          : redondear(s.debe - s.haber)
+      activos.push({ cuenta: s.cuenta, monto })
+    } else if (s.cuenta.tipo === "pasivo") {
+      pasivos.push({ cuenta: s.cuenta, monto: redondear(s.haber - s.debe) })
+    } else if (s.cuenta.tipo === "capital") {
+      capital.push({ cuenta: s.cuenta, monto: redondear(s.haber - s.debe) })
+    }
+  }
+
+  const totalActivo = redondear(activos.reduce((a, b) => a + b.monto, 0))
+  const totalPasivo = redondear(pasivos.reduce((a, b) => a + b.monto, 0))
+  const totalCapitalCuentas = redondear(capital.reduce((a, b) => a + b.monto, 0))
+  const totalCapitalContable = redondear(totalCapitalCuentas + utilidadEjercicio)
+  const totalPasivoMasCapital = redondear(totalPasivo + totalCapitalContable)
+
+  return {
+    activos,
+    pasivos,
+    capital,
+    totalActivo,
+    totalPasivo,
+    totalCapitalContable,
+    utilidadEjercicio,
+    totalPasivoMasCapital,
+    cuadra: Math.abs(totalActivo - totalPasivoMasCapital) < 0.01,
+  }
+}
+
 export interface Totales {
   totalPorTipo: Record<TipoCuenta, number>
   totalDebe: number

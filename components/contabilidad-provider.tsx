@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
 import { CATALOGO_CUENTAS } from "@/lib/catalogo"
+import { ASIENTOS_PRUEBA, CATALOGO_PRUEBA } from "@/lib/datos-prueba"
 import {
   calcularBalanceGeneral,
   calcularEstadoResultados,
@@ -79,6 +80,9 @@ interface ContabilidadContextValue {
   eliminarCuenta: (codigo: string) => { softDeleted: boolean }
   reactivarCuenta: (codigo: string) => void
   cuentaEnUso: (codigo: string) => boolean
+  /** Escenario de prueba: catálogo y 13 partidas en memoria para corroborar EEFF. */
+  escenarioPrueba: boolean
+  cargarEscenarioPrueba: () => void
   reiniciarEjemplo: () => void
   limpiarTodo: () => void
   cerrarCicloContable: () => void
@@ -92,6 +96,7 @@ const ContabilidadContext = createContext<ContabilidadContextValue | null>(null)
 export function ContabilidadProvider({ children }: { children: ReactNode }) {
   const [cuentas, setCuentas] = useState<Cuenta[]>(CATALOGO_CUENTAS)
   const [asientos, setAsientos] = useState<Asiento[]>(ASIENTOS_EJEMPLO)
+  const [escenarioPrueba, setEscenarioPrueba] = useState(false)
   const [hidratado, setHidratado] = useState(false)
 
   useEffect(() => {
@@ -151,9 +156,19 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
   const reiniciarEjemplo = () => {
     setCuentas(CATALOGO_CUENTAS)
     setAsientos(ASIENTOS_EJEMPLO)
+    setEscenarioPrueba(false)
   }
 
-  const limpiarTodo = () => setAsientos([])
+  const limpiarTodo = () => {
+    setAsientos([])
+    setEscenarioPrueba(false)
+  }
+
+  const cargarEscenarioPrueba = () => {
+    setCuentas(CATALOGO_PRUEBA)
+    setAsientos(ASIENTOS_PRUEBA)
+    setEscenarioPrueba(true)
+  }
 
   const cerrarCicloContable = () => {
     const saldos = calcularMayor(cuentas, asientos).filter((s) => s.cuenta.tipo !== "ingreso" && s.cuenta.tipo !== "gasto")
@@ -196,6 +211,8 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
     eliminarCuenta,
     reactivarCuenta,
     cuentaEnUso,
+    escenarioPrueba,
+    cargarEscenarioPrueba,
     reiniciarEjemplo,
     limpiarTodo,
     cerrarCicloContable,

@@ -15,3 +15,7 @@ node_modules
 .next/
 .DS_Store
 project.zip
+
+# Build artifacts
+next-env.d.ts
+tsconfig.tsbuildinfo
