@@ -7,6 +7,7 @@ import {
   ArrowRight,
   BookOpen,
   CheckCircle2,
+  FileDown,
   FileSpreadsheet,
   Filter,
   ListTree,
@@ -149,19 +150,29 @@ export default function LibroMayorPage() {
     ])
   }
 
+  function exportarPdf() {
+    const previousTitle = document.title
+    document.title = `Libro_Mayor_${vista === "comprobacion" ? "Balance_Comprobacion" : "CuentasT"}_${ejercicioSeleccionado}`
+    window.print()
+    window.setTimeout(() => {
+      document.title = previousTitle
+    }, 500)
+  }
+
   return (
     <div className="space-y-6">
       <header className="space-y-2">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <p className="text-sm font-medium text-primary">Mayorización Automática</p>
-              <Badge variant="default" className="text-xs">
-                Ejercicio {ejercicioSeleccionado}
+              <span className="text-xs font-semibold uppercase tracking-wider text-primary">Mayorización Central</span>
+              <span className="text-xs text-muted-foreground">·</span>
+              <Badge variant="default" className="text-xs font-mono">
+                Ciclo Fiscal {ejercicioSeleccionado}
               </Badge>
             </div>
-            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Libro Mayor</h1>
-            <p className="max-w-2xl text-sm text-muted-foreground">
+            <h1 className="text-2xl font-bold tracking-tight md:text-3xl mt-0.5">Libro Mayor y Balanza</h1>
+            <p className="max-w-2xl text-xs sm:text-sm text-muted-foreground">
               Consolidación automática en tiempo real de débitos y créditos en Cuentas T y Balance de Comprobación.
             </p>
           </div>
@@ -169,10 +180,21 @@ export default function LibroMayorPage() {
             <Button
               type="button"
               variant="outline"
-              onClick={exportarExcel}
-              className="border-emerald-600/40 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/20"
+              size="sm"
+              onClick={exportarPdf}
+              className="h-8 gap-1.5 text-xs shadow-xs"
             >
-              <FileSpreadsheet className="size-4 text-emerald-600 mr-1.5" />
+              <FileDown className="size-3.5" />
+              Imprimir
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={exportarExcel}
+              className="h-8 gap-1.5 text-xs border-emerald-600/30 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/20 shadow-xs"
+            >
+              <FileSpreadsheet className="size-3.5 text-emerald-600" />
               Exportar Excel
             </Button>
           </div>
@@ -423,30 +445,45 @@ export default function LibroMayorPage() {
                     const deudor = m.naturalezaSaldo === "deudora" ? Math.abs(m.saldo) : 0
                     const acreedor = m.naturalezaSaldo === "acreedora" ? Math.abs(m.saldo) : 0
                     return (
-                      <tr key={m.cuenta.codigo} className="hover:bg-muted/40 transition-colors">
-                        <td className="py-2 px-3 font-mono font-medium text-xs text-primary">
-                          {m.cuenta.codigo}
+                      <tr key={m.cuenta.codigo} className="hover:bg-muted/30 transition-colors group">
+                        <td className="py-2.5 px-3 font-mono font-medium text-xs">
+                          <Link
+                            href={`/kardex?codigo=${m.cuenta.codigo}`}
+                            className="text-primary hover:underline font-bold inline-flex items-center gap-1"
+                            title="Abrir extracto en Libro Auxiliar"
+                          >
+                            <span>{m.cuenta.codigo}</span>
+                            <ArrowRight className="size-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </Link>
                         </td>
-                        <td className="py-2 px-3 text-foreground">{m.cuenta.nombre}</td>
-                        <td className="py-2 px-3 text-right font-mono tabular-nums">
+                        <td className="py-2.5 px-3 text-foreground">
+                          <Link
+                            href={`/kardex?codigo=${m.cuenta.codigo}`}
+                            className="hover:underline"
+                            title="Abrir extracto en Libro Auxiliar"
+                          >
+                            {m.cuenta.nombre}
+                          </Link>
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono tabular-nums">
                           {m.debe > 0 ? formatoMoneda(m.debe) : "-"}
                         </td>
-                        <td className="py-2 px-3 text-right font-mono tabular-nums">
+                        <td className="py-2.5 px-3 text-right font-mono tabular-nums">
                           {m.haber > 0 ? formatoMoneda(m.haber) : "-"}
                         </td>
-                        <td className="py-2 px-3 text-right font-mono tabular-nums font-semibold text-sky-700 dark:text-sky-300">
+                        <td className="py-2.5 px-3 text-right font-mono tabular-nums font-semibold text-foreground">
                           {deudor > 0 ? formatoMoneda(deudor) : "-"}
                         </td>
-                        <td className="py-2 px-3 text-right font-mono tabular-nums font-semibold text-slate-700 dark:text-slate-300">
+                        <td className="py-2.5 px-3 text-right font-mono tabular-nums font-semibold text-foreground">
                           {acreedor > 0 ? formatoMoneda(acreedor) : "-"}
                         </td>
                       </tr>
                     )
                   })}
                 </tbody>
-                <tfoot className="border-t-2 border-border bg-muted/40 font-bold">
+                <tfoot className="border-t-2 border-border bg-muted/40 font-bold border-b-4 border-double border-foreground/30">
                   <tr>
-                    <td colSpan={2} className="py-3 px-3 uppercase text-xs">
+                    <td colSpan={2} className="py-3 px-3 uppercase text-xs tracking-wider text-muted-foreground">
                       Sumas Iguales
                     </td>
                     <td className="py-3 px-3 text-right font-mono tabular-nums">
@@ -455,19 +492,52 @@ export default function LibroMayorPage() {
                     <td className="py-3 px-3 text-right font-mono tabular-nums">
                       {formatoMoneda(totalHaber)}
                     </td>
-                    <td className="py-3 px-3 text-right font-mono tabular-nums text-sky-700 dark:text-sky-300">
+                    <td className="py-3 px-3 text-right font-mono tabular-nums text-foreground">
                       {formatoMoneda(totalDeudor)}
                     </td>
-                    <td className="py-3 px-3 text-right font-mono tabular-nums text-slate-700 dark:text-slate-300">
+                    <td className="py-3 px-3 text-right font-mono tabular-nums text-foreground">
                       {formatoMoneda(totalAcreedor)}
                     </td>
                   </tr>
                 </tfoot>
               </table>
+
+              {/* BANDA DE VERIFICACIÓN DE CUADRE DE BALANZA */}
+              <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-muted/20 border-t border-border text-xs text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="size-4 text-emerald-600" />
+                  <span>
+                    <strong>Verificación de Partida Doble:</strong> Débitos ({formatoMoneda(totalDebe)}) = Créditos ({formatoMoneda(totalHaber)}) · Saldos Deudores ({formatoMoneda(totalDeudor)}) = Saldos Acreedores ({formatoMoneda(totalAcreedor)})
+                  </span>
+                </div>
+                <Badge
+                  variant={totalDebe === totalHaber && totalDeudor === totalAcreedor ? "success" : "warning"}
+                  className="font-mono text-[10px]"
+                >
+                  {totalDebe === totalHaber && totalDeudor === totalAcreedor
+                    ? "Balanza Cuadrada al Centavo ✓"
+                    : "Diferencia detectada"}
+                </Badge>
+              </div>
             </div>
           </CardContent>
         </Card>
       )}
+
+      {/* PIE DE FIRMAS DE AUDITORÍA (IMPRESIÓN OFICIAL) */}
+      <footer className="hidden border-t border-border pt-8 text-center text-xs text-muted-foreground print:block">
+        <p className="font-semibold text-foreground">
+          Libro Mayor y Balance de Comprobación emitido oficialmente por el Sistema Contable.
+        </p>
+        <p className="mt-1">
+          Certificación de sumas y saldos mayorizados correspondientes al Ciclo Fiscal {ejercicioSeleccionado}.
+        </p>
+        <div className="mt-14 grid grid-cols-3 gap-10">
+          <div className="border-t border-foreground/50 pt-2 font-medium">Elaboró (Auxiliar Contable)</div>
+          <div className="border-t border-foreground/50 pt-2 font-medium">Revisó (Contador General - JVPCPA)</div>
+          <div className="border-t border-foreground/50 pt-2 font-medium">Autorizó (Representante Legal / Auditor)</div>
+        </div>
+      </footer>
     </div>
   )
 }

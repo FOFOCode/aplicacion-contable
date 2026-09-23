@@ -17,6 +17,7 @@ import {
   FileSpreadsheet,
   Filter,
   Info,
+  Receipt,
   Search,
   ShieldCheck,
   X,
@@ -314,6 +315,31 @@ function KardexContent() {
       return saldoFinalPeriodo >= 0 ? "Acreedor" : "Deudor (Anómalo)"
     }
   }, [esCuentaSaldada, cuentaActual, saldoFinalPeriodo])
+
+  // Cálculos analíticos y tributarios de El Salvador
+  const saldoMayorCuenta = useCallback(
+    (codigo: string) => {
+      const sm = saldoMayorMap.get(codigo)
+      if (!sm) return 0
+      const c = cuentas.find((x) => x.codigo === codigo)
+      if (!c) return 0
+      return c.naturaleza === "deudora" ? sm.debe - sm.haber : sm.haber - sm.debe
+    },
+    [saldoMayorMap, cuentas]
+  )
+
+  const totalDF = useMemo(() => Math.max(0, saldoMayorCuenta("2103")), [saldoMayorCuenta])
+  const totalCF = useMemo(() => Math.max(0, saldoMayorCuenta("1105")), [saldoMayorCuenta])
+  const diferenciaIVA = useMemo(() => redondear(totalDF - totalCF), [totalDF, totalCF])
+
+  const comprasBrutas = useMemo(() => Math.max(0, saldoMayorCuenta("4101")), [saldoMayorCuenta])
+  const gastosCompras = useMemo(() => Math.max(0, saldoMayorCuenta("4102")), [saldoMayorCuenta])
+  const devCompras = useMemo(() => Math.max(0, saldoMayorCuenta("5102")), [saldoMayorCuenta])
+  const rebCompras = useMemo(() => Math.max(0, saldoMayorCuenta("5103")), [saldoMayorCuenta])
+
+  const ventasBrutas = useMemo(() => Math.max(0, saldoMayorCuenta("5101")), [saldoMayorCuenta])
+  const devVentas = useMemo(() => Math.max(0, saldoMayorCuenta("4103")), [saldoMayorCuenta])
+  const rebVentas = useMemo(() => Math.max(0, saldoMayorCuenta("4104")), [saldoMayorCuenta])
 
   // Funciones de exportación e impresión
   function exportarPdf() {
@@ -723,6 +749,91 @@ function KardexContent() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* PANEL TRIBUTARIO: LIQUIDACIÓN DE IVA (F-07 HACIENDA EL SALVADOR) */}
+      {(codigoSeleccionado === "1105" || codigoSeleccionado === "2103") && (
+        <Card className="border-border bg-card shadow-xs">
+          <CardHeader className="py-2.5 px-4 bg-muted/30 border-b border-border">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
+                <Receipt className="size-3.5" />
+                Liquidación Fiscal de IVA · Ministerio de Hacienda (F-07)
+              </span>
+              <Badge variant={diferenciaIVA > 0 ? "warning" : diferenciaIVA < 0 ? "success" : "muted"} className="text-[10px] font-mono">
+                {diferenciaIVA > 0 ? "Impuesto a Pagar (DGII)" : diferenciaIVA < 0 ? "Remanente a Favor" : "Liquidación en Cero"}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-3 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div className="rounded-lg border border-border/70 p-2.5 bg-background">
+              <span className="text-muted-foreground text-[10px] block">2103 IVA Débito Fiscal (Ventas):</span>
+              <span className="text-base font-bold font-mono text-foreground">{formatoMoneda(totalDF)}</span>
+            </div>
+            <div className="rounded-lg border border-border/70 p-2.5 bg-background">
+              <span className="text-muted-foreground text-[10px] block">1105 IVA Crédito Fiscal (Compras):</span>
+              <span className="text-base font-bold font-mono text-foreground">{formatoMoneda(totalCF)}</span>
+            </div>
+            <div className={`rounded-lg border p-2.5 ${diferenciaIVA > 0 ? "border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200" : diferenciaIVA < 0 ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-200" : "border-border bg-background"}`}>
+              <span className="text-[10px] font-semibold block">{diferenciaIVA > 0 ? "(=) Impuesto por Pagar:" : diferenciaIVA < 0 ? "(=) Crédito Fiscal a Favor:" : "(=) Saldo Neto:"}</span>
+              <span className="text-base font-bold font-mono">{formatoMoneda(Math.abs(diferenciaIVA))}</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* PANEL ANALÍTICO: DETERMINACIÓN DE COMPRAS NETAS */}
+      {codigoSeleccionado === "4101" && (
+        <Card className="border-border bg-card shadow-xs">
+          <CardHeader className="py-2 px-4 bg-muted/30 border-b border-border">
+            <span className="text-xs font-bold uppercase tracking-wider text-primary">
+              Cuentas Analíticas Complementarias de Adquisiciones
+            </span>
+          </CardHeader>
+          <CardContent className="p-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+            <div className="rounded-lg border border-border/70 p-2 bg-background">
+              <span className="text-muted-foreground text-[10px] block">4101 Compras Brutas</span>
+              <span className="font-bold font-mono text-foreground">{formatoMoneda(comprasBrutas)}</span>
+            </div>
+            <div className="rounded-lg border border-border/70 p-2 bg-background">
+              <span className="text-muted-foreground text-[10px] block">(+) 4102 Fletes s/compras</span>
+              <span className="font-bold font-mono text-foreground">+{formatoMoneda(gastosCompras)}</span>
+            </div>
+            <div className="rounded-lg border border-border/70 p-2 bg-background">
+              <span className="text-muted-foreground text-[10px] block">(-) 5102 Dev. s/compras</span>
+              <span className="font-bold font-mono text-amber-600 dark:text-amber-400">-{formatoMoneda(devCompras)}</span>
+            </div>
+            <div className="rounded-lg border border-border/70 p-2 bg-background">
+              <span className="text-muted-foreground text-[10px] block">(-) 5103 Rebajas s/compras</span>
+              <span className="font-bold font-mono text-amber-600 dark:text-amber-400">-{formatoMoneda(rebCompras)}</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* PANEL ANALÍTICO: DETERMINACIÓN DE VENTAS NETAS */}
+      {codigoSeleccionado === "5101" && (
+        <Card className="border-border bg-card shadow-xs">
+          <CardHeader className="py-2 px-4 bg-muted/30 border-b border-border">
+            <span className="text-xs font-bold uppercase tracking-wider text-primary">
+              Cuentas Analíticas Complementarias de Ingresos
+            </span>
+          </CardHeader>
+          <CardContent className="p-3 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+            <div className="rounded-lg border border-border/70 p-2 bg-background">
+              <span className="text-muted-foreground text-[10px] block">5101 Ventas Brutas</span>
+              <span className="font-bold font-mono text-foreground">{formatoMoneda(ventasBrutas)}</span>
+            </div>
+            <div className="rounded-lg border border-border/70 p-2 bg-background">
+              <span className="text-muted-foreground text-[10px] block">(-) 4103 Dev. s/ventas</span>
+              <span className="font-bold font-mono text-amber-600 dark:text-amber-400">-{formatoMoneda(devVentas)}</span>
+            </div>
+            <div className="rounded-lg border border-border/70 p-2 bg-background">
+              <span className="text-muted-foreground text-[10px] block">(-) 4104 Rebajas s/ventas</span>
+              <span className="font-bold font-mono text-amber-600 dark:text-amber-400">-{formatoMoneda(rebVentas)}</span>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* ======================================================== */}
