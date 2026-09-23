@@ -1091,7 +1091,7 @@ function KardexContent() {
                   Tarjeta de Kardex
                 </h1>
                 <Badge variant="outline" className="text-xs font-mono">
-                  Ciclo {ejercicioSeleccionado}
+                  {ejercicioSeleccionado}
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
@@ -1368,7 +1368,7 @@ function KardexContent() {
                   Libro Auxiliar
                 </h1>
                 <Badge variant="outline" className="text-xs font-mono">
-                  Ciclo {ejercicioSeleccionado}
+                  {ejercicioSeleccionado}
                 </Badge>
 
                 {/* Selector de Modo de Visualización */}
@@ -1833,7 +1833,7 @@ function KardexContent() {
             <CardHeader className="py-2.5 px-4 bg-muted/20 border-b border-border">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Libro Auxiliar General Consolidado · Ejercicio {ejercicioSeleccionado}
+                  Libro Auxiliar General Consolidado · {ejercicioSeleccionado}
                 </CardTitle>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="text-xs font-mono">
@@ -2065,30 +2065,34 @@ function KardexContent() {
             })
           )}
 
-          {/* Gran Total del Libro Auxiliar al Final (Visible únicamente en impresión / PDF) */}
+          {/* Gran Total del Libro Auxiliar al Final */}
           {libroContinuoData.length > 0 && (
-            <div className="hidden print:flex rounded-xl border-2 border-border bg-muted/40 p-4 font-mono shadow-xs text-xs flex-wrap items-center justify-between gap-4 print:border-black print:bg-transparent print:rounded-none">
-              <div className="font-sans">
-                <span className="font-bold text-sm text-foreground block print:text-black">
-                  GRAN TOTAL DEL LIBRO AUXILIAR DE MAYOR
+            <div className="rounded-xl border border-border bg-card p-3.5 shadow-xs text-xs flex flex-wrap items-center justify-between gap-4 print:border-black print:bg-transparent print:rounded-none">
+              <div>
+                <span className="font-semibold text-sm text-foreground block print:text-black">
+                  Gran Total del Libro Auxiliar · {ejercicioSeleccionado}
                 </span>
-                <span className="text-xs text-muted-foreground print:text-black">
-                  Suma acumulada de todas las cuentas analíticas en el período
+                <span className="text-[11px] text-muted-foreground print:text-black">
+                  Balance consolidado de cargos y abonos del período
                 </span>
               </div>
-              <div className="flex items-center gap-6 text-sm">
+              <div className="flex items-center gap-6 text-xs font-mono">
                 <div>
-                  <span className="text-xs font-sans text-muted-foreground block print:text-black">Total Cargos</span>
-                  <span className="font-bold text-foreground print:text-black">{formatoMoneda(totalesLibroContinuo.debe)}</span>
+                  <span className="text-[10px] uppercase font-sans text-muted-foreground block print:text-black">Total Cargos</span>
+                  <span className="text-sm font-semibold tabular-nums text-foreground print:text-black">+{formatoMoneda(totalesLibroContinuo.debe)}</span>
                 </div>
                 <div>
-                  <span className="text-xs font-sans text-muted-foreground block print:text-black">Total Abonos</span>
-                  <span className="font-bold text-foreground print:text-black">{formatoMoneda(totalesLibroContinuo.haber)}</span>
+                  <span className="text-[10px] uppercase font-sans text-muted-foreground block print:text-black">Total Abonos</span>
+                  <span className="text-sm font-semibold tabular-nums text-foreground print:text-black">−{formatoMoneda(totalesLibroContinuo.haber)}</span>
                 </div>
                 <div>
-                  <span className="text-xs font-sans text-muted-foreground block print:text-black">Estado</span>
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400 print:text-black">
-                    {totalesLibroContinuo.debe === totalesLibroContinuo.haber ? "CUADRADO (D == H)" : "DESCUADRADO"}
+                  <span className="text-[10px] uppercase font-sans text-muted-foreground block print:text-black">Cuadre Global</span>
+                  <span className={`text-sm font-bold tabular-nums ${
+                    totalesLibroContinuo.debe === totalesLibroContinuo.haber
+                      ? "text-emerald-600 dark:text-emerald-400 print:text-black"
+                      : "text-red-600 dark:text-red-400"
+                  }`}>
+                    {totalesLibroContinuo.debe === totalesLibroContinuo.haber ? "Cuadrado (D == H)" : "Diferencia"}
                   </span>
                 </div>
               </div>
@@ -2125,7 +2129,7 @@ function KardexContent() {
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Fecha: <strong className="text-foreground">{partidaDetalle.fecha}</strong> · Ejercicio {partidaDetalle.ejercicio || ejercicioSeleccionado}
+                  Fecha: <strong className="text-foreground">{partidaDetalle.fecha}</strong> · {partidaDetalle.ejercicio || ejercicioSeleccionado}
                 </p>
               </div>
 
