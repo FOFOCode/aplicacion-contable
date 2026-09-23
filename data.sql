@@ -85,8 +85,8 @@ BEGIN
     END IF;
 
     -- Partida 1: Aporte inicial ($15,000.00)
-    INSERT INTO asiento (fecha, concepto, tipo) 
-    VALUES ('2026-01-02', 'Aportación inicial de los socios en efectivo y banco.', 'APERTURA') 
+    INSERT INTO asiento (ejercicio, numero, fecha, concepto, tipo, estado) 
+    VALUES (2026, 1, '2026-01-02', 'Aportación inicial de los socios en efectivo y banco.', 'APERTURA', 'APLICADO') 
     RETURNING id INTO v1;
     INSERT INTO asiento_linea (asiento_id, linea_numero, cuenta_codigo, debe, haber) VALUES
     (v1, 1, '1101', 10000.00, 0.00),
@@ -94,8 +94,8 @@ BEGIN
     (v1, 3, '3101', 0.00, 15000.00);
 
     -- Partida 2: Compra de mercadería con IVA crédito fiscal ($4,520.00)
-    INSERT INTO asiento (fecha, concepto, tipo) 
-    VALUES ('2026-01-05', 'Compra de mercadería al crédito fiscal, pagada con banco.', 'OPERACION') 
+    INSERT INTO asiento (ejercicio, numero, fecha, concepto, tipo, estado) 
+    VALUES (2026, 2, '2026-01-05', 'Compra de mercadería al crédito fiscal, pagada con banco.', 'OPERACION', 'APLICADO') 
     RETURNING id INTO v2;
     INSERT INTO asiento_linea (asiento_id, linea_numero, cuenta_codigo, debe, haber) VALUES
     (v2, 1, '1104', 4000.00, 0.00),
@@ -103,8 +103,8 @@ BEGIN
     (v2, 3, '1102', 0.00, 4520.00);
 
     -- Partida 3: Venta de mercadería con IVA débito fiscal ($6,780.00)
-    INSERT INTO asiento (fecha, concepto, tipo) 
-    VALUES ('2026-01-12', 'Venta de mercadería con IVA débito fiscal, cobrada en banco.', 'OPERACION') 
+    INSERT INTO asiento (ejercicio, numero, fecha, concepto, tipo, estado) 
+    VALUES (2026, 3, '2026-01-12', 'Venta de mercadería con IVA débito fiscal, cobrada en banco.', 'OPERACION', 'APLICADO') 
     RETURNING id INTO v3;
     INSERT INTO asiento_linea (asiento_id, linea_numero, cuenta_codigo, debe, haber) VALUES
     (v3, 1, '1102', 6780.00, 0.00),
@@ -112,16 +112,16 @@ BEGIN
     (v3, 3, '2103', 0.00, 780.00);
 
     -- Partida 4: Costo de ventas ($3,000.00)
-    INSERT INTO asiento (fecha, concepto, tipo) 
-    VALUES ('2026-01-12', 'Registro del costo de la mercadería vendida.', 'OPERACION') 
+    INSERT INTO asiento (ejercicio, numero, fecha, concepto, tipo, estado) 
+    VALUES (2026, 4, '2026-01-12', 'Registro del costo de la mercadería vendida.', 'OPERACION', 'APLICADO') 
     RETURNING id INTO v4;
     INSERT INTO asiento_linea (asiento_id, linea_numero, cuenta_codigo, debe, haber) VALUES
     (v4, 1, '4101', 3000.00, 0.00),
     (v4, 2, '1104', 0.00, 3000.00);
 
     -- Partida 5: Gastos de administración ($800.00)
-    INSERT INTO asiento (fecha, concepto, tipo) 
-    VALUES ('2026-01-20', 'Pago de gastos de administración con banco.', 'OPERACION') 
+    INSERT INTO asiento (ejercicio, numero, fecha, concepto, tipo, estado) 
+    VALUES (2026, 5, '2026-01-20', 'Pago de gastos de administración con banco.', 'OPERACION', 'APLICADO') 
     RETURNING id INTO v5;
     INSERT INTO asiento_linea (asiento_id, linea_numero, cuenta_codigo, debe, haber) VALUES
     (v5, 1, '4201', 800.00, 0.00),

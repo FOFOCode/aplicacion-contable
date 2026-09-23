@@ -76,7 +76,8 @@ interface ContabilidadContextValue {
   dbConnected: boolean
   cargando: boolean
   agregarAsiento: (a: Omit<Asiento, "id" | "numero">) => void
-  eliminarAsiento: (id: string) => void
+  eliminarAsiento: (id: string, motivo?: string) => void
+  anularAsiento: (id: string, motivo?: string) => void
   agregarCuenta: (c: Cuenta) => void
   renombrarCuenta: (codigo: string, nombre: string) => void
   /** Elimina una cuenta. Si tiene movimientos no se borra: se marca como eliminada (activa=false). */
@@ -187,9 +188,11 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
           body: JSON.stringify(a),
         })
         if (res.ok) {
-          const { id, numero } = await res.json()
-          setAsientos((prev) => [...prev, { ...a, id, numero }])
-          return
+          const freshAsientos = await fetch("/api/asientos")
+          if (freshAsientos.ok) {
+            setAsientos(await freshAsientos.json())
+            return
+          }
         }
       } catch (e) {
         console.error("Error al guardar asiento en base de datos:", e)
@@ -197,19 +200,62 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
     }
 
     setAsientos((prev) => {
-      const numero = prev.reduce((max, x) => Math.max(max, x.numero), 0) + 1
-      return [...prev, { ...a, id: crypto.randomUUID(), numero }]
+      const ejercicio = a.fecha ? new Date(a.fecha).getFullYear() : new Date().getFullYear()
+      const asientosDelAnio = prev.filter(
+        (x) => (x.ejercicio || (x.fecha ? new Date(x.fecha).getFullYear() : ejercicio)) === ejercicio
+      )
+      const numero = asientosDelAnio.reduce((max, x) => Math.max(max, x.numero), 0) + 1
+      const correlativo_global = prev.reduce((max, x) => Math.max(max, x.correlativo_global || 0), 0) + 1
+      return [
+        {
+          ...a,
+          id: crypto.randomUUID(),
+          correlativo_global,
+          ejercicio,
+          numero,
+          estado: "APLICADO",
+        },
+        ...prev,
+      ]
     })
   }
 
-  const eliminarAsiento = async (id: string) => {
+  const anularAsiento = async (id: string, motivo: string = "Anulación contable por corrección/auditoría") => {
     if (dbConnected) {
-      fetch(`/api/asientos/${id}`, { method: "DELETE" }).catch((e) =>
-        console.error("Error al eliminar asiento en base de datos:", e)
-      )
+      try {
+        const res = await fetch(`/api/asientos/${id}`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ motivo }),
+        })
+        if (res.ok) {
+          const freshAsientos = await fetch("/api/asientos")
+          if (freshAsientos.ok) {
+            setAsientos(await freshAsientos.json())
+            return
+          }
+        }
+      } catch (e) {
+        console.error("Error al anular asiento en base de datos:", e)
+      }
     }
-    setAsientos((prev) => prev.filter((a) => a.id !== id))
+
+    // Por auditoría contable no se elimina en cascada: se marca como ANULADO preservando los renglones
+    setAsientos((prev) =>
+      prev.map((a) =>
+        a.id === id
+          ? {
+              ...a,
+              estado: "ANULADO",
+              anulado_en: new Date().toISOString(),
+              motivo_anulacion: motivo,
+            }
+          : a
+      )
+    )
   }
+
+  const eliminarAsiento = (id: string, motivo?: string) => anularAsiento(id, motivo)
 
   const agregarCuenta = async (c: Cuenta) => {
     if (dbConnected) {
@@ -364,6 +410,7 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
     cargando,
     agregarAsiento,
     eliminarAsiento,
+    anularAsiento,
     agregarCuenta,
     renombrarCuenta,
     eliminarCuenta,

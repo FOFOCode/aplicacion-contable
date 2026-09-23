@@ -43,10 +43,29 @@ export interface AsientoLinea {
 
 export interface Asiento {
   id: string
+  correlativo_global?: number
+  ejercicio?: number
   numero: number
   fecha: string
   concepto: string
+  tipo?: "APERTURA" | "OPERACION" | "AJUSTE" | "CIERRE"
+  estado?: "APLICADO" | "ANULADO"
+  anulado_en?: string | null
+  motivo_anulacion?: string | null
   lineas: AsientoLinea[]
+}
+
+export interface AsientoHistorial {
+  id: string
+  asiento_id: string
+  accion: "CREACION" | "MODIFICACION" | "ANULACION" | "CIERRE"
+  ejercicio: number
+  numero: number
+  concepto?: string
+  total_debe: number
+  total_haber: number
+  motivo?: string
+  creado_en?: string
 }
 
 export interface CierreContable {

@@ -21,6 +21,13 @@ Para que la base de datos sea fiel al frontend de Next.js ([`lib/types.ts`](file
    - Se incluye `linea_numero` en `asiento_linea` para asegurar que los cargos y abonos se presenten siempre en el orden en que fueron capturados.
 5. **Partida Doble y Exclusividad:**
    - Restricción estricta `chk_linea_exclusiva` (`(debe > 0 AND haber = 0) OR (haber > 0 AND debe = 0)`).
+6. **Numeración por Ejercicio Fiscal y Correlativo Global:**
+   - `correlativo_global`: Consecutivo ininterrumpido único a lo largo de toda la historia de la empresa para trazabilidad fiscal electrónica.
+   - `numero`: Se reinicia automáticamente a 1 al comenzar cada nuevo año o ejercicio contable (`1..N`), garantizado por la restricción `UNIQUE (ejercicio, numero)`.
+7. **Prohibición de Eliminación en Cascada (Auditoría Obligatoria):**
+   - Las líneas de asiento tienen `ON DELETE RESTRICT`. Nunca se borran asientos con líneas asociadas.
+   - Las partidas no se eliminan físicamente: se anulan formalmente (`estado = 'ANULADO'`, `anulado_en`, `motivo_anulacion`) mediante el procedimiento `sp_anular_asiento`.
+   - Toda creación, anulación o cierre genera una traza inmutable en la tabla `asiento_historial`.
 
 ---
 
@@ -29,9 +36,10 @@ Para que la base de datos sea fiel al frontend de Next.js ([`lib/types.ts`](file
 ```mermaid
 erDiagram
     CATALOGO_CUENTAS ||--o{ ASIENTO_LINEA : "se imputa en"
-    ASIENTO ||--|{ ASIENTO_LINEA : "se compone de"
+    ASIENTO ||--|{ ASIENTO_LINEA : "se compone de (RESTRICT)"
     CATALOGO_CUENTAS ||--o{ CIERRE_CONTABLE : "absorbe utilidad en"
     ASIENTO ||--|| CIERRE_CONTABLE : "registra asiento de"
+    ASIENTO ||--|{ ASIENTO_HISTORIAL : "audita cambios en"
 
     CATALOGO_CUENTAS {
         varchar codigo PK "48 cuentas oficiales (1101, 2101, etc.)"
@@ -44,21 +52,38 @@ erDiagram
 
     ASIENTO {
         uuid id PK
-        int numero UK "Partida #1, #2..."
-        int ejercicio "Año fiscal"
+        int correlativo_global UK "Correlativo global consecutivo"
+        int ejercicio "Año fiscal (2025, 2026...)"
+        int numero "Partida #1..N (reinicia por año)"
         date fecha
         text concepto "Glosa descriptiva"
         varchar tipo "APERTURA, OPERACION, AJUSTE, CIERRE"
+        varchar estado "APLICADO, ANULADO"
+        timestamp anulado_en
+        text motivo_anulacion
         timestamp creado_en
     }
 
     ASIENTO_LINEA {
         uuid id PK
-        uuid asiento_id FK
+        uuid asiento_id FK "ON DELETE RESTRICT (Sin cascada)"
         int linea_numero "Orden en la partida"
         varchar cuenta_codigo FK
         numeric debe ">= 0"
         numeric haber ">= 0"
+    }
+
+    ASIENTO_HISTORIAL {
+        uuid id PK
+        uuid asiento_id FK "ON DELETE RESTRICT"
+        varchar accion "CREACION, MODIFICACION, ANULACION, CIERRE"
+        int ejercicio
+        int numero
+        text concepto
+        numeric total_debe
+        numeric total_haber
+        text motivo "Motivo de la acción"
+        timestamp creado_en
     }
 
     CIERRE_CONTABLE {
@@ -70,7 +95,7 @@ erDiagram
         numeric total_gastos
         numeric utilidad "Resultado final"
         varchar cuenta_capital_codigo FK
-        uuid asiento_cierre_id FK
+        uuid asiento_cierre_id FK "ON DELETE RESTRICT"
         timestamp creado_en
     }
 ```

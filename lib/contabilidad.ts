@@ -79,6 +79,7 @@ export function calcularMayor(cuentas: Cuenta[], asientos: Asiento[]): SaldoCuen
       let debe = 0
       let haber = 0
       for (const asiento of asientos) {
+        if (asiento.estado === "ANULADO") continue
         for (const linea of asiento.lineas) {
           if (linea.codigo === cuenta.codigo) {
             debe += Number(linea.debe) || 0

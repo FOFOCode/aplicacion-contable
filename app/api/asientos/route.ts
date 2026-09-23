@@ -6,7 +6,7 @@ export async function GET() {
   if (!pool) return NextResponse.json({ error: "No database configured" }, { status: 503 })
   try {
     const resAsientos = await pool.query(
-      "SELECT id, numero, fecha::text, concepto FROM asiento ORDER BY numero ASC"
+      "SELECT id, correlativo_global, ejercicio, numero, fecha::text, concepto, tipo, estado, anulado_en::text, motivo_anulacion FROM asiento ORDER BY fecha DESC, numero DESC"
     )
     const resLineas = await pool.query(
       "SELECT asiento_id, cuenta_codigo, debe::float, haber::float, linea_numero FROM asiento_linea ORDER BY asiento_id, linea_numero ASC"
@@ -26,9 +26,15 @@ export async function GET() {
 
     const asientos = resAsientos.rows.map((a) => ({
       id: a.id,
+      correlativo_global: a.correlativo_global,
+      ejercicio: a.ejercicio,
       numero: a.numero,
       fecha: a.fecha,
       concepto: a.concepto,
+      tipo: a.tipo,
+      estado: a.estado,
+      anulado_en: a.anulado_en,
+      motivo_anulacion: a.motivo_anulacion,
       lineas: lineasByAsiento.get(a.id) || [],
     }))
 
@@ -54,24 +60,44 @@ export async function POST(req: Request) {
       )
     }
 
+    const ejercicio = fecha ? new Date(fecha).getFullYear() : new Date().getFullYear()
+
     await client.query("BEGIN")
+
+    // Obtener número consecutivo específico para este año fiscal
+    const numRes = await client.query("SELECT fn_proximo_numero_asiento($1) AS next_num", [ejercicio])
+    const numero = numRes.rows[0]?.next_num || 1
+
     const resA = await client.query(
-      "INSERT INTO asiento (fecha, concepto, tipo) VALUES ($1, $2, 'OPERACION') RETURNING id, numero",
-      [fecha, concepto]
+      "INSERT INTO asiento (ejercicio, numero, fecha, concepto, tipo, estado) VALUES ($1, $2, $3, $4, 'OPERACION', 'APLICADO') RETURNING id, correlativo_global, numero, ejercicio",
+      [ejercicio, numero, fecha, concepto]
     )
     const asientoId = resA.rows[0].id
-    const numero = resA.rows[0].numero
+    const correlativo_global = resA.rows[0].correlativo_global
+
+    let totalDebe = 0
+    let totalHaber = 0
 
     for (let i = 0; i < lineas.length; i++) {
       const l = lineas[i]
+      const debe = Number(l.debe) || 0
+      const haber = Number(l.haber) || 0
+      totalDebe += debe
+      totalHaber += haber
       await client.query(
         "INSERT INTO asiento_linea (asiento_id, linea_numero, cuenta_codigo, debe, haber) VALUES ($1, $2, $3, $4, $5)",
-        [asientoId, i + 1, l.codigo, Number(l.debe) || 0, Number(l.haber) || 0]
+        [asientoId, i + 1, l.codigo, debe, haber]
       )
     }
 
+    // Registrar traza en el historial de auditoría
+    await client.query(
+      "INSERT INTO asiento_historial (asiento_id, accion, ejercicio, numero, concepto, total_debe, total_haber, motivo) VALUES ($1, 'CREACION', $2, $3, $4, $5, $6, 'Registro regular de partida contable')",
+      [asientoId, ejercicio, numero, concepto, totalDebe, totalHaber]
+    )
+
     await client.query("COMMIT")
-    return NextResponse.json({ id: asientoId, numero })
+    return NextResponse.json({ id: asientoId, correlativo_global, numero, ejercicio, estado: "APLICADO" })
   } catch (e: unknown) {
     await client.query("ROLLBACK")
     const msg = e instanceof Error ? e.message : "Error al guardar el asiento"
@@ -80,3 +106,4 @@ export async function POST(req: Request) {
     client.release()
   }
 }
+
