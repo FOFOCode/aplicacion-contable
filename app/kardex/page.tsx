@@ -1,20 +1,28 @@
 "use client"
 
-import { Suspense, useEffect, useMemo, useState } from "react"
+import { Suspense, useEffect, useMemo, useState, useCallback } from "react"
 import { useSearchParams } from "next/navigation"
+import Link from "next/link"
 import {
+  AlertCircle,
+  AlertTriangle,
   ArrowDownLeft,
+  ArrowRight,
   ArrowUpRight,
   Calendar,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
+  ExternalLink,
   Eye,
   FileDown,
   FileSpreadsheet,
+  Filter,
   Info,
   Layers,
   Search,
+  SlidersHorizontal,
   X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -22,7 +30,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/field"
 import { useContabilidad } from "@/components/contabilidad-provider"
-import { formatoMoneda, redondear } from "@/lib/contabilidad"
+import { formatoMoneda, redondear, totalesAsiento } from "@/lib/contabilidad"
 import { exportarLibroExcel } from "@/lib/excel"
 import type { Asiento, Cuenta } from "@/lib/types"
 
@@ -35,84 +43,140 @@ interface MovimientoKardex {
   debe: number
   haber: number
   saldo: number
-  asientoOriginal: Asiento
+  esSaldoAnterior?: boolean
+  asientoOriginal?: Asiento
 }
 
-const CUENTAS_RAPIDAS = [
-  { codigo: "1104", nombre: "Inventario Inicial (Analítico)" },
-  { codigo: "1101", nombre: "Caja general" },
-  { codigo: "1102", nombre: "Bancos" },
-  { codigo: "4101", nombre: "Compras" },
-  { codigo: "4102", nombre: "Gastos s/compras" },
-  { codigo: "5101", nombre: "Ventas" },
-  { codigo: "5102", nombre: "Dev. s/compras" },
-  { codigo: "4103", nombre: "Dev. s/ventas" },
+// Cuentas rápidas esenciales para el régimen contable y fiscal salvadoreño (Hacienda / F-07)
+const CUENTAS_RAPIDAS_SV = [
+  { codigo: "1101", nombre: "Caja general", categoria: "Disponibilidades" },
+  { codigo: "1102", nombre: "Bancos", categoria: "Disponibilidades" },
+  { codigo: "1105", nombre: "IVA Crédito Fiscal", categoria: "Tributario" },
+  { codigo: "2103", nombre: "IVA Débito Fiscal", categoria: "Tributario" },
+  { codigo: "2107", nombre: "Retenciones por pagar", categoria: "Tributario" },
+  { codigo: "1103", nombre: "Cuentas por cobrar", categoria: "Operación" },
+  { codigo: "2101", nombre: "Cuentas por pagar", categoria: "Operación" },
+  { codigo: "4101", nombre: "Compras", categoria: "Operación" },
+  { codigo: "5101", nombre: "Ventas", categoria: "Operación" },
+  { codigo: "1104", nombre: "Inventario (Analítico)", categoria: "Inventario" },
 ]
 
 const MESES = [
-  { valor: "todos", label: "Todo el año" },
-  { valor: "1", label: "Enero" },
-  { valor: "2", label: "Febrero" },
-  { valor: "3", label: "Marzo" },
-  { valor: "4", label: "Abril" },
-  { valor: "5", label: "Mayo" },
-  { valor: "6", label: "Junio" },
-  { valor: "7", label: "Julio" },
-  { valor: "8", label: "Agosto" },
-  { valor: "9", label: "Septiembre" },
-  { valor: "10", label: "Octubre" },
-  { valor: "11", label: "Noviembre" },
-  { valor: "12", label: "Diciembre" },
+  { valor: "todos", label: "Todo el año fiscal" },
+  { valor: "1", label: "01 - Enero" },
+  { valor: "2", label: "02 - Febrero" },
+  { valor: "3", label: "03 - Marzo" },
+  { valor: "4", label: "04 - Abril" },
+  { valor: "5", label: "05 - Mayo" },
+  { valor: "6", label: "06 - Junio" },
+  { valor: "7", label: "07 - Julio" },
+  { valor: "8", label: "08 - Agosto" },
+  { valor: "9", label: "09 - Septiembre" },
+  { valor: "10", label: "10 - Octubre" },
+  { valor: "11", label: "11 - Noviembre" },
+  { valor: "12", label: "12 - Diciembre" },
 ]
 
 function KardexContent() {
   const { cuentas, asientos, ejercicioSeleccionado } = useContabilidad()
   const searchParams = useSearchParams()
   const codigoParam = searchParams.get("codigo") || searchParams.get("cuenta")
-  const [codigoSeleccionado, setCodigoSeleccionado] = useState<string>(codigoParam || "1104")
+
+  // Cuenta inicial: Preferir 1101 o 1102 en vez de 1104 para evitar iniciar en pantalla estática
+  const [codigoSeleccionado, setCodigoSeleccionado] = useState<string>(codigoParam || "1102")
   const [busqueda, setBusqueda] = useState("")
   const [mesFiltro, setMesFiltro] = useState<string>("todos")
+  const [soloConMovimientos, setSoloConMovimientos] = useState<boolean>(false)
   const [partidaDetalle, setPartidaDetalle] = useState<Asiento | null>(null)
 
   useEffect(() => {
     if (codigoParam && codigoParam !== codigoSeleccionado) {
       setCodigoSeleccionado(codigoParam)
     }
-  }, [codigoParam])
+  }, [codigoParam, codigoSeleccionado])
 
+  // Cuentas activas en catálogo
   const cuentasActivas = useMemo(() => cuentas.filter((c) => c.activa), [cuentas])
 
+  // Mapa de conteo de movimientos por cuenta en el ejercicio actual
+  const actividadCuentas = useMemo(() => {
+    const mapa = new Map<string, number>()
+    const asientosEjercicio = asientos.filter((a) => {
+      if (a.estado === "ANULADO") return false
+      const ej = a.ejercicio || (a.fecha ? new Date(a.fecha).getFullYear() : undefined)
+      return ej === undefined || ej === ejercicioSeleccionado
+    })
+
+    for (const a of asientosEjercicio) {
+      for (const l of a.lineas) {
+        mapa.set(l.codigo, (mapa.get(l.codigo) || 0) + 1)
+      }
+    }
+    return mapa
+  }, [asientos, ejercicioSeleccionado])
+
+  // Cuentas elegibles para navegación secuencial
+  const cuentasNavegables = useMemo(() => {
+    if (!soloConMovimientos) return cuentasActivas
+    return cuentasActivas.filter((c) => (actividadCuentas.get(c.codigo) || 0) > 0)
+  }, [cuentasActivas, soloConMovimientos, actividadCuentas])
+
   const indiceActual = useMemo(
-    () => cuentasActivas.findIndex((c) => c.codigo === codigoSeleccionado),
-    [cuentasActivas, codigoSeleccionado]
+    () => cuentasNavegables.findIndex((c) => c.codigo === codigoSeleccionado),
+    [cuentasNavegables, codigoSeleccionado]
   )
 
   const cuentaActual: Cuenta | undefined = useMemo(() => {
     return cuentasActivas.find((c) => c.codigo === codigoSeleccionado) || cuentasActivas[0]
   }, [cuentasActivas, codigoSeleccionado])
 
-  const cuentaAnterior = () => {
+  const cuentaAnterior = useCallback(() => {
     if (indiceActual > 0) {
-      setCodigoSeleccionado(cuentasActivas[indiceActual - 1].codigo)
+      setCodigoSeleccionado(cuentasNavegables[indiceActual - 1].codigo)
     }
-  }
+  }, [indiceActual, cuentasNavegables])
 
-  const cuentaSiguiente = () => {
-    if (indiceActual < cuentasActivas.length - 1) {
-      setCodigoSeleccionado(cuentasActivas[indiceActual + 1].codigo)
+  const cuentaSiguiente = useCallback(() => {
+    if (indiceActual >= 0 && indiceActual < cuentasNavegables.length - 1) {
+      setCodigoSeleccionado(cuentasNavegables[indiceActual + 1].codigo)
     }
-  }
+  }, [indiceActual, cuentasNavegables])
 
+  // Atajos de teclado para navegación entre cuentas y cierre de modal
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (partidaDetalle) {
+        if (e.key === "Escape") setPartidaDetalle(null)
+        return
+      }
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return
+
+      if (e.altKey && e.key === "ArrowLeft") {
+        e.preventDefault()
+        cuentaAnterior()
+      } else if (e.altKey && e.key === "ArrowRight") {
+        e.preventDefault()
+        cuentaSiguiente()
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [partidaDetalle, cuentaAnterior, cuentaSiguiente])
+
+  // Cuentas filtradas en el selector reactivo
   const cuentasFiltradas = useMemo(() => {
     const q = busqueda.trim().toLowerCase()
-    if (!q) return cuentasActivas
-    return cuentasActivas.filter(
-      (c) => c.codigo.toLowerCase().includes(q) || c.nombre.toLowerCase().includes(q)
-    )
-  }, [cuentasActivas, busqueda])
+    return cuentasActivas.filter((c) => {
+      const matchTexto = c.codigo.toLowerCase().includes(q) || c.nombre.toLowerCase().includes(q)
+      if (soloConMovimientos) {
+        return matchTexto && (actividadCuentas.get(c.codigo) || 0) > 0
+      }
+      return matchTexto
+    })
+  }, [cuentasActivas, busqueda, soloConMovimientos, actividadCuentas])
 
-  // Movimientos cronológicos y saldo progresivo
-  const todosMovimientos: MovimientoKardex[] = useMemo(() => {
+  // Extracción cronológica de todos los movimientos del año
+  const todosMovimientosAño = useMemo(() => {
     if (!cuentaActual) return []
 
     const asientosDelEjercicio = asientos
@@ -162,16 +226,30 @@ function KardexContent() {
     return lista
   }, [asientos, cuentaActual, ejercicioSeleccionado])
 
-  // Filtrado temporal
-  const movimientos = useMemo(() => {
-    if (mesFiltro === "todos") return todosMovimientos
-    const mesNum = Number(mesFiltro)
-    return todosMovimientos.filter((m) => {
-      const fecha = new Date(m.fecha + "T00:00:00")
-      return fecha.getMonth() + 1 === mesNum
-    })
-  }, [todosMovimientos, mesFiltro])
+  // Movimientos filtrados por mes con ARRASTRE DE SALDO INICIAL exacto
+  const { movimientos, saldoInicialPeriodo } = useMemo(() => {
+    if (mesFiltro === "todos") {
+      return { movimientos: todosMovimientosAño, saldoInicialPeriodo: 0 }
+    }
 
+    const mesNum = Number(mesFiltro)
+    let saldoInicial = 0
+    const delMes: MovimientoKardex[] = []
+
+    for (const m of todosMovimientosAño) {
+      const fechaObj = new Date(m.fecha + "T00:00:00")
+      const mesItem = fechaObj.getMonth() + 1
+      if (mesItem < mesNum) {
+        saldoInicial = m.saldo
+      } else if (mesItem === mesNum) {
+        delMes.push(m)
+      }
+    }
+
+    return { movimientos: delMes, saldoInicialPeriodo: saldoInicial }
+  }, [todosMovimientosAño, mesFiltro])
+
+  // Estadísticas del periodo
   const totalDebe = useMemo(
     () => redondear(movimientos.reduce((acc, m) => acc + m.debe, 0)),
     [movimientos]
@@ -180,10 +258,26 @@ function KardexContent() {
     () => redondear(movimientos.reduce((acc, m) => acc + m.haber, 0)),
     [movimientos]
   )
-  const saldoFinal = useMemo(() => {
-    if (!cuentaActual || movimientos.length === 0) return 0
+
+  const saldoFinalPeriodo = useMemo(() => {
+    if (movimientos.length === 0) return saldoInicialPeriodo
     return movimientos[movimientos.length - 1].saldo
-  }, [movimientos, cuentaActual])
+  }, [movimientos, saldoInicialPeriodo])
+
+  // Naturaleza del saldo final (identificación de sobregiros o anomalías)
+  const esSaldoAnomalo = useMemo(() => {
+    if (saldoFinalPeriodo === 0) return false
+    return saldoFinalPeriodo < 0
+  }, [saldoFinalPeriodo])
+
+  const etiquetaNaturalezaSaldo = useMemo(() => {
+    if (saldoFinalPeriodo === 0) return "Saldada ($0.00)"
+    if (cuentaActual?.naturaleza === "deudora") {
+      return saldoFinalPeriodo >= 0 ? "Saldo Deudor (Normal)" : "Saldo Acreedor (⚠️ Sobregiro / Anómalo)"
+    } else {
+      return saldoFinalPeriodo >= 0 ? "Saldo Acreedor (Normal)" : "Saldo Deudor (⚠️ Anómalo)"
+    }
+  }, [saldoFinalPeriodo, cuentaActual])
 
   function exportarPdf() {
     const previousTitle = document.title
@@ -198,15 +292,29 @@ function KardexContent() {
     if (!cuentaActual) return
 
     const filas: (string | number | null | undefined)[][] = [
-      ["SISTEMA CONTABLE AUTOMATIZADO - LIBRO AUXILIAR DE CUENTAS"],
+      ["SISTEMA CONTABLE AUTOMATIZADO - LIBRO AUXILIAR / KARDEX"],
       [`Ejercicio fiscal: ${ejercicioSeleccionado}`],
       [`Cuenta: ${cuentaActual.codigo} - ${cuentaActual.nombre}`],
-      [`Tipo: ${cuentaActual.tipo} | Naturaleza: ${cuentaActual.naturaleza}`],
+      [`Tipo: ${cuentaActual.tipo.toUpperCase()} | Naturaleza Normal: ${cuentaActual.naturaleza.toUpperCase()}`],
       [`Filtro aplicado: ${MESES.find((m) => m.valor === mesFiltro)?.label || "Todo el año"}`],
+      [`Condición de Saldo: ${etiquetaNaturalezaSaldo}`],
       [`Fecha de emisión: ${new Date().toLocaleDateString("es-SV")}`],
       [],
       ["Fecha", "Partida #", "Correlativo", "Tipo", "Concepto / Glosa", "Debe (Cargos)", "Haber (Abonos)", "Saldo Progresivo"],
     ]
+
+    if (mesFiltro !== "todos") {
+      filas.push([
+        `${ejercicioSeleccionado}-${mesFiltro.padStart(2, "0")}-01`,
+        "-",
+        "-",
+        "INICIAL",
+        "SALDO ANTERIOR TRASLADADO DEL PERIODO PREVIO",
+        "",
+        "",
+        saldoInicialPeriodo,
+      ])
+    }
 
     for (const m of movimientos) {
       filas.push([
@@ -215,8 +323,8 @@ function KardexContent() {
         m.correlativoGlobal ?? "-",
         m.tipoPartida,
         m.concepto,
-        m.debe,
-        m.haber,
+        m.debe > 0 ? m.debe : "",
+        m.haber > 0 ? m.haber : "",
         m.saldo,
       ])
     }
@@ -230,7 +338,7 @@ function KardexContent() {
       "",
       totalDebe,
       totalHaber,
-      saldoFinal,
+      saldoFinalPeriodo,
     ])
 
     exportarLibroExcel(`Libro_Auxiliar_${cuentaActual.codigo}_${cuentaActual.nombre.replace(/\s+/g, "_")}`, [
@@ -243,20 +351,23 @@ function KardexContent() {
 
   return (
     <div className="space-y-6">
+      {/* HEADER DE MÓDULO */}
       <header className="space-y-2">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <p className="text-sm font-medium text-primary">Libros Contables</p>
-              <Badge variant="default" className="text-xs">
-                Extracto Auxiliar · Mayor Analítico
+              <span className="text-xs font-semibold uppercase tracking-wider text-primary">
+                Libros Auxiliares
+              </span>
+              <Badge variant="default" className="text-xs font-mono">
+                Extracto Detallado · {ejercicioSeleccionado}
               </Badge>
             </div>
-            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
-              Kardex / Libro Auxiliar
+            <h1 className="text-2xl font-bold tracking-tight md:text-3xl text-foreground">
+              Kardex / Libro Auxiliar de Cuentas
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Auditoría cronológica de movimientos contables en dólares (USD) y cálculo de saldos progresivos cuenta por cuenta para el ejercicio {ejercicioSeleccionado}.
+            <p className="mt-1 text-sm text-muted-foreground max-w-3xl">
+              Auditoría cronológica y trazabilidad de débitos, créditos y saldos acumulados progresivos en dólares (USD). Cumple con los requerimientos de auditoría fiscal salvadoreña.
             </p>
           </div>
           <div className="flex flex-wrap gap-2 print:hidden">
@@ -282,97 +393,123 @@ function KardexContent() {
         </div>
       </header>
 
-      {/* SELECTOR DE CUENTAS ERGONÓMICO */}
-      <Card className="print:hidden">
+      {/* SELECTOR ERGONÓMICO Y NAVEGACIÓN PROFESIONAL */}
+      <Card className="print:hidden border-border/80 shadow-sm">
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <Layers className="size-4 text-primary" />
-              Selección y Navegación de Cuentas
+              Selector de Cuenta y Auditoría
             </CardTitle>
-            <div className="flex items-center gap-1.5">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={cuentaAnterior}
-                disabled={indiceActual <= 0}
-                className="h-8 px-2 text-xs"
-                title="Cuenta anterior (alfabéticamente)"
-              >
-                <ChevronLeft className="size-4 mr-1" />
-                Anterior
-              </Button>
-              <span className="text-xs text-muted-foreground font-mono px-1">
-                {indiceActual + 1} de {cuentasActivas.length}
-              </span>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={cuentaSiguiente}
-                disabled={indiceActual >= cuentasActivas.length - 1}
-                className="h-8 px-2 text-xs"
-                title="Siguiente cuenta (alfabéticamente)"
-              >
-                Siguiente
-                <ChevronRight className="size-4 ml-1" />
-              </Button>
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none bg-muted/40 px-2 py-1 rounded border border-border/60">
+                <input
+                  type="checkbox"
+                  checked={soloConMovimientos}
+                  onChange={(e) => setSoloConMovimientos(e.target.checked)}
+                  className="rounded text-primary focus:ring-primary size-3.5"
+                />
+                Solo cuentas con movimientos
+              </label>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={cuentaAnterior}
+                  disabled={indiceActual <= 0}
+                  className="h-8 px-2 text-xs"
+                  title="Cuenta anterior (Atajo: Alt + Flecha Izquierda)"
+                >
+                  <ChevronLeft className="size-4 mr-0.5" />
+                  Anterior
+                </Button>
+                <span className="text-xs text-muted-foreground font-mono px-1.5">
+                  {indiceActual >= 0 ? indiceActual + 1 : 0} de {cuentasNavegables.length}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={cuentaSiguiente}
+                  disabled={indiceActual < 0 || indiceActual >= cuentasNavegables.length - 1}
+                  className="h-8 px-2 text-xs"
+                  title="Siguiente cuenta (Atajo: Alt + Flecha Derecha)"
+                >
+                  Siguiente
+                  <ChevronRight className="size-4 ml-0.5" />
+                </Button>
+              </div>
             </div>
           </div>
           <CardDescription>
-            Busca cualquier cuenta del catálogo o navega correlativamente entre ellas.
+            Accede a las cuentas de uso frecuente en El Salvador o filtra en el catálogo general.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Accesos rápidos */}
-          <div className="flex flex-wrap gap-1.5">
-            <span className="text-xs text-muted-foreground self-center mr-1">Cuentas frecuentes:</span>
-            {CUENTAS_RAPIDAS.map((c) => {
-              const activa = codigoSeleccionado === c.codigo
-              return (
-                <Button
-                  key={c.codigo}
-                  type="button"
-                  size="sm"
-                  variant={activa ? "default" : "outline"}
-                  onClick={() => setCodigoSeleccionado(c.codigo)}
-                  className="h-7 text-xs px-2.5"
-                >
-                  <span className="font-mono mr-1 opacity-70">{c.codigo}</span> {c.nombre}
-                </Button>
-              )
-            })}
+          {/* Accesos rápidos de alta utilidad contable en El Salvador */}
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-muted-foreground">
+              Cuentas frecuentes (Disponibilidades, IVA y Operaciones clave):
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {CUENTAS_RAPIDAS_SV.map((c) => {
+                const activa = codigoSeleccionado === c.codigo
+                const numMovs = actividadCuentas.get(c.codigo) || 0
+                return (
+                  <Button
+                    key={c.codigo}
+                    type="button"
+                    size="sm"
+                    variant={activa ? "default" : "outline"}
+                    onClick={() => setCodigoSeleccionado(c.codigo)}
+                    className="h-7 text-xs px-2.5 transition-all"
+                  >
+                    <span className="font-mono mr-1.5 font-bold opacity-80">{c.codigo}</span>
+                    <span>{c.nombre}</span>
+                    {numMovs > 0 && (
+                      <span className={`ml-1.5 text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                        activa ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground"
+                      }`}>
+                        {numMovs}
+                      </span>
+                    )}
+                  </Button>
+                )
+              })}
+            </div>
           </div>
 
-          {/* Barra de Búsqueda y Selector Reactivo */}
-          <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+          {/* Barra de Búsqueda Reactiva y Selector de Cuenta */}
+          <div className="grid gap-3 sm:grid-cols-[1fr_260px]">
             <div className="relative">
               <select
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring font-mono font-medium"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono font-medium shadow-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 value={codigoSeleccionado}
                 onChange={(e) => setCodigoSeleccionado(e.target.value)}
                 aria-label="Seleccionar cuenta del catálogo"
               >
-                {cuentasFiltradas.map((c) => (
-                  <option key={c.codigo} value={c.codigo}>
-                    {c.codigo} — {c.nombre} ({c.tipo}, {c.naturaleza})
-                  </option>
-                ))}
+                {cuentasFiltradas.map((c) => {
+                  const movs = actividadCuentas.get(c.codigo) || 0
+                  return (
+                    <option key={c.codigo} value={c.codigo}>
+                      {c.codigo} — {c.nombre} [{c.tipo.toUpperCase()}, {c.naturaleza}] {movs > 0 ? `(${movs} movs)` : "(Sin movs)"}
+                    </option>
+                  )
+                })}
               </select>
             </div>
 
-            <div className="relative w-full sm:w-64">
+            <div className="relative">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Filtrar lista de cuentas..."
+                placeholder="Buscar código o nombre..."
                 value={busqueda}
                 onChange={(e) => {
                   const val = e.target.value
                   setBusqueda(val)
-                  // Si hay una coincidencia exacta de código, seleccionarla al instante
-                  const matchExacto = cuentasActivas.find((c) => c.codigo === val.trim())
-                  if (matchExacto) setCodigoSeleccionado(matchExacto.codigo)
+                  const match = cuentasActivas.find((c) => c.codigo === val.trim())
+                  if (match) setCodigoSeleccionado(match.codigo)
                 }}
                 className="pl-9 h-10"
               />
@@ -381,7 +518,7 @@ function KardexContent() {
         </CardContent>
       </Card>
 
-      {/* AVISO METODOLÓGICO PARA CUENTA 1104 */}
+      {/* AVISO METODOLÓGICO PARA INVENTARIO (CUENTA 1104) */}
       {codigoSeleccionado === "1104" && (
         <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-4 text-xs text-blue-950 dark:text-blue-200">
           <div className="flex items-start gap-3">
@@ -391,95 +528,150 @@ function KardexContent() {
                 Aviso: Cuenta 1104 bajo el Método Analítico o Pormenorizado
               </p>
               <p className="leading-relaxed">
-                Bajo el <strong>Método Analítico</strong>, la cuenta <strong>1104 (Inventario de mercadería)</strong> permanece estática durante el ejercicio contable ({ejercicioSeleccionado}), reflejando el <em>Inventario Inicial</em>.
+                Bajo el <strong>Método Analítico</strong>, la cuenta <strong>1104 (Inventario de mercadería)</strong> permanece estática durante el ejercicio ({ejercicioSeleccionado}), reflejando únicamente el <em>Inventario Inicial</em>.
               </p>
               <p className="leading-relaxed">
-                Para auditar el flujo operativo de compras y ventas, consulte las cuentas correspondientes: <strong>4101 (Compras)</strong>, <strong>4102 (Gastos s/compras)</strong>, <strong>5102 (Devoluciones s/compras)</strong> y <strong>5101 (Ventas)</strong>. La existencia física final se valida en la <em>Toma Física de Inventario</em> en Estados Financieros.
+                Para auditar el flujo operativo comercial, audite las cuentas de flujo: <strong>4101 (Compras)</strong>, <strong>1105 (IVA Crédito Fiscal)</strong>, <strong>2103 (IVA Débito Fiscal)</strong> y <strong>5101 (Ventas)</strong>. La existencia final física se valida en la <em>Toma Física de Inventario</em>.
               </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* RESUMEN DE LA CUENTA AUDITADA */}
+      {/* TARJETA DE CABECERA Y KPIS (LINEAR / STRIPE STYLE) */}
       {cuentaActual && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardContent className="p-4 sm:p-5">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Cuenta Contable
-              </p>
-              <div className="mt-1 flex items-center justify-between">
-                <div>
-                  <p className="text-xl font-bold font-mono">{cuentaActual.codigo}</p>
-                  <p className="text-sm font-medium text-foreground truncate max-w-[180px]">
-                    {cuentaActual.nombre}
+          {/* 1. Identificación de Cuenta */}
+          <Card className="border-border/80 shadow-sm">
+            <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Cuenta en Consulta
+                </p>
+                <div className="mt-1 flex items-baseline justify-between gap-2">
+                  <p className="text-2xl font-bold font-mono tracking-tight text-foreground">
+                    {cuentaActual.codigo}
                   </p>
+                  <Badge variant={cuentaActual.naturaleza === "deudora" ? "deudora" : "acreedora"}>
+                    {cuentaActual.naturaleza}
+                  </Badge>
                 </div>
-                <Badge variant={cuentaActual.naturaleza === "deudora" ? "deudora" : "default"}>
-                  {cuentaActual.naturaleza}
-                </Badge>
+                <p className="text-sm font-medium text-foreground truncate mt-0.5" title={cuentaActual.nombre}>
+                  {cuentaActual.nombre}
+                </p>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4 sm:p-5">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Total Cargos (Debe)
-              </p>
-              <p className="mt-1 text-2xl font-bold tracking-tight font-mono text-foreground flex items-center gap-1.5">
-                <ArrowDownLeft className="size-5 text-emerald-600" />
-                {formatoMoneda(totalDebe)}
+              <p className="text-[11px] text-muted-foreground mt-3 capitalize">
+                Clasificación: <span className="font-semibold text-foreground">{cuentaActual.tipo}</span>
               </p>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent className="p-4 sm:p-5">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Total Abonos (Haber)
-              </p>
-              <p className="mt-1 text-2xl font-bold tracking-tight font-mono text-foreground flex items-center gap-1.5">
-                <ArrowUpRight className="size-5 text-amber-600" />
-                {formatoMoneda(totalHaber)}
+          {/* 2. Total Cargos (Debe) */}
+          <Card className="border-border/80 shadow-sm">
+            <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full">
+              <div>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Total Cargos (Debe)
+                  </p>
+                  <span className="p-1 rounded bg-emerald-500/10 text-emerald-600">
+                    <ArrowDownLeft className="size-4" />
+                  </span>
+                </div>
+                <p className="mt-2 text-2xl font-bold font-mono tabular-nums text-foreground tracking-tight">
+                  {formatoMoneda(totalDebe)}
+                </p>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-3">
+                {movimientos.filter((m) => m.debe > 0).length} partidas con cargos
               </p>
             </CardContent>
           </Card>
 
-          <Card className="border-primary/30 bg-primary/[0.02]">
-            <CardContent className="p-4 sm:p-5">
-              <p className="text-xs font-medium uppercase tracking-wide text-primary">
-                Saldo Progresivo Actual
+          {/* 3. Total Abonos (Haber) */}
+          <Card className="border-border/80 shadow-sm">
+            <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full">
+              <div>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Total Abonos (Haber)
+                  </p>
+                  <span className="p-1 rounded bg-amber-500/10 text-amber-600">
+                    <ArrowUpRight className="size-4" />
+                  </span>
+                </div>
+                <p className="mt-2 text-2xl font-bold font-mono tabular-nums text-foreground tracking-tight">
+                  {formatoMoneda(totalHaber)}
+                </p>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-3">
+                {movimientos.filter((m) => m.haber > 0).length} partidas con abonos
               </p>
-              <p className="mt-1 text-2xl font-bold tracking-tight font-mono text-primary">
-                {formatoMoneda(saldoFinal)}
-              </p>
+            </CardContent>
+          </Card>
+
+          {/* 4. Saldo Progresivo Actual */}
+          <Card className={`border shadow-sm ${
+            esSaldoAnomalo
+              ? "border-red-500/40 bg-red-500/5"
+              : "border-primary/30 bg-primary/[0.02]"
+          }`}>
+            <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full">
+              <div>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+                    Saldo Progresivo
+                  </p>
+                  {esSaldoAnomalo ? (
+                    <Badge variant="warning" className="text-[10px] uppercase font-bold tracking-wide">
+                      Anómalo
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] font-mono">
+                      {cuentaActual.naturaleza === "deudora" ? "D" : "A"}
+                    </Badge>
+                  )}
+                </div>
+                <p className={`mt-2 text-2xl font-bold font-mono tabular-nums tracking-tight ${
+                  esSaldoAnomalo ? "text-red-600 dark:text-red-400" : "text-primary"
+                }`}>
+                  {formatoMoneda(Math.abs(saldoFinalPeriodo))}
+                </p>
+              </div>
+              <div className="mt-3 flex items-center justify-between text-[11px]">
+                <span className="text-muted-foreground font-medium">
+                  {movimientos.length} movs. en periodo
+                </span>
+                <span className={`font-semibold ${esSaldoAnomalo ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`}>
+                  {etiquetaNaturalezaSaldo}
+                </span>
+              </div>
             </CardContent>
           </Card>
         </div>
       )}
 
-      {/* EXTRACTO CRONOLÓGICO */}
-      <Card>
+      {/* EXTRACTO CRONOLÓGICO Y TABLA DE MOVIMIENTOS */}
+      <Card className="border-border/80 shadow-sm">
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <CardTitle className="text-base font-semibold">
-                Extracto Cronológico y Auditoría de Partidas
+                Extracto Cronológico y Partidas Registradas
               </CardTitle>
               <CardDescription>
-                Historial cronológico de débitos, créditos y saldo acumulado. Haz clic en cualquier partida para ver el asiento completo.
+                Auditoría progresiva de cargos, abonos y saldos. Clic en cualquier partida para inspeccionar el asiento contable balanceado.
               </CardDescription>
             </div>
 
-            {/* Filtro por Mes */}
+            {/* Filtro por Período */}
             <div className="flex items-center gap-2 print:hidden">
               <Calendar className="size-4 text-muted-foreground" />
               <select
                 value={mesFiltro}
                 onChange={(e) => setMesFiltro(e.target.value)}
-                className="h-8 rounded-md border border-input bg-background px-2.5 text-xs font-medium"
+                className="h-8 rounded-md border border-input bg-background px-2.5 text-xs font-medium focus-visible:ring-1 focus-visible:ring-ring"
+                aria-label="Filtrar por mes"
               >
                 {MESES.map((m) => (
                   <option key={m.valor} value={m.valor}>
@@ -487,27 +679,27 @@ function KardexContent() {
                   </option>
                 ))}
               </select>
-              <Badge variant="muted" className="text-xs">
+              <Badge variant="muted" className="text-xs font-mono">
                 {movimientos.length} {movimientos.length === 1 ? "registro" : "registros"}
               </Badge>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          {movimientos.length === 0 ? (
+          {movimientos.length === 0 && saldoInicialPeriodo === 0 ? (
             <div className="py-12 text-center">
-              <ClipboardList className="mx-auto size-10 text-muted-foreground/50 mb-3" />
-              <p className="text-sm font-medium text-muted-foreground">
-                No hay movimientos para la cuenta {cuentaActual?.codigo} - {cuentaActual?.nombre} {mesFiltro !== "todos" ? `en ${MESES.find((m) => m.valor === mesFiltro)?.label}` : ""}.
+              <ClipboardList className="mx-auto size-10 text-muted-foreground/40 mb-3" />
+              <p className="text-sm font-semibold text-muted-foreground">
+                No hay movimientos registrados para la cuenta {cuentaActual?.codigo} - {cuentaActual?.nombre} {mesFiltro !== "todos" ? `en ${MESES.find((m) => m.valor === mesFiltro)?.label}` : `en el ejercicio ${ejercicioSeleccionado}`}.
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                Selecciona otra cuenta arriba o cambia el filtro de período.
+                Cambia el filtro de período arriba o selecciona otra cuenta con transacciones activas.
               </p>
             </div>
           ) : (
             <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full text-left text-sm">
-                <thead className="border-b border-border bg-muted/40 text-xs text-muted-foreground uppercase">
+              <table className="w-full text-left text-sm border-collapse">
+                <thead className="border-b border-border bg-muted/40 text-xs text-muted-foreground uppercase font-medium">
                   <tr>
                     <th className="py-2.5 px-3">Fecha</th>
                     <th className="py-2.5 px-3 text-center">Partida #</th>
@@ -519,59 +711,110 @@ function KardexContent() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
-                  {movimientos.map((m, idx) => (
-                    <tr key={idx} className="hover:bg-muted/40 transition-colors">
-                      <td className="py-2.5 px-3 font-medium whitespace-nowrap font-mono text-xs">
-                        {m.fecha}
+                  {/* RENGLÓN DE SALDO ANTERIOR (EN FILTRO MENSUAL) */}
+                  {mesFiltro !== "todos" && (
+                    <tr className="bg-muted/20 font-medium text-xs text-muted-foreground italic">
+                      <td className="py-2.5 px-3 font-mono whitespace-nowrap">
+                        {`${ejercicioSeleccionado}-${mesFiltro.padStart(2, "0")}-01`}
                       </td>
+                      <td className="py-2.5 px-3 text-center font-mono">-</td>
                       <td className="py-2.5 px-3 text-center">
-                        <button
-                          type="button"
-                          onClick={() => setPartidaDetalle(m.asientoOriginal)}
-                          className="inline-flex items-center gap-1 text-xs font-semibold font-mono text-primary hover:underline bg-primary/10 hover:bg-primary/20 px-2 py-0.5 rounded transition-colors"
-                          title="Hacer clic para ver la partida contable completa"
-                        >
-                          <Eye className="size-3" />
-                          #{m.partidaNumero}
-                        </button>
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-muted">
-                          {m.tipoPartida}
+                        <span className="px-1.5 py-0.5 rounded text-[10px] bg-muted font-sans font-semibold">
+                          INICIAL
                         </span>
                       </td>
-                      <td className="py-2.5 px-3 text-muted-foreground max-w-sm text-xs">
-                        {m.concepto}
+                      <td className="py-2.5 px-3">
+                        Saldo anterior trasladado de periodos previos
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono">
-                        {m.debe > 0 ? (
-                          <span className="text-foreground font-semibold">{formatoMoneda(m.debe)}</span>
-                        ) : (
-                          <span className="text-muted-foreground/40">-</span>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-mono">
-                        {m.haber > 0 ? (
-                          <span className="text-foreground font-semibold">{formatoMoneda(m.haber)}</span>
-                        ) : (
-                          <span className="text-muted-foreground/40">-</span>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-mono font-bold text-primary">
-                        {formatoMoneda(m.saldo)}
+                      <td className="py-2.5 px-3 text-right font-mono text-muted-foreground/60">-</td>
+                      <td className="py-2.5 px-3 text-right font-mono text-muted-foreground/60">-</td>
+                      <td className="py-2.5 px-3 text-right font-mono font-bold text-foreground">
+                        {formatoMoneda(Math.abs(saldoInicialPeriodo))}
+                        <span className="ml-1 text-[10px] text-muted-foreground font-normal">
+                          ({saldoInicialPeriodo >= 0 ? "D" : "A"})
+                        </span>
                       </td>
                     </tr>
-                  ))}
+                  )}
+
+                  {/* MOVIMIENTOS CONTABLES */}
+                  {movimientos.map((m, idx) => {
+                    const rowAnomalo = m.saldo < 0
+                    return (
+                      <tr
+                        key={idx}
+                        className={`transition-colors hover:bg-muted/40 ${
+                          rowAnomalo ? "bg-red-500/[0.02]" : ""
+                        }`}
+                      >
+                        <td className="py-2.5 px-3 font-medium whitespace-nowrap font-mono text-xs text-muted-foreground">
+                          {m.fecha}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          {m.asientoOriginal ? (
+                            <button
+                              type="button"
+                              onClick={() => setPartidaDetalle(m.asientoOriginal!)}
+                              className="inline-flex items-center gap-1 text-xs font-semibold font-mono text-primary hover:underline bg-primary/10 hover:bg-primary/20 px-2 py-0.5 rounded transition-colors"
+                              title="Inspeccionar asiento contable completo"
+                            >
+                              <Eye className="size-3" />
+                              #{m.partidaNumero}
+                            </button>
+                          ) : (
+                            <span className="font-mono text-xs text-muted-foreground">#{m.partidaNumero}</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded bg-muted text-foreground">
+                            {m.tipoPartida}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-foreground/90 max-w-sm text-xs leading-relaxed">
+                          {m.concepto}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono tabular-nums">
+                          {m.debe > 0 ? (
+                            <span className="text-foreground font-semibold">{formatoMoneda(m.debe)}</span>
+                          ) : (
+                            <span className="text-muted-foreground/30">-</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono tabular-nums">
+                          {m.haber > 0 ? (
+                            <span className="text-foreground font-semibold">{formatoMoneda(m.haber)}</span>
+                          ) : (
+                            <span className="text-muted-foreground/30">-</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono tabular-nums font-bold">
+                          <span className={rowAnomalo ? "text-red-600 dark:text-red-400" : "text-primary"}>
+                            {formatoMoneda(Math.abs(m.saldo))}
+                          </span>
+                          <span className="ml-1 text-[10px] font-normal text-muted-foreground">
+                            ({m.saldo >= 0 ? "D" : "A"})
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
-                <tfoot className="border-t-2 border-border bg-muted/20 font-semibold">
+                <tfoot className="border-t-2 border-border bg-muted/30 font-semibold">
                   <tr>
-                    <td colSpan={4} className="py-2.5 px-3 text-xs uppercase tracking-wider">
+                    <td colSpan={4} className="py-3 px-3 text-xs uppercase tracking-wider text-muted-foreground">
                       Totales del período ({mesFiltro === "todos" ? "Año completo" : MESES.find((m) => m.valor === mesFiltro)?.label})
                     </td>
-                    <td className="py-2.5 px-3 text-right font-mono">{formatoMoneda(totalDebe)}</td>
-                    <td className="py-2.5 px-3 text-right font-mono">{formatoMoneda(totalHaber)}</td>
-                    <td className="py-2.5 px-3 text-right font-mono font-bold text-primary">
-                      {formatoMoneda(saldoFinal)}
+                    <td className="py-3 px-3 text-right font-mono tabular-nums text-foreground">
+                      {formatoMoneda(totalDebe)}
+                    </td>
+                    <td className="py-3 px-3 text-right font-mono tabular-nums text-foreground">
+                      {formatoMoneda(totalHaber)}
+                    </td>
+                    <td className="py-3 px-3 text-right font-mono tabular-nums font-bold text-primary">
+                      {formatoMoneda(Math.abs(saldoFinalPeriodo))}
+                      <span className="ml-1 text-[10px] text-muted-foreground font-normal">
+                        ({saldoFinalPeriodo >= 0 ? "D" : "A"})
+                      </span>
                     </td>
                   </tr>
                 </tfoot>
@@ -581,10 +824,18 @@ function KardexContent() {
         </CardContent>
       </Card>
 
-      {/* MODAL DE DRILL-DOWN: VER PARTIDA CONTABLE COMPLETA */}
+      {/* MODAL DE DRILL-DOWN: VER PARTIDA CONTABLE COMPLETA (DOUBLE ENTRY VALIDATED) */}
       {partidaDetalle && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-2xl rounded-xl border border-border bg-card p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in"
+          onClick={() => setPartidaDetalle(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="w-full max-w-2xl rounded-xl border border-border bg-card p-6 shadow-2xl space-y-4 animate-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div>
                 <div className="flex items-center gap-2">
@@ -594,20 +845,26 @@ function KardexContent() {
                   <Badge variant="default" className="text-xs">
                     {partidaDetalle.tipo || "OPERACIÓN"}
                   </Badge>
-                  {partidaDetalle.estado === "ANULADO" && (
+                  {partidaDetalle.estado === "ANULADO" ? (
                     <Badge variant="warning" className="text-xs">
                       ANULADA
+                    </Badge>
+                  ) : (
+                    <Badge variant="success" className="text-xs flex items-center gap-1">
+                      <CheckCircle2 className="size-3" />
+                      APLICADA
                     </Badge>
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Fecha: <strong>{partidaDetalle.fecha}</strong> · Correlativo global: <strong>{partidaDetalle.correlativo_global ?? "-"}</strong>
+                  Fecha: <strong>{partidaDetalle.fecha}</strong> · Correlativo global: <strong>#{partidaDetalle.correlativo_global ?? "-"}</strong>
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setPartidaDetalle(null)}
-                className="text-muted-foreground hover:text-foreground p-1 rounded-md"
+                className="text-muted-foreground hover:text-foreground p-1 rounded-md transition-colors"
+                title="Cerrar modal (Esc)"
               >
                 <X className="size-5" />
               </button>
@@ -615,16 +872,16 @@ function KardexContent() {
 
             <div className="space-y-1">
               <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
-                Concepto / Glosa:
+                Concepto / Glosa Oficial:
               </p>
-              <p className="text-sm bg-muted/30 p-2.5 rounded-lg border border-border/60">
+              <p className="text-sm bg-muted/40 p-2.5 rounded-lg border border-border/60 text-foreground leading-relaxed">
                 {partidaDetalle.concepto}
               </p>
             </div>
 
             <div className="overflow-x-auto rounded-lg border border-border">
               <table className="w-full text-sm">
-                <thead className="bg-muted/50 text-xs text-muted-foreground uppercase">
+                <thead className="bg-muted/50 text-xs text-muted-foreground uppercase font-medium">
                   <tr>
                     <th className="py-2 px-3 text-left">Código</th>
                     <th className="py-2 px-3 text-left">Cuenta</th>
@@ -645,15 +902,15 @@ function KardexContent() {
                         <td className="py-2 px-3">
                           {c?.nombre || "Cuenta desconocida"}
                           {esCuentaActual && (
-                            <span className="ml-2 text-[10px] text-primary font-normal">
-                              (Cuenta en consulta)
+                            <span className="ml-2 text-[10px] text-primary font-normal bg-primary/20 px-1.5 py-0.5 rounded">
+                              Cuenta auditada
                             </span>
                           )}
                         </td>
-                        <td className="py-2 px-3 text-right font-mono">
+                        <td className="py-2 px-3 text-right font-mono tabular-nums">
                           {l.debe > 0 ? formatoMoneda(l.debe) : "-"}
                         </td>
-                        <td className="py-2 px-3 text-right font-mono">
+                        <td className="py-2 px-3 text-right font-mono tabular-nums">
                           {l.haber > 0 ? formatoMoneda(l.haber) : "-"}
                         </td>
                       </tr>
@@ -661,26 +918,46 @@ function KardexContent() {
                   })}
                 </tbody>
                 <tfoot className="bg-muted/30 font-bold border-t border-border">
-                  <tr>
-                    <td colSpan={2} className="py-2 px-3 text-xs uppercase">
-                      Sumas Iguales
-                    </td>
-                    <td className="py-2 px-3 text-right font-mono">
-                      {formatoMoneda(
-                        partidaDetalle.lineas.reduce((acc, l) => acc + (Number(l.debe) || 0), 0)
-                      )}
-                    </td>
-                    <td className="py-2 px-3 text-right font-mono">
-                      {formatoMoneda(
-                        partidaDetalle.lineas.reduce((acc, l) => acc + (Number(l.haber) || 0), 0)
-                      )}
-                    </td>
-                  </tr>
+                  {(() => {
+                    const { debe, haber, diferencia } = totalesAsiento(partidaDetalle.lineas)
+                    const cuadrada = Math.abs(diferencia) < 0.01
+                    return (
+                      <tr>
+                        <td colSpan={2} className="py-2 px-3 text-xs uppercase flex items-center gap-1.5">
+                          {cuadrada ? (
+                            <span className="text-emerald-600 flex items-center gap-1 font-semibold">
+                              <CheckCircle2 className="size-3.5" />
+                              Sumas Iguales (Partida Doble Cuadrada)
+                            </span>
+                          ) : (
+                            <span className="text-red-600 flex items-center gap-1 font-semibold">
+                              <AlertCircle className="size-3.5" />
+                              Descuadre: {formatoMoneda(diferencia)}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2 px-3 text-right font-mono tabular-nums">
+                          {formatoMoneda(debe)}
+                        </td>
+                        <td className="py-2 px-3 text-right font-mono tabular-nums">
+                          {formatoMoneda(haber)}
+                        </td>
+                      </tr>
+                    )
+                  })()}
                 </tfoot>
               </table>
             </div>
 
-            <div className="flex justify-end pt-2">
+            <div className="flex items-center justify-between pt-2">
+              <Link
+                href="/libro-diario"
+                className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                onClick={() => setPartidaDetalle(null)}
+              >
+                <ExternalLink className="size-3.5" />
+                Ver en Libro Diario
+              </Link>
               <Button
                 type="button"
                 variant="outline"
@@ -694,12 +971,13 @@ function KardexContent() {
         </div>
       )}
 
+      {/* PIE DE FIRMAS DE AUDITORÍA (IMPRESIÓN OFICIAL) */}
       <footer className="hidden border-t border-border pt-8 text-center text-xs text-muted-foreground print:block">
-        <p>Auxiliar oficial emitido por el Sistema Contable Automatizado.</p>
+        <p>Libro Auxiliar oficial emitido por el Sistema Contable Automatizado.</p>
         <div className="mt-12 grid grid-cols-3 gap-10">
-          <div className="border-t border-foreground/50 pt-2">Elaboró (Contador)</div>
-          <div className="border-t border-foreground/50 pt-2">Revisó (Auditor)</div>
-          <div className="border-t border-foreground/50 pt-2">Autorizó (Representante)</div>
+          <div className="border-t border-foreground/50 pt-2 font-medium">Elaboró (Contador)</div>
+          <div className="border-t border-foreground/50 pt-2 font-medium">Revisó (Auditor Interno)</div>
+          <div className="border-t border-foreground/50 pt-2 font-medium">Autorizó (Representante Legal)</div>
         </div>
       </footer>
     </div>
@@ -708,7 +986,13 @@ function KardexContent() {
 
 export default function KardexPage() {
   return (
-    <Suspense fallback={<div className="py-12 text-center text-sm text-muted-foreground animate-pulse">Cargando Libro Auxiliar...</div>}>
+    <Suspense
+      fallback={
+        <div className="py-12 text-center text-sm text-muted-foreground animate-pulse">
+          Cargando Libro Auxiliar...
+        </div>
+      }
+    >
       <KardexContent />
     </Suspense>
   )
