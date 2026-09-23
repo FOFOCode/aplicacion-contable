@@ -26,6 +26,7 @@ export default function DashboardPage() {
     asientos,
     mayor,
     estadoResultados,
+    ejercicios,
     ejercicioSeleccionado,
     esEjercicioCerrado,
     cargando,
@@ -84,11 +85,11 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-lg font-bold tracking-tight text-foreground">
             {esEjercicioCerrado
-              ? `Ejercicio ${ejercicioSeleccionado} — Cerrado`
+              ? `Ciclo ${ejercicioSeleccionado} — Cerrado`
               : `Partida #${proximoNumero}`}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {asientosEj.filter((a) => a.estado !== "ANULADO").length} partidas en {ejercicioSeleccionado}
+            {asientosEj.filter((a) => a.estado !== "ANULADO").length} partidas en ciclo {ejercicioSeleccionado}
           </p>
         </div>
         {!esEjercicioCerrado && (
@@ -240,9 +241,9 @@ export default function DashboardPage() {
           {[
             { href: "/libro-diario", title: "Libro Diario", icon: BookOpenText, tag: `${asientosEj.length} partidas` },
             { href: "/libro-mayor", title: "Libro Mayor", icon: ListTree, tag: `${mayor.length} cuentas` },
-            { href: "/kardex", title: "Libro Auxiliar", icon: ClipboardList, tag: "Auxiliar" },
-            { href: "/estados-financieros", title: "Estados Financieros", icon: Scale, tag: "Balance y Cierre" },
-            { href: "/ciclos", title: "Ciclos Contables", icon: History, tag: "Historial de Años" },
+            { href: "/kardex", title: "Kardex", icon: ClipboardList, tag: "Libro Auxiliar" },
+            { href: "/estados-financieros", title: "Estados Financieros", icon: Scale, tag: "Balances y Cierre" },
+            { href: "/ciclos", title: "Ciclos Contables", icon: History, tag: `${ejercicios.length} periodos` },
             { href: "/catalogo", title: "Catálogo", icon: Library, tag: `${cuentas.length} cuentas` },
           ].map((m) => {
             const Icon = m.icon

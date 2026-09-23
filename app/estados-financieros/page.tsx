@@ -280,7 +280,7 @@ export default function EstadosFinancierosPage() {
               Reporte de Estados Financieros
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Ejercicio Fiscal: <strong className="text-foreground">{ejercicioSeleccionado}</strong> · Corte oficial expresado en dólares de los Estados Unidos de América (USD)
+              Ciclo: <strong className="text-foreground">{ejercicioSeleccionado}</strong> · Corte oficial expresado en dólares de los Estados Unidos de América (USD)
             </p>
           </div>
           <div className="flex flex-wrap gap-2 print:hidden">
@@ -846,10 +846,10 @@ export default function EstadosFinancierosPage() {
             <div>
               <div className="flex items-center gap-2">
                 <CardTitle className="text-base font-semibold">
-                  Administración y Cierre del Ejercicio Fiscal {ejercicioSeleccionado}
+                  Administración y Cierre del Ciclo {ejercicioSeleccionado}
                 </CardTitle>
                 <Badge variant={esEjercicioCerrado ? "muted" : "default"} className="text-xs">
-                  {esEjercicioCerrado ? "Ejercicio Cerrado" : "Abierto para Operación"}
+                  {esEjercicioCerrado ? "Ciclo Cerrado" : "Abierto para Operación"}
                 </Badge>
               </div>
               <CardDescription className="text-xs mt-1">

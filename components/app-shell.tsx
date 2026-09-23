@@ -26,7 +26,7 @@ const NAV = [
   { href: "/libro-diario", label: "Libro Diario", icon: BookOpenText },
   { href: "/libro-mayor", label: "Libro Mayor", icon: ListTree },
   { href: "/kardex", label: "Kardex", icon: ClipboardList },
-  { href: "/estados-financieros", label: "Reporte de Estados Financieros", icon: Scale },
+  { href: "/estados-financieros", label: "Estados Financieros", icon: Scale },
   { href: "/ciclos", label: "Ciclos Contables", icon: History },
   { href: "/catalogo", label: "Catálogo de Cuentas", icon: Library },
 ]
@@ -180,19 +180,19 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </span>
               )}
 
-              {/* Selector Global de Ejercicio Fiscal */}
+              {/* Selector Global de Ciclo */}
               <div className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1 text-xs shadow-sm">
                 <Calendar className="size-3.5 text-muted-foreground" />
-                <span className="font-medium text-muted-foreground">Año Fiscal:</span>
+                <span className="font-medium text-muted-foreground">Ciclo:</span>
                 <select
                   value={ejercicioSeleccionado}
                   onChange={(e) => setEjercicioSeleccionado(parseInt(e.target.value, 10))}
                   className="bg-transparent font-bold text-foreground focus:outline-none cursor-pointer"
-                  aria-label="Seleccionar ejercicio fiscal"
+                  aria-label="Seleccionar ciclo contable"
                 >
                   {ejercicios.map((ej) => (
                     <option key={ej.ejercicio} value={ej.ejercicio} className="bg-popover text-popover-foreground">
-                      {ej.ejercicio} ({ej.estado})
+                      {ej.ejercicio} ({ej.estado === "ABIERTO" ? "Abierto" : "Cerrado"})
                     </option>
                   ))}
                 </select>
@@ -209,24 +209,24 @@ export function AppShell({ children }: { children: ReactNode }) {
                 )}
               </div>
 
-              {/* Botón para crear un nuevo ejercicio fiscal */}
+              {/* Botón para crear un nuevo ciclo */}
               <button
                 type="button"
                 onClick={abrirModalCrear}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary/20"
-                title="Registrar nuevo ejercicio contable"
+                title="Registrar nuevo ciclo contable"
               >
                 <CalendarPlus className="size-3.5" />
-                <span>+ Nuevo Año</span>
+                <span>+ Ciclo</span>
               </button>
 
               <Link
                 href="/ciclos"
                 className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground shadow-xs"
-                title="Ver historial de ciclos contables"
+                title="Ver ciclos contables"
               >
                 <History className="size-3.5 text-primary" />
-                <span>Historial de Ciclos</span>
+                <span>Ciclos</span>
               </Link>
             </div>
 
@@ -238,13 +238,13 @@ export function AppShell({ children }: { children: ReactNode }) {
             )}
           </div>
 
-          {/* Banner de alerta si el ejercicio está cerrado */}
+          {/* Banner de alerta si el ciclo está cerrado */}
           {esEjercicioCerrado && (
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200 print:hidden">
               <div className="flex items-center gap-2">
                 <Lock className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
                 <p>
-                  <strong>Ejercicio Fiscal {ejercicioSeleccionado} Cerrado y Liquidado:</strong> Este periodo está en modo solo lectura de auditoría. Las cifras son definitivas y protegidas contra modificaciones.
+                  <strong>Ciclo {ejercicioSeleccionado} cerrado:</strong> Este periodo está en modo solo lectura de auditoría. Las cifras son definitivas.
                 </p>
               </div>
               {ejercicios.some((ej) => ej.estado === "ABIERTO") && (
@@ -254,9 +254,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                     const abierto = ejercicios.find((ej) => ej.estado === "ABIERTO")
                     if (abierto) setEjercicioSeleccionado(abierto.ejercicio)
                   }}
-                  className="rounded border border-amber-600/40 bg-background/80 px-2.5 py-1 font-semibold text-amber-700 transition hover:bg-background dark:text-amber-300"
+                  className="rounded border border-amber-600/40 bg-background/80 px-2.5 py-1 font-semibold text-amber-700 transition hover:bg-background dark:text-amber-300 cursor-pointer"
                 >
-                  Ir al Ejercicio Activo ({ejercicios.find((ej) => ej.estado === "ABIERTO")?.ejercicio}) →
+                  Ir al Ciclo Activo ({ejercicios.find((ej) => ej.estado === "ABIERTO")?.ejercicio}) →
                 </button>
               )}
             </div>
