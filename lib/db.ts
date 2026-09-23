@@ -6,23 +6,40 @@ declare global {
 }
 
 export function getDbPool(): Pool | null {
-  const connectionString = process.env.DATABASE_URL
-  if (!connectionString) {
+  const rawConnectionString = process.env.DATABASE_URL
+
+  if (!rawConnectionString) {
     return null
   }
 
   if (!global.__pgPool) {
-    const isCloud =
-      connectionString.includes("neon.tech") ||
+    let connectionString = rawConnectionString
+
+    const isSupabase =
       connectionString.includes("supabase.co") ||
-      connectionString.includes("supabase.com") ||
-      connectionString.includes("sslmode=require")
+      connectionString.includes("supabase.com")
+
+    if (isSupabase) {
+      const url = new URL(connectionString)
+
+      // Quitamos sslmode de la URL porque configuraremos SSL aquí.
+      url.searchParams.delete("sslmode")
+
+      connectionString = url.toString()
+    }
+
     global.__pgPool = new Pool({
       connectionString,
-      ssl: isCloud ? { rejectUnauthorized: false } : false,
+
+      ssl: isSupabase
+        ? {
+            rejectUnauthorized: false,
+          }
+        : false,
+
       max: 10,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000,
+      connectionTimeoutMillis: 10000,
     })
   }
 
@@ -31,11 +48,16 @@ export function getDbPool(): Pool | null {
 
 export async function isDbConnected(): Promise<boolean> {
   const pool = getDbPool()
-  if (!pool) return false
+
+  if (!pool) {
+    return false
+  }
+
   try {
     const res = await pool.query("SELECT 1 AS ok")
     return res.rows.length > 0
-  } catch {
+  } catch (error) {
+    console.error("Error de conexión PostgreSQL:", error)
     return false
   }
 }
