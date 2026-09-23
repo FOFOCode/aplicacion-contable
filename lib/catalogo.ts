@@ -45,9 +45,12 @@ export const CATALOGO_CUENTAS: Cuenta[] = [
   { codigo: "3105", nombre: "Donaciones", tipo: "capital", naturaleza: "acreedora", activa: true },
 
   // 4 - Costos y gastos (naturaleza deudora)
-  //   41 = costo de ventas · 42 = gastos de operación · 43 = gastos financieros
-  { codigo: "4101", nombre: "Costo de venta", tipo: "gasto", naturaleza: "deudora", activa: true },
-  { codigo: "4102", nombre: "Costo de servicios", tipo: "gasto", naturaleza: "deudora", activa: true },
+  //   41 = Compras y cuentas analíticas · 42 = gastos de operación · 43 = gastos financieros
+  { codigo: "4101", nombre: "Compras", tipo: "gasto", naturaleza: "deudora", activa: true },
+  { codigo: "4102", nombre: "Gastos sobre compras", tipo: "gasto", naturaleza: "deudora", activa: true },
+  { codigo: "4103", nombre: "Devoluciones sobre ventas", tipo: "gasto", naturaleza: "deudora", activa: true },
+  { codigo: "4104", nombre: "Rebajas y descuentos sobre ventas", tipo: "gasto", naturaleza: "deudora", activa: true },
+  { codigo: "4105", nombre: "Costo de servicios", tipo: "gasto", naturaleza: "deudora", activa: true },
   { codigo: "4201", nombre: "Gastos de administración", tipo: "gasto", naturaleza: "deudora", activa: true },
   { codigo: "4202", nombre: "Gastos de venta", tipo: "gasto", naturaleza: "deudora", activa: true },
   { codigo: "4203", nombre: "Gastos de depreciación", tipo: "gasto", naturaleza: "deudora", activa: true },
@@ -61,11 +64,12 @@ export const CATALOGO_CUENTAS: Cuenta[] = [
   { codigo: "4303", nombre: "Comisiones bancarias", tipo: "gasto", naturaleza: "deudora", activa: true },
 
   // 5 - Ingresos (naturaleza acreedora)
-  //   51 = ventas / operativos · 52 = ingresos financieros
+  //   51 = Ventas y cuentas analíticas · 52 = ingresos financieros
   { codigo: "5101", nombre: "Ventas", tipo: "ingreso", naturaleza: "acreedora", activa: true },
-  { codigo: "5102", nombre: "Otros ingresos operativos", tipo: "ingreso", naturaleza: "acreedora", activa: true },
-  { codigo: "5103", nombre: "Ingresos por servicios", tipo: "ingreso", naturaleza: "acreedora", activa: true },
-  { codigo: "5104", nombre: "Devoluciones y descuentos sobre ventas", tipo: "ingreso", naturaleza: "acreedora", activa: true },
+  { codigo: "5102", nombre: "Devoluciones sobre compras", tipo: "ingreso", naturaleza: "acreedora", activa: true },
+  { codigo: "5103", nombre: "Rebajas y descuentos sobre compras", tipo: "ingreso", naturaleza: "acreedora", activa: true },
+  { codigo: "5104", nombre: "Otros ingresos operativos", tipo: "ingreso", naturaleza: "acreedora", activa: true },
+  { codigo: "5105", nombre: "Ingresos por servicios", tipo: "ingreso", naturaleza: "acreedora", activa: true },
   { codigo: "5201", nombre: "Productos financieros", tipo: "ingreso", naturaleza: "acreedora", activa: true },
   { codigo: "5202", nombre: "Intereses cobrados", tipo: "ingreso", naturaleza: "acreedora", activa: true },
   { codigo: "5203", nombre: "Utilidad en venta de activos", tipo: "ingreso", naturaleza: "acreedora", activa: true },

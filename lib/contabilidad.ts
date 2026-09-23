@@ -106,6 +106,35 @@ export interface LineaReporte {
   monto: number
 }
 
+export interface MetodoAnaliticoDetalle {
+  // Ventas Netas
+  ventasTotales: number
+  devolucionesSobreVentas: number
+  rebajasSobreVentas: number
+  ventasNetas: number
+
+  // Compras y Mercancías
+  inventarioInicial: number
+  compras: number
+  gastosSobreCompras: number
+  comprasTotales: number
+  devolucionesSobreCompras: number
+  rebajasSobreCompras: number
+  comprasNetas: number
+  totalMercancias: number
+  inventarioFinalEstimado: number
+  costoVentas: number
+
+  // Resultados
+  utilidadBruta: number
+  gastosOperacion: number
+  utilidadOperacion: number
+  totalIngresosFinancieros: number
+  totalGastosFinancieros: number
+  otrosIngresos: number
+  utilidadNeta: number
+}
+
 export interface EstadoResultados {
   ingresos: LineaReporte[]
   gastos: LineaReporte[]
@@ -126,12 +155,13 @@ export interface EstadoResultados {
   totalIngresos: number
   totalGastos: number
   utilidad: number
+  // Detalle del Método Analítico o Pormenorizado
+  analitico: MetodoAnaliticoDetalle
 }
 
 /**
  * Estado de Resultados: código 5 (ingresos) - código 4 (costos y gastos) = utilidad.
- * Además arma el reporte en cascada (ventas → utilidad bruta → utilidad de operación → utilidad neta)
- * clasificando cada cuenta por sus dos primeros dígitos.
+ * Además arma el reporte en cascada y calcula las fórmulas oficiales del Método Analítico o Pormenorizado.
  */
 export function calcularEstadoResultados(mayor: SaldoCuenta[]): EstadoResultados {
   const ingresos: LineaReporte[] = []
@@ -173,6 +203,31 @@ export function calcularEstadoResultados(mayor: SaldoCuenta[]): EstadoResultados
   const totalIngresos = suma(ingresos)
   const totalGastos = suma(gastos)
 
+  // Fórmulas oficiales del Método Analítico o Pormenorizado
+  const buscarSaldo = (codigo: string) => {
+    const item = mayor.find((m) => m.cuenta.codigo === codigo)
+    if (!item) return 0
+    return redondear(item.cuenta.naturaleza === "deudora" ? item.debe - item.haber : item.haber - item.debe)
+  }
+
+  const ventasTotales = Math.max(0, buscarSaldo("5101"))
+  const devolucionesSobreVentas = Math.max(0, buscarSaldo("4103"))
+  const rebajasSobreVentas = Math.max(0, buscarSaldo("4104"))
+  const ventasNetas = redondear(ventasTotales - devolucionesSobreVentas - rebajasSobreVentas)
+
+  const inventarioInicial = Math.max(0, buscarSaldo("1104"))
+  const compras = Math.max(0, buscarSaldo("4101"))
+  const gastosSobreCompras = Math.max(0, buscarSaldo("4102"))
+  const comprasTotales = redondear(compras + gastosSobreCompras)
+  const devolucionesSobreCompras = Math.max(0, buscarSaldo("5102"))
+  const rebajasSobreCompras = Math.max(0, buscarSaldo("5103"))
+  const comprasNetas = redondear(comprasTotales - devolucionesSobreCompras - rebajasSobreCompras)
+  const totalMercancias = redondear(inventarioInicial + comprasNetas)
+  const inventarioFinalEstimado = inventarioInicial
+  const costoVentasAnalitico = redondear(totalMercancias - inventarioFinalEstimado)
+  const utilidadBrutaAnalitica = redondear(ventasNetas - costoVentasAnalitico)
+  const otrosIngresos = Math.max(0, buscarSaldo("5104"))
+
   return {
     ingresos,
     gastos,
@@ -192,6 +247,29 @@ export function calcularEstadoResultados(mayor: SaldoCuenta[]): EstadoResultados
     totalIngresos,
     totalGastos,
     utilidad: redondear(totalIngresos - totalGastos),
+    analitico: {
+      ventasTotales,
+      devolucionesSobreVentas,
+      rebajasSobreVentas,
+      ventasNetas,
+      inventarioInicial,
+      compras,
+      gastosSobreCompras,
+      comprasTotales,
+      devolucionesSobreCompras,
+      rebajasSobreCompras,
+      comprasNetas,
+      totalMercancias,
+      inventarioFinalEstimado,
+      costoVentas: costoVentasAnalitico,
+      utilidadBruta: utilidadBrutaAnalitica,
+      gastosOperacion: totalGastosOperacion,
+      utilidadOperacion,
+      totalIngresosFinancieros,
+      totalGastosFinancieros,
+      otrosIngresos,
+      utilidadNeta: redondear(totalIngresos - totalGastos),
+    },
   }
 }
 

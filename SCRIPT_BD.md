@@ -28,6 +28,26 @@ Para que la base de datos sea fiel al frontend de Next.js ([`lib/types.ts`](file
    - Las líneas de asiento tienen `ON DELETE RESTRICT`. Nunca se borran asientos con líneas asociadas.
    - Las partidas no se eliminan físicamente: se anulan formalmente (`estado = 'ANULADO'`, `anulado_en`, `motivo_anulacion`) mediante el procedimiento `sp_anular_asiento`.
    - Toda creación, anulación o cierre genera una traza inmutable en la tabla `asiento_historial`.
+8. **Adopción Estricta del Método Analítico o Pormenorizado:**
+   - A diferencia del método de Inventarios Perpetuos, el **Método Analítico** abre una cuenta nominal o de resultados específica para cada operación relacionada con la mercadería:
+     * `1104 Inventario de mercadería`: Registra únicamente el inventario inicial al inicio del ejercicio (permanece inalterado hasta el inventario físico final).
+     * `4101 Compras`: Se debita por las adquisiciones de mercancías al precio de adquisición.
+     * `4102 Gastos sobre compras`: Se debita por fletes, acarreos, seguros y derechos aduanales asociados a la compra.
+     * `4103 Devoluciones sobre ventas`: Se debita por el precio de venta de las mercancías devueltas por clientes.
+     * `4104 Rebajas y descuentos sobre ventas`: Se debita por bonificaciones y rebajas sobre precios de venta otorgados a clientes.
+     * `5101 Ventas`: Se acredita por las ventas realizadas al precio comercial (sin registrar costo de venta por cada transacción individual).
+     * `5102 Devoluciones sobre compras`: Se acredita por las mercancías devueltas a proveedores.
+     * `5103 Rebajas y descuentos sobre compras`: Se acredita por las rebajas o bonificaciones otorgadas por proveedores.
+   - **Fórmula Cascada del Estado de Resultados (Método Analítico):**
+     * **Ventas Netas** = Ventas Totales (5101) - Devoluciones s/ventas (4103) - Rebajas s/ventas (4104)
+     * **Compras Totales** = Compras (4101) + Gastos s/compras (4102)
+     * **Compras Netas** = Compras Totales - Devoluciones s/compras (5102) - Rebajas s/compras (5103)
+     * **Total de Mercancías Disponibles** = Inventario Inicial (1104) + Compras Netas
+     * **Costo de Ventas (Costo de lo Vendido)** = Total de Mercancías - Inventario Final
+     * **Utilidad Bruta** = Ventas Netas - Costo de Ventas
+     * **Utilidad de Operación** = Utilidad Bruta - Gastos de Operación (42xx)
+     * **Utilidad Neta** = Utilidad de Operación ± Gastos/Productos Financieros y Otros
+   - Cuenta con la vista SQL nativa `vista_estado_resultados_analitico` que calcula automáticamente cada renglón de esta fórmula.
 
 ---
 

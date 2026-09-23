@@ -9,6 +9,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- 1. LIMPIEZA PREVENTIVA
 -- -----------------------------------------------------------------------------
 DROP VIEW IF EXISTS vista_balance_general CASCADE;
+DROP VIEW IF EXISTS vista_estado_resultados_analitico CASCADE;
 DROP VIEW IF EXISTS vista_estado_resultados CASCADE;
 DROP VIEW IF EXISTS vista_estado_resultados_detalle CASCADE;
 DROP VIEW IF EXISTS vista_balance_comprobacion CASCADE;
@@ -308,7 +309,70 @@ SELECT
     ROUND(total_ingresos - total_gastos, 2) AS utilidad
 FROM totales;
 
--- 5.6. Balance General y Cuadratura (lib/contabilidad.ts -> calcularBalanceGeneral)
+-- 5.6. Estado de Resultados Detallado por el Método Analítico o Pormenorizado
+CREATE OR REPLACE VIEW vista_estado_resultados_analitico AS
+WITH cuentas_saldos AS (
+    SELECT 
+        cuenta_codigo,
+        saldo_normalizado
+    FROM vista_libro_mayor
+),
+calculos AS (
+    SELECT
+        COALESCE((SELECT saldo_normalizado FROM cuentas_saldos WHERE cuenta_codigo = '5101'), 0.00) AS ventas_totales,
+        COALESCE((SELECT saldo_normalizado FROM cuentas_saldos WHERE cuenta_codigo = '4103'), 0.00) AS devoluciones_sobre_ventas,
+        COALESCE((SELECT saldo_normalizado FROM cuentas_saldos WHERE cuenta_codigo = '4104'), 0.00) AS rebajas_sobre_ventas,
+        COALESCE((SELECT saldo_normalizado FROM cuentas_saldos WHERE cuenta_codigo = '1104'), 0.00) AS inventario_inicial,
+        COALESCE((SELECT saldo_normalizado FROM cuentas_saldos WHERE cuenta_codigo = '4101'), 0.00) AS compras,
+        COALESCE((SELECT saldo_normalizado FROM cuentas_saldos WHERE cuenta_codigo = '4102'), 0.00) AS gastos_sobre_compras,
+        COALESCE((SELECT saldo_normalizado FROM cuentas_saldos WHERE cuenta_codigo = '5102'), 0.00) AS devoluciones_sobre_compras,
+        COALESCE((SELECT saldo_normalizado FROM cuentas_saldos WHERE cuenta_codigo = '5103'), 0.00) AS rebajas_sobre_compras,
+        COALESCE((SELECT SUM(saldo_normalizado) FROM cuentas_saldos WHERE cuenta_codigo LIKE '42%'), 0.00) AS gastos_operacion,
+        COALESCE((SELECT SUM(saldo_normalizado) FROM cuentas_saldos WHERE cuenta_codigo LIKE '43%'), 0.00) AS gastos_financieros,
+        COALESCE((SELECT SUM(saldo_normalizado) FROM cuentas_saldos WHERE cuenta_codigo LIKE '52%'), 0.00) AS productos_financieros,
+        COALESCE((SELECT saldo_normalizado FROM cuentas_saldos WHERE cuenta_codigo = '5104'), 0.00) AS otros_ingresos
+)
+SELECT
+    ventas_totales,
+    devoluciones_sobre_ventas,
+    rebajas_sobre_ventas,
+    ROUND(ventas_totales - devoluciones_sobre_ventas - rebajas_sobre_ventas, 2) AS ventas_netas,
+    inventario_inicial,
+    compras,
+    gastos_sobre_compras,
+    ROUND(compras + gastos_sobre_compras, 2) AS compras_totales,
+    devoluciones_sobre_compras,
+    rebajas_sobre_compras,
+    ROUND((compras + gastos_sobre_compras) - devoluciones_sobre_compras - rebajas_sobre_compras, 2) AS compras_netas,
+    ROUND(inventario_inicial + ((compras + gastos_sobre_compras) - devoluciones_sobre_compras - rebajas_sobre_compras), 2) AS total_mercancias,
+    inventario_inicial AS inventario_final_estimado,
+    ROUND((compras + gastos_sobre_compras) - devoluciones_sobre_compras - rebajas_sobre_compras, 2) AS costo_ventas_analitico,
+    ROUND(
+        (ventas_totales - devoluciones_sobre_ventas - rebajas_sobre_ventas)
+        - ((compras + gastos_sobre_compras) - devoluciones_sobre_compras - rebajas_sobre_compras),
+        2
+    ) AS utilidad_bruta,
+    gastos_operacion,
+    ROUND(
+        (ventas_totales - devoluciones_sobre_ventas - rebajas_sobre_ventas)
+        - ((compras + gastos_sobre_compras) - devoluciones_sobre_compras - rebajas_sobre_compras)
+        - gastos_operacion,
+        2
+    ) AS utilidad_operacion,
+    productos_financieros,
+    gastos_financieros,
+    ROUND(
+        (ventas_totales - devoluciones_sobre_ventas - rebajas_sobre_ventas)
+        - ((compras + gastos_sobre_compras) - devoluciones_sobre_compras - rebajas_sobre_compras)
+        - gastos_operacion
+        + productos_financieros
+        - gastos_financieros
+        + otros_ingresos,
+        2
+    ) AS utilidad_neta
+FROM calculos;
+
+-- 5.7. Balance General y Cuadratura (lib/contabilidad.ts -> calcularBalanceGeneral)
 CREATE OR REPLACE VIEW vista_balance_general AS
 WITH saldos AS (
     SELECT 
@@ -485,9 +549,12 @@ INSERT INTO catalogo_cuentas (codigo, nombre, tipo, naturaleza, activa) VALUES
 ('3105', 'Donaciones', 'capital', 'acreedora', TRUE),
 
 -- 4. Costos y gastos (Naturaleza deudora)
--- 41. Costo de venta
-('4101', 'Costo de venta', 'gasto', 'deudora', TRUE),
-('4102', 'Costo de servicios', 'gasto', 'deudora', TRUE),
+-- 41. Compras y cuentas analíticas deudoras
+('4101', 'Compras', 'gasto', 'deudora', TRUE),
+('4102', 'Gastos sobre compras', 'gasto', 'deudora', TRUE),
+('4103', 'Devoluciones sobre ventas', 'gasto', 'deudora', TRUE),
+('4104', 'Rebajas y descuentos sobre ventas', 'gasto', 'deudora', TRUE),
+('4105', 'Costo de servicios', 'gasto', 'deudora', TRUE),
 -- 42. Gastos de operación
 ('4201', 'Gastos de administración', 'gasto', 'deudora', TRUE),
 ('4202', 'Gastos de venta', 'gasto', 'deudora', TRUE),
@@ -503,62 +570,88 @@ INSERT INTO catalogo_cuentas (codigo, nombre, tipo, naturaleza, activa) VALUES
 ('4303', 'Comisiones bancarias', 'gasto', 'deudora', TRUE),
 
 -- 5. Ingresos (Naturaleza acreedora)
--- 51. Ventas y operativos
+-- 51. Ventas y cuentas analíticas acreedoras
 ('5101', 'Ventas', 'ingreso', 'acreedora', TRUE),
-('5102', 'Otros ingresos operativos', 'ingreso', 'acreedora', TRUE),
-('5103', 'Ingresos por servicios', 'ingreso', 'acreedora', TRUE),
-('5104', 'Devoluciones y descuentos sobre ventas', 'ingreso', 'acreedora', TRUE),
+('5102', 'Devoluciones sobre compras', 'ingreso', 'acreedora', TRUE),
+('5103', 'Rebajas y descuentos sobre compras', 'ingreso', 'acreedora', TRUE),
+('5104', 'Otros ingresos operativos', 'ingreso', 'acreedora', TRUE),
+('5105', 'Ingresos por servicios', 'ingreso', 'acreedora', TRUE),
 -- 52. Financieros
 ('5201', 'Productos financieros', 'ingreso', 'acreedora', TRUE),
 ('5202', 'Intereses cobrados', 'ingreso', 'acreedora', TRUE),
 ('5203', 'Utilidad en venta de activos', 'ingreso', 'acreedora', TRUE)
 ON CONFLICT (codigo) DO NOTHING;
 
--- 7.2. Asientos iniciales de ejemplo
+-- 7.2. Asientos iniciales de ejemplo (Método Analítico o Pormenorizado)
 DO $$
 DECLARE
-    v1 UUID; v2 UUID; v3 UUID; v4 UUID; v5 UUID;
+    v1 UUID; v2 UUID; v3 UUID; v4 UUID; v5 UUID; v6 UUID; v7 UUID;
 BEGIN
-    -- Partida 1: Aporte inicial ($15,000.00)
+    -- Partida 1: Aportación inicial con Inventario Inicial ($20,000.00)
     INSERT INTO asiento (ejercicio, numero, fecha, concepto, tipo, estado) 
-    VALUES (2026, 1, '2026-01-02', 'Aportación inicial de los socios en efectivo y banco.', 'APERTURA', 'APLICADO') 
+    VALUES (2026, 1, '2026-01-02', 'Aportación inicial de los socios en efectivo, banco e inventario inicial de mercadería.', 'APERTURA', 'APLICADO') 
     RETURNING id INTO v1;
     INSERT INTO asiento_linea (asiento_id, linea_numero, cuenta_codigo, debe, haber) VALUES
     (v1, 1, '1101', 10000.00, 0.00),
     (v1, 2, '1102', 5000.00, 0.00),
-    (v1, 3, '3101', 0.00, 15000.00);
+    (v1, 3, '1104', 5000.00, 0.00),
+    (v1, 4, '3101', 0.00, 20000.00);
 
-    -- Partida 2: Compra de mercadería con IVA crédito fiscal ($4,520.00)
+    -- Partida 2: Compra de mercadería al contado según factura (Método Analítico)
     INSERT INTO asiento (ejercicio, numero, fecha, concepto, tipo, estado) 
-    VALUES (2026, 2, '2026-01-05', 'Compra de mercadería al crédito fiscal, pagada con banco.', 'OPERACION', 'APLICADO') 
+    VALUES (2026, 2, '2026-01-05', 'Compra de mercadería al contado según factura (Método Analítico).', 'OPERACION', 'APLICADO') 
     RETURNING id INTO v2;
     INSERT INTO asiento_linea (asiento_id, linea_numero, cuenta_codigo, debe, haber) VALUES
-    (v2, 1, '1104', 4000.00, 0.00),
+    (v2, 1, '4101', 4000.00, 0.00),
     (v2, 2, '1105', 520.00, 0.00),
     (v2, 3, '1102', 0.00, 4520.00);
 
-    -- Partida 3: Venta de mercadería con IVA débito fiscal ($6,780.00)
+    -- Partida 3: Gastos sobre compras por fletes y transporte (Método Analítico)
     INSERT INTO asiento (ejercicio, numero, fecha, concepto, tipo, estado) 
-    VALUES (2026, 3, '2026-01-12', 'Venta de mercadería con IVA débito fiscal, cobrada en banco.', 'OPERACION', 'APLICADO') 
+    VALUES (2026, 3, '2026-01-07', 'Pago de fletes y transporte de mercadería comprada (Método Analítico).', 'OPERACION', 'APLICADO') 
     RETURNING id INTO v3;
     INSERT INTO asiento_linea (asiento_id, linea_numero, cuenta_codigo, debe, haber) VALUES
-    (v3, 1, '1102', 6780.00, 0.00),
-    (v3, 2, '5101', 0.00, 6000.00),
-    (v3, 3, '2103', 0.00, 780.00);
+    (v3, 1, '4102', 300.00, 0.00),
+    (v3, 2, '1105', 39.00, 0.00),
+    (v3, 3, '1101', 0.00, 339.00);
 
-    -- Partida 4: Costo de ventas ($3,000.00)
+    -- Partida 4: Devolución de mercadería sobre compras al proveedor (Método Analítico)
     INSERT INTO asiento (ejercicio, numero, fecha, concepto, tipo, estado) 
-    VALUES (2026, 4, '2026-01-12', 'Registro del costo de la mercadería vendida.', 'OPERACION', 'APLICADO') 
+    VALUES (2026, 4, '2026-01-09', 'Devolución de mercadería dañada al proveedor (Método Analítico).', 'OPERACION', 'APLICADO') 
     RETURNING id INTO v4;
     INSERT INTO asiento_linea (asiento_id, linea_numero, cuenta_codigo, debe, haber) VALUES
-    (v4, 1, '4101', 3000.00, 0.00),
-    (v4, 2, '1104', 0.00, 3000.00);
+    (v4, 1, '1102', 452.00, 0.00),
+    (v4, 2, '5102', 0.00, 400.00),
+    (v4, 3, '1105', 0.00, 52.00);
 
-    -- Partida 5: Gastos de administración ($800.00)
+    -- Partida 5: Venta de mercaderías al contado con IVA débito fiscal (Método Analítico)
     INSERT INTO asiento (ejercicio, numero, fecha, concepto, tipo, estado) 
-    VALUES (2026, 5, '2026-01-20', 'Pago de gastos de administración con banco.', 'OPERACION', 'APLICADO') 
+    VALUES (2026, 5, '2026-01-12', 'Venta de mercaderías al contado con IVA débito fiscal (Método Analítico).', 'OPERACION', 'APLICADO') 
     RETURNING id INTO v5;
     INSERT INTO asiento_linea (asiento_id, linea_numero, cuenta_codigo, debe, haber) VALUES
-    (v5, 1, '4201', 800.00, 0.00),
-    (v5, 2, '1102', 0.00, 800.00);
+    (v5, 1, '1102', 9040.00, 0.00),
+    (v5, 2, '5101', 0.00, 8000.00),
+    (v5, 3, '2103', 0.00, 1040.00);
+
+    -- Partida 6: Devolución de mercadería sobre ventas por cliente (Método Analítico)
+    INSERT INTO asiento (ejercicio, numero, fecha, concepto, tipo, estado) 
+    VALUES (2026, 6, '2026-01-15', 'Cliente devuelve mercadería por no cumplir especificaciones (Método Analítico).', 'OPERACION', 'APLICADO') 
+    RETURNING id INTO v6;
+    INSERT INTO asiento_linea (asiento_id, linea_numero, cuenta_codigo, debe, haber) VALUES
+    (v6, 1, '4103', 500.00, 0.00),
+    (v6, 2, '2103', 65.00, 0.00),
+    (v6, 3, '1102', 0.00, 565.00);
+
+    -- Partida 7: Gastos de administración ($800.00)
+    INSERT INTO asiento (ejercicio, numero, fecha, concepto, tipo, estado) 
+    VALUES (2026, 7, '2026-01-20', 'Pago de gastos administrativos y servicios con cheque.', 'OPERACION', 'APLICADO') 
+    RETURNING id INTO v7;
+    INSERT INTO asiento_linea (asiento_id, linea_numero, cuenta_codigo, debe, haber) VALUES
+    (v7, 1, '4201', 800.00, 0.00),
+    (v7, 2, '1102', 0.00, 800.00);
+
+    -- Registrar las partidas iniciales en el historial de auditoría
+    INSERT INTO asiento_historial (asiento_id, accion, ejercicio, numero, concepto, total_debe, total_haber, motivo)
+    SELECT id, 'CREACION', ejercicio, numero, concepto, 0.00, 0.00, 'Partida inicial configurada en Método Analítico'
+    FROM asiento;
 END $$;
