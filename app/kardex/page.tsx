@@ -1092,19 +1092,21 @@ function KardexContent() {
         <div className="space-y-4">
           {/* Header Web del Kardex */}
           <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-3 print:hidden">
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="text-xl font-bold tracking-tight md:text-2xl text-foreground">
-                Tarjeta de Kardex
-              </h1>
-              <Badge variant="outline" className="text-xs font-mono font-medium">
-                Ciclo {ejercicioSeleccionado}
-              </Badge>
-              <Badge variant="muted" className="text-xs font-normal">
-                Costo Promedio Ponderado
-              </Badge>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold tracking-tight text-foreground">
+                  Tarjeta de Kardex
+                </h1>
+                <Badge variant="outline" className="text-xs font-mono">
+                  Ciclo {ejercicioSeleccionado}
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Valuación por Costo Promedio Ponderado
+              </p>
             </div>
 
-            <div className="flex items-center gap-2 print:hidden shrink-0 flex-wrap">
+            <div className="flex items-center gap-2 print:hidden shrink-0">
               <Button
                 type="button"
                 size="sm"
@@ -1112,18 +1114,7 @@ function KardexContent() {
                 className="h-8 gap-1.5 text-xs shadow-xs"
               >
                 <Plus className="size-3.5" />
-                Nuevo Movimiento
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={restablecerKardex}
-                className="h-8 gap-1.5 text-xs shadow-xs text-muted-foreground hover:text-foreground"
-                title="Restablecer movimientos de demostración"
-              >
-                <RotateCcw className="size-3.5" />
-                Restablecer
+                Registrar Movimiento
               </Button>
               <Button
                 type="button"
@@ -1133,101 +1124,102 @@ function KardexContent() {
                 className="h-8 gap-1.5 text-xs shadow-xs"
               >
                 <FileDown className="size-3.5" />
-                Imprimir Tarjeta
+                Imprimir
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={exportarExcel}
-                className="h-8 gap-1.5 text-xs border-emerald-600/30 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/20 shadow-xs"
+                className="h-8 gap-1.5 text-xs text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/20 shadow-xs"
               >
                 <FileSpreadsheet className="size-3.5 text-emerald-600" />
-                Exportar Excel
+                Excel
               </Button>
+              <button
+                type="button"
+                onClick={restablecerKardex}
+                title="Restablecer datos de demostración"
+                className="p-1.5 text-muted-foreground hover:text-foreground rounded-md transition-colors"
+                aria-label="Restablecer movimientos de demostración"
+              >
+                <RotateCcw className="size-3.5" />
+              </button>
             </div>
           </header>
 
-          {/* Selector de Artículo y Ficha de Almacén */}
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between rounded-xl border border-border bg-card p-3.5 shadow-xs">
-            <div className="flex items-center gap-2.5 flex-1">
-              <Package className="size-5 text-primary shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                    Artículo en Bodega:
-                  </span>
-                  <select
-                    value={articuloId}
-                    onChange={(e) => setArticuloId(e.target.value)}
-                    className="h-8 rounded-lg border border-border bg-background px-3 py-1 text-xs font-medium focus:ring-1 focus:ring-primary focus:outline-hidden"
-                  >
-                    {ARTICULOS_KARDEX.map((art) => (
-                      <option key={art.codigo} value={art.codigo}>
-                        {art.codigo} — {art.nombre}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Ubicación: <strong className="text-foreground">{articuloActual.ubicacion}</strong> · Unidad: <strong className="text-foreground">{articuloActual.unidad}</strong> · Cuenta Contable: <strong className="text-foreground">{articuloActual.cuentaCodigo} ({articuloActual.cuentaNombre})</strong>
-                </p>
-              </div>
+          {/* Selector de Artículo en Bodega */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 rounded-xl border border-border bg-card p-3 shadow-xs">
+            <div className="flex items-center gap-2.5 flex-1 min-w-0">
+              <span className="text-xs font-medium text-muted-foreground shrink-0">
+                Artículo:
+              </span>
+              <select
+                value={articuloId}
+                onChange={(e) => setArticuloId(e.target.value)}
+                className="h-8 rounded-lg border border-border bg-background px-3 py-1 text-xs font-medium focus:ring-1 focus:ring-primary focus:outline-hidden max-w-md w-full"
+              >
+                {ARTICULOS_KARDEX.map((art) => (
+                  <option key={art.codigo} value={art.codigo}>
+                    {art.codigo} — {art.nombre}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0 border-t md:border-t-0 md:border-l border-border pt-2 md:pt-0 md:pl-3">
-              <span className="font-medium">Valuación Legal:</span>
-              <Badge variant="outline" className="font-mono text-xs">
-                Art. 143 C.T. (Promedio)
-              </Badge>
+            <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0 flex-wrap">
+              <span>Ubicación: <strong className="text-foreground font-medium">{articuloActual.ubicacion}</strong></span>
+              <span>·</span>
+              <span>Cuenta Mayor: <strong className="text-foreground font-medium">{articuloActual.cuentaCodigo} ({articuloActual.cuentaNombre})</strong></span>
+              <span>·</span>
+              <span>Unidad: <strong className="text-foreground font-medium">{articuloActual.unidad}</strong></span>
             </div>
           </div>
 
-          {/* Tarjetas de Resumen KPI Físico-Monetario */}
+          {/* Resumen de Existencias y Valores */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="rounded-xl border border-border bg-card p-3.5 shadow-xs">
-              <span className="text-xs text-muted-foreground block">Existencia Física</span>
-              <div className="flex items-baseline gap-1.5 mt-1">
-                <span className="text-2xl font-bold font-mono text-foreground">
-                  {totalesKardex.saldoUnidades.toLocaleString()}
-                </span>
-                <span className="text-xs text-muted-foreground">{articuloActual.unidad.toLowerCase()}</span>
+            <div className="rounded-xl border border-border bg-card p-3 shadow-xs">
+              <span className="text-[11px] text-muted-foreground block uppercase font-medium">Existencia Física</span>
+              <div className="text-xl font-bold font-mono text-foreground mt-0.5">
+                {totalesKardex.saldoUnidades.toLocaleString()} <span className="text-xs font-normal font-sans text-muted-foreground">{articuloActual.unidad.toLowerCase()}</span>
               </div>
-              <span className="text-[11px] text-muted-foreground mt-1 block">
-                +{totalesKardex.totalEntradas} entradas / -{totalesKardex.totalSalidas} salidas
+              <span className="text-[10px] text-muted-foreground block mt-0.5">
+                +{totalesKardex.totalEntradas} entradas · -{totalesKardex.totalSalidas} salidas
               </span>
             </div>
 
-            <div className="rounded-xl border border-border bg-card p-3.5 shadow-xs">
-              <span className="text-xs text-muted-foreground block">Costo Promedio Ponderado</span>
-              <div className="text-2xl font-bold font-mono text-foreground mt-1">
+            <div className="rounded-xl border border-border bg-card p-3 shadow-xs">
+              <span className="text-[11px] text-muted-foreground block uppercase font-medium">Costo Promedio</span>
+              <div className="text-xl font-bold font-mono text-foreground mt-0.5">
                 {formatoMoneda(totalesKardex.costoPromedioActual)}
               </div>
-              <span className="text-[11px] text-muted-foreground mt-1 block">
-                Por unidad física calculada
+              <span className="text-[10px] text-muted-foreground block mt-0.5">
+                Por unidad física
               </span>
             </div>
 
-            <div className="rounded-xl border border-border bg-card p-3.5 shadow-xs">
-              <span className="text-xs text-muted-foreground block">Saldo Valorado Total</span>
-              <div className="text-2xl font-bold font-mono text-primary mt-1">
+            <div className="rounded-xl border border-border bg-card p-3 shadow-xs">
+              <span className="text-[11px] text-muted-foreground block uppercase font-medium">Saldo Valorado</span>
+              <div className="text-xl font-bold font-mono text-foreground mt-0.5">
                 {formatoMoneda(totalesKardex.saldoValor)}
               </div>
-              <span className="text-[11px] text-muted-foreground mt-1 block">
-                Valor en libros contables
+              <span className="text-[10px] text-muted-foreground block mt-0.5">
+                Valor contable en inventarios
               </span>
             </div>
 
-            <div className="rounded-xl border border-border bg-card p-3.5 shadow-xs">
-              <span className="text-xs text-muted-foreground block">Auditoría con Mayor (1104)</span>
-              <div className="flex items-center gap-1.5 mt-1">
-                <CheckCircle2 className="size-5 text-emerald-600 shrink-0" />
-                <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                  Conciliado 100%
+            <div className="rounded-xl border border-border bg-card p-3 shadow-xs">
+              <span className="text-[11px] text-muted-foreground block uppercase font-medium">Cuenta 1104 (Mayor)</span>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="text-xl font-bold font-mono text-foreground">
+                  {formatoMoneda(totalesKardex.saldoValor)}
+                </span>
+                <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                  (Cuadrado)
                 </span>
               </div>
-              <span className="text-[11px] text-muted-foreground mt-1 block">
-                Kardex {formatoMoneda(totalesKardex.saldoValor)} == Cuenta 1104
+              <span className="text-[10px] text-muted-foreground block mt-0.5">
+                Conciliado con inventario
               </span>
             </div>
           </div>
@@ -1371,17 +1363,6 @@ function KardexContent() {
                 </tfoot>
               </table>
             </div>
-          </div>
-
-          {/* Cuadro de Fundamentación Legal y Técnica */}
-          <div className="rounded-xl border border-border bg-muted/30 p-4 text-xs space-y-2">
-            <div className="flex items-center gap-2 font-semibold text-foreground">
-              <CheckCircle2 className="size-4 text-emerald-600" />
-              <span>Cumplimiento Legal y Contable (Código Tributario de El Salvador, Art. 143)</span>
-            </div>
-            <p className="text-muted-foreground leading-relaxed">
-              El registro de control de inventarios permanente mediante el método de <strong>Costo Promedio Ponderado</strong> garantiza la correcta valuación del inventario final y la determinación exacta del <strong>Costo de Ventas (Cuenta 4101)</strong>. Los movimientos aquí reflejados guardan correlación con los comprobantes de crédito fiscal (compras) y facturas de venta registrados en el <strong>Libro Diario</strong>.
-            </p>
           </div>
         </div>
       ) : (
