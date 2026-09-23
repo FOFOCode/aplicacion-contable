@@ -232,17 +232,6 @@ function recalcularKardexMovimientos(
   })
 }
 
-// Cuentas de uso operativo y tributario frecuente en El Salvador
-const CUENTAS_RAPIDAS_SV = [
-  { codigo: "1101", nombre: "Caja" },
-  { codigo: "1102", nombre: "Bancos" },
-  { codigo: "1103", nombre: "Clientes" },
-  { codigo: "1105", nombre: "IVA Crédito" },
-  { codigo: "2101", nombre: "Proveedores" },
-  { codigo: "2103", nombre: "IVA Débito" },
-  { codigo: "4101", nombre: "Compras" },
-  { codigo: "5101", nombre: "Ventas" },
-]
 
 const MESES = [
   { valor: "todos", label: "Todo el año fiscal" },
@@ -1352,10 +1341,10 @@ function KardexContent() {
           <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-3 print:hidden">
             <div>
               <div className="flex items-center gap-2.5 flex-wrap">
-                <h1 className="text-xl font-bold tracking-tight md:text-2xl text-foreground">
+                <h1 className="text-xl font-bold tracking-tight text-foreground">
                   Libro Auxiliar
                 </h1>
-                <Badge variant="outline" className="text-xs font-mono font-medium">
+                <Badge variant="outline" className="text-xs font-mono">
                   Ciclo {ejercicioSeleccionado}
                 </Badge>
 
@@ -1483,23 +1472,6 @@ function KardexContent() {
                       <ChevronRight className="size-3.5" />
                     </button>
                   </div>
-
-                  {/* Selector compacto de Cuentas Frecuentes */}
-                  <select
-                    value={CUENTAS_RAPIDAS_SV.some((c) => c.codigo === codigoSeleccionado) ? codigoSeleccionado : ""}
-                    onChange={(e) => {
-                      if (e.target.value) setCodigoSeleccionado(e.target.value)
-                    }}
-                    className="h-8.5 rounded-md border border-input bg-background px-2 text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring shrink-0 cursor-pointer hidden sm:block"
-                    aria-label="Cuentas frecuentes"
-                  >
-                    <option value="" disabled>★ Frecuentes...</option>
-                    {CUENTAS_RAPIDAS_SV.map((c) => (
-                      <option key={c.codigo} value={c.codigo}>
-                        {c.nombre} ({c.codigo})
-                      </option>
-                    ))}
-                  </select>
                 </div>
 
                 {/* Filtros secundarios livianos: Período y Solo con movimientos */}
@@ -1624,20 +1596,20 @@ function KardexContent() {
                   {/* Franja compacta de saldos: Saldo Anterior | Debe | Haber | Saldo Actual */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border bg-card border-t border-border text-center text-xs font-mono py-1.5">
                     <div className="py-1 px-3">
-                      <span className="text-[10px] uppercase font-sans text-muted-foreground block">Saldo Anterior</span>
-                      <span className="text-muted-foreground font-medium tabular-nums text-xs">
+                      <span className="text-[10px] uppercase font-sans text-muted-foreground block font-medium">Saldo Anterior</span>
+                      <span className="text-muted-foreground font-semibold tabular-nums text-sm">
                         {formatoMoneda(Math.abs(saldoInicialPeriodo))}
                       </span>
                     </div>
                     <div className="py-1 px-3">
-                      <span className="text-[10px] uppercase font-sans text-muted-foreground block">Debe (Cargos)</span>
-                      <span className="font-semibold tabular-nums text-foreground text-xs">
+                      <span className="text-[10px] uppercase font-sans text-muted-foreground block font-medium">Debe (Cargos)</span>
+                      <span className="font-semibold tabular-nums text-foreground text-sm">
                         +{formatoMoneda(totalDebe)}
                       </span>
                     </div>
                     <div className="py-1 px-3">
-                      <span className="text-[10px] uppercase font-sans text-muted-foreground block">Haber (Abonos)</span>
-                      <span className="font-semibold tabular-nums text-foreground text-xs">
+                      <span className="text-[10px] uppercase font-sans text-muted-foreground block font-medium">Haber (Abonos)</span>
+                      <span className="font-semibold tabular-nums text-foreground text-sm">
                         −{formatoMoneda(totalHaber)}
                       </span>
                     </div>

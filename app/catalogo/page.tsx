@@ -66,7 +66,6 @@ export default function CatalogoPage() {
   const [busqueda, setBusqueda] = useState("")
   const [grupoFiltro, setGrupoFiltro] = useState<"todos" | TipoCuenta>("todos")
   const [filtroEstado, setFiltroEstado] = useState<"todas" | "activas" | "inactivas">("todas")
-  const [bannerAbierto, setBannerAbierto] = useState(false)
 
   // Modales
   const [modalNuevoAbierto, setModalNuevoAbierto] = useState(false)
@@ -432,13 +431,11 @@ export default function CatalogoPage() {
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border/80 pb-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-primary">Contabilidad General</span>
-            <span className="text-xs text-muted-foreground">·</span>
-            <span className="text-xs text-muted-foreground">Plan de Cuentas Institucional</span>
+            <h1 className="text-xl font-bold tracking-tight text-foreground">Catálogo de Cuentas</h1>
+            <Badge variant="outline" className="text-xs font-mono">Plan Institucional</Badge>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight md:text-3xl text-foreground mt-0.5">Catálogo de Cuentas</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground max-w-3xl mt-1">
-            Codificación decimal normalizada: <strong>1 Activo</strong>, <strong>2 Pasivo</strong>, <strong>3 Capital</strong>, <strong>4 Costos y Gastos</strong> y <strong>5 Ingresos</strong>. Estructura el Libro Diario, Mayor y los Estados Financieros.
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Codificación decimal normalizada: 1 Activo, 2 Pasivo, 3 Capital, 4 Costos y Gastos, 5 Ingresos.
           </p>
         </div>
 
@@ -517,63 +514,6 @@ export default function CatalogoPage() {
           )
         })}
       </section>
-
-      {/* BANNER DIDÁCTICO DEL MÉTODO ANALÍTICO (COLAPSABLE) */}
-      <Card className="border-primary/20 bg-primary/[0.015] overflow-hidden">
-        <button
-          type="button"
-          onClick={() => setBannerAbierto(!bannerAbierto)}
-          className="flex w-full items-center justify-between p-3.5 sm:px-5 text-left text-xs sm:text-sm font-medium hover:bg-primary/[0.03] transition-colors"
-        >
-          <div className="flex items-center gap-2.5">
-            <Info className="size-4 text-primary shrink-0" />
-            <span className="font-semibold text-foreground">
-              Guía Técnica · Cuentas Especializadas del Método Analítico o Pormenorizado
-            </span>
-            <Badge variant="outline" className="hidden sm:inline-flex text-[10px] border-primary/30 text-primary">
-              Norma de Costeo Comercial
-            </Badge>
-          </div>
-          <div className="flex items-center gap-1 text-muted-foreground text-xs">
-            <span>{bannerAbierto ? "Ocultar fundamentos" : "Ver cuentas correctoras e inventario"}</span>
-            {bannerAbierto ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-          </div>
-        </button>
-
-        {bannerAbierto && (
-          <CardContent className="px-5 pb-5 pt-1 text-xs border-t border-primary/10 space-y-3">
-            <p className="text-muted-foreground leading-relaxed">
-              En este sistema las operaciones de mercancías no se registran en una sola cuenta genérica, sino que se segregan analíticamente para calcular el <strong>Costo de Ventas</strong> en cascada:
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 font-mono text-[11px]">
-              <div className="rounded-lg border border-border/80 bg-background/80 p-2.5">
-                <span className="font-bold text-primary block">1104 Inventario inicial</span>
-                <span className="text-muted-foreground text-[10px]">Permanece fijo durante el ejercicio contable. Se regulariza en la toma física final.</span>
-              </div>
-              <div className="rounded-lg border border-border/80 bg-background/80 p-2.5">
-                <span className="font-bold text-primary block">4101 Compras brutas</span>
-                <span className="text-muted-foreground text-[10px]">Naturaleza deudora. Adquisiciones al costo de factura.</span>
-              </div>
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/[0.04] p-2.5">
-                <span className="font-bold text-amber-700 dark:text-amber-400 block">5102 Devoluciones s/ compras</span>
-                <span className="text-muted-foreground text-[10px]">Cuenta correctora acreedora. Disminuye directamente las compras brutas.</span>
-              </div>
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/[0.04] p-2.5">
-                <span className="font-bold text-amber-700 dark:text-amber-400 block">5103 Rebajas s/ compras</span>
-                <span className="text-muted-foreground text-[10px]">Cuenta correctora acreedora. Bonificaciones recibidas de proveedores.</span>
-              </div>
-              <div className="rounded-lg border border-border/80 bg-background/80 p-2.5">
-                <span className="font-bold text-primary block">5101 Ventas brutas</span>
-                <span className="text-muted-foreground text-[10px]">Naturaleza acreedora. Facturación total a clientes.</span>
-              </div>
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/[0.04] p-2.5">
-                <span className="font-bold text-amber-700 dark:text-amber-400 block">4103 Devoluciones s/ ventas</span>
-                <span className="text-muted-foreground text-[10px]">Cuenta correctora deudora. Reduce los ingresos brutos por ventas.</span>
-              </div>
-            </div>
-          </CardContent>
-        )}
-      </Card>
 
       {/* BARRA DE HERRAMIENTAS Y FILTRADO INTEGRADO */}
       <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between shadow-xs">
