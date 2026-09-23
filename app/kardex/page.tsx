@@ -4,9 +4,7 @@ import { Suspense, useEffect, useMemo, useState, useCallback } from "react"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import {
-  AlertTriangle,
   ArrowRight,
-  Calendar,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -16,10 +14,7 @@ import {
   FileDown,
   FileSpreadsheet,
   Filter,
-  Info,
-  Receipt,
   Search,
-  ShieldCheck,
   X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -341,6 +336,15 @@ function KardexContent() {
   const devVentas = useMemo(() => Math.max(0, saldoMayorCuenta("4103")), [saldoMayorCuenta])
   const rebVentas = useMemo(() => Math.max(0, saldoMayorCuenta("4104")), [saldoMayorCuenta])
 
+  const comprasNetas = useMemo(
+    () => redondear(comprasBrutas + gastosCompras - devCompras - rebCompras),
+    [comprasBrutas, gastosCompras, devCompras, rebCompras]
+  )
+  const ventasNetas = useMemo(
+    () => redondear(ventasBrutas - devVentas - rebVentas),
+    [ventasBrutas, devVentas, rebVentas]
+  )
+
   // Funciones de exportación e impresión
   function exportarPdf() {
     const previousTitle = document.title
@@ -429,24 +433,15 @@ function KardexContent() {
 
   return (
     <div className="space-y-5">
-      {/* ======================================================== */}
-      {/* 1. MEMBRETE Y CABECERA INSTITUCIONAL */}
-      {/* ======================================================== */}
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border/80 pb-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-primary">Contabilidad Formal</span>
-            <span className="text-xs text-muted-foreground">·</span>
-            <span className="text-xs text-muted-foreground">Ciclo Fiscal {ejercicioSeleccionado}</span>
-            <span className="text-xs text-muted-foreground">·</span>
-            <span className="text-xs text-muted-foreground">Moneda: USD ($)</span>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight md:text-3xl text-foreground mt-0.5">
-            Libro Auxiliar de Mayor
+      {/* 1. CABECERA */}
+      <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-3">
+        <div className="flex items-center gap-2.5">
+          <h1 className="text-xl font-bold tracking-tight md:text-2xl text-foreground">
+            Libro Auxiliar
           </h1>
-          <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
-            Folio cronológico de cargos, abonos y saldo progresivo por cuenta con verificación de cuadre.
-          </p>
+          <Badge variant="outline" className="text-xs font-mono font-medium">
+            Ciclo {ejercicioSeleccionado}
+          </Badge>
         </div>
 
         <div className="flex items-center gap-2 print:hidden shrink-0">
@@ -458,7 +453,7 @@ function KardexContent() {
             className="h-8 gap-1.5 text-xs shadow-xs"
           >
             <FileDown className="size-3.5" />
-            Imprimir Folio
+            Imprimir
           </Button>
           <Button
             type="button"
@@ -473,16 +468,14 @@ function KardexContent() {
         </div>
       </header>
 
-      {/* ======================================================== */}
-      {/* 2. BARRA DE CONTROL CONTABLE (SELECTOR PROFESIONAL) */}
-      {/* ======================================================== */}
+      {/* 2. BARRA DE CONTROL */}
       <div className="space-y-2.5 print:hidden">
         <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between rounded-xl border border-border bg-card p-3 shadow-xs">
-          {/* Selector principal de cuenta con optgroup y saldo visible */}
+          {/* Selector principal de cuenta */}
           <div className="flex flex-1 items-center gap-2">
-            <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Cuenta:</span>
+            <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Cuenta:</span>
             <select
-              className="flex h-9 w-full max-w-xl rounded-md border border-input bg-background px-3 py-1 text-sm font-mono font-medium shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-9 w-full max-w-xl rounded-md border border-input bg-background px-3 py-1 text-sm font-medium shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               value={codigoSeleccionado}
               onChange={(e) => setCodigoSeleccionado(e.target.value)}
               aria-label="Seleccionar cuenta contable"
@@ -493,11 +486,10 @@ function KardexContent() {
                     const sm = saldoMayorMap.get(c.codigo)
                     const tieneMovs = sm !== undefined && sm.movs > 0
                     const saldoVal = sm ? (c.naturaleza === "deudora" ? sm.debe - sm.haber : sm.haber - sm.debe) : 0
-                    const tagNat = saldoVal >= 0 ? (c.naturaleza === "deudora" ? "D" : "A") : (c.naturaleza === "deudora" ? "A" : "D")
 
                     return (
                       <option key={c.codigo} value={c.codigo}>
-                        {c.codigo} — {c.nombre} {tieneMovs ? `| Saldo: ${formatoMoneda(Math.abs(saldoVal))} ${tagNat} (${sm.movs} movs)` : "| Sin movs"}
+                        {c.codigo} — {c.nombre} {tieneMovs ? `(${formatoMoneda(Math.abs(saldoVal))})` : ""}
                       </option>
                     )
                   })}
@@ -581,30 +573,23 @@ function KardexContent() {
           </div>
         </div>
 
-        {/* Accesos rápidos frecuentes de consulta contable */}
-        <div className="flex flex-wrap items-center gap-1 px-1">
-          <span className="text-[11px] text-muted-foreground font-medium mr-1">Frecuentes:</span>
+        {/* Accesos rápidos frecuentes */}
+        <div className="flex flex-wrap items-center gap-1.5 px-1">
+          <span className="text-xs text-muted-foreground font-medium mr-1">Frecuentes:</span>
           {CUENTAS_RAPIDAS_SV.map((c) => {
             const activa = codigoSeleccionado === c.codigo
-            const sm = saldoMayorMap.get(c.codigo)
             return (
               <button
                 key={c.codigo}
                 type="button"
                 onClick={() => setCodigoSeleccionado(c.codigo)}
-                className={`rounded-md px-2 py-0.5 text-xs font-mono transition-colors ${
+                className={`rounded-md px-2.5 py-1 text-xs transition-colors ${
                   activa
-                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
-                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    ? "bg-primary text-primary-foreground font-medium shadow-xs"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
                 }`}
               >
-                <span className="opacity-70 mr-1">{c.codigo}</span>
-                <span>{c.nombre}</span>
-                {sm && sm.movs > 0 && (
-                  <span className={`ml-1 text-[10px] ${activa ? "opacity-90" : "text-muted-foreground"}`}>
-                    ({sm.movs})
-                  </span>
-                )}
+                {c.nombre}
               </button>
             )
           })}
@@ -614,119 +599,75 @@ function KardexContent() {
       {/* ======================================================== */}
       {/* 3. FICHA TÉCNICA DEL FOLIO CONTABLE (ENCABEZADO DE MAYOR) */}
       {/* ======================================================== */}
+      {/* 3. RESUMEN DE LA CUENTA */}
       {cuentaActual && (
         <Card className="border-border shadow-xs overflow-hidden">
-          {/* Banda Superior: Identificación de Cuenta y Enlace a Cuenta T */}
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/40 p-3.5 sm:px-5 border-b border-border">
-            <div className="flex items-center gap-3">
-              <span className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary font-mono font-bold text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/30 px-4 py-2.5 border-b border-border">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <span className="font-mono font-bold text-sm text-foreground bg-muted px-2 py-0.5 rounded border border-border">
                 {cuentaActual.codigo}
               </span>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-base font-bold text-foreground">
-                    {cuentaActual.nombre}
-                  </h2>
-                  <Badge variant={cuentaActual.naturaleza === "deudora" ? "deudora" : "acreedora"} className="text-[11px] capitalize">
-                    Naturaleza {cuentaActual.naturaleza}
-                  </Badge>
-                  {esSaldoAnomalo && (
-                    <Badge variant="warning" className="text-[10px] font-bold">
-                      ⚠️ Sobregiro
-                    </Badge>
-                  )}
-                  {esCuentaSaldada && (
-                    <Badge variant="muted" className="text-[10px]">
-                      Saldada
-                    </Badge>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground capitalize mt-0.5">
-                  Grupo: <strong className="text-foreground font-medium">{cuentaActual.tipo}</strong> · Folio contable del Ciclo {ejercicioSeleccionado}
-                </p>
-              </div>
+              <h2 className="text-base font-semibold text-foreground">
+                {cuentaActual.nombre}
+              </h2>
+              <span className="text-xs text-muted-foreground">·</span>
+              <span className="text-xs text-muted-foreground capitalize">
+                {cuentaActual.tipo} ({cuentaActual.naturaleza})
+              </span>
+              {esSaldoAnomalo && (
+                <Badge variant="warning" className="text-[10px]">
+                  Sobregiro
+                </Badge>
+              )}
             </div>
 
-            {/* Enlace directo a Mayor General (Cuenta T) */}
-            <div className="flex items-center gap-2 print:hidden">
-              <Link
-                href={`/libro-mayor?cuenta=${cuentaActual.codigo}`}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted transition-colors"
-                title="Inspeccionar la Cuenta T en el Libro Mayor"
-              >
-                <span>Ver Cuenta T en Mayor</span>
-                <ArrowRight className="size-3 text-muted-foreground" />
-              </Link>
-            </div>
+            <Link
+              href={`/libro-mayor?cuenta=${cuentaActual.codigo}`}
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors print:hidden"
+            >
+              <span>Ver en Libro Mayor</span>
+              <ArrowRight className="size-3" />
+            </Link>
           </div>
 
-          {/* Banda de Saldos Numéricos del Auxiliar (Formato Folio Contable) */}
-          <div className="grid grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-border bg-card text-center sm:grid-cols-5 p-2 sm:p-0">
-            {/* 1. Saldo Anterior */}
+          <div className="grid grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-border bg-card text-center sm:grid-cols-4 p-2 sm:p-0">
             <div className="p-3">
               <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground block">
                 Saldo Anterior
               </span>
-              <span className="mt-1 text-base sm:text-lg font-bold font-mono tabular-nums text-foreground block">
+              <span className="mt-1 text-base font-semibold font-mono tabular-nums text-foreground block">
                 {formatoMoneda(Math.abs(saldoInicialPeriodo))}
               </span>
-              <span className="text-[10px] text-muted-foreground">
-                {saldoInicialPeriodo === 0 ? "Sin saldo previo" : (saldoInicialPeriodo >= 0 ? "Deudor" : "Acreedor")}
-              </span>
             </div>
 
-            {/* 2. Total Cargos (Debe) */}
             <div className="p-3">
               <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground block">
-                Total Cargos (Debe)
+                Cargos (Debe)
               </span>
-              <span className="mt-1 text-base sm:text-lg font-bold font-mono tabular-nums text-emerald-600 dark:text-emerald-400 block">
-                +{formatoMoneda(totalDebe)}
-              </span>
-              <span className="text-[10px] text-muted-foreground">
-                {movimientos.filter((m) => m.debe > 0).length} débitos
+              <span className="mt-1 text-base font-semibold font-mono tabular-nums text-foreground block">
+                {formatoMoneda(totalDebe)}
               </span>
             </div>
 
-            {/* 3. Total Abonos (Haber) */}
             <div className="p-3">
               <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground block">
-                Total Abonos (Haber)
+                Abonos (Haber)
               </span>
-              <span className="mt-1 text-base sm:text-lg font-bold font-mono tabular-nums text-amber-600 dark:text-amber-400 block">
-                -{formatoMoneda(totalHaber)}
-              </span>
-              <span className="text-[10px] text-muted-foreground">
-                {movimientos.filter((m) => m.haber > 0).length} créditos
+              <span className="mt-1 text-base font-semibold font-mono tabular-nums text-foreground block">
+                {formatoMoneda(totalHaber)}
               </span>
             </div>
 
-            {/* 4. Variación Neta del Período */}
             <div className="p-3">
               <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground block">
-                Variación Neta
+                Saldo Actual
               </span>
-              <span className={`mt-1 text-base sm:text-lg font-bold font-mono tabular-nums block ${
-                variacionNeta > 0 ? "text-emerald-600 dark:text-emerald-400" : variacionNeta < 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"
-              }`}>
-                {variacionNeta > 0 ? `+${formatoMoneda(variacionNeta)}` : formatoMoneda(variacionNeta)}
-              </span>
-              <span className="text-[10px] text-muted-foreground">
-                Flujo del período
-              </span>
-            </div>
-
-            {/* 5. Saldo Actual al Corte */}
-            <div className={`p-3 col-span-2 sm:col-span-1 ${esSaldoAnomalo ? "bg-red-500/10" : "bg-primary/[0.03]"}`}>
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-primary block">
-                Saldo al Corte
-              </span>
-              <span className={`mt-1 text-base sm:text-lg font-bold font-mono tabular-nums block ${
+              <span className={`mt-1 text-base font-bold font-mono tabular-nums block ${
                 esSaldoAnomalo ? "text-red-600 dark:text-red-400" : "text-foreground"
               }`}>
                 {formatoMoneda(Math.abs(saldoFinalPeriodo))}
               </span>
-              <span className={`text-[10px] font-semibold ${esSaldoAnomalo ? "text-red-600 dark:text-red-400" : "text-primary"}`}>
+              <span className="text-[10px] text-muted-foreground">
                 {condicionSaldoTexto}
               </span>
             </div>
@@ -734,128 +675,99 @@ function KardexContent() {
         </Card>
       )}
 
-      {/* AVISO METODOLÓGICO PARA INVENTARIO (CUENTA 1104) */}
-      {codigoSeleccionado === "1104" && (
-        <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-3.5 text-xs text-blue-950 dark:text-blue-200">
-          <div className="flex items-start gap-2.5">
-            <Info className="size-4 shrink-0 text-blue-600 mt-0.5" />
-            <div className="space-y-0.5">
-              <p className="font-bold text-blue-900 dark:text-blue-100">
-                Aviso Técnico: Cuenta 1104 en el Método Analítico
-              </p>
-              <p className="leading-relaxed text-[11px]">
-                En el método analítico, la cuenta <strong>1104 (Inventario de mercadería)</strong> permanece fija con el inventario inicial del ejercicio ({ejercicioSeleccionado}). Las operaciones de compra y venta se registran en <strong>4101 (Compras)</strong> y <strong>5101 (Ventas)</strong>. El inventario final se determina en la toma física para calcular el Costo de Ventas en Estados Financieros.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* PANEL TRIBUTARIO: LIQUIDACIÓN DE IVA (F-07 HACIENDA EL SALVADOR) */}
+      {/* RESUMEN DE LIQUIDACIÓN DE IVA */}
       {(codigoSeleccionado === "1105" || codigoSeleccionado === "2103") && (
         <Card className="border-border bg-card shadow-xs">
-          <CardHeader className="py-2.5 px-4 bg-muted/30 border-b border-border">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
-                <Receipt className="size-3.5" />
-                Liquidación Fiscal de IVA · Ministerio de Hacienda (F-07)
-              </span>
-              <Badge variant={diferenciaIVA > 0 ? "warning" : diferenciaIVA < 0 ? "success" : "muted"} className="text-[10px] font-mono">
-                {diferenciaIVA > 0 ? "Impuesto a Pagar (DGII)" : diferenciaIVA < 0 ? "Remanente a Favor" : "Liquidación en Cero"}
-              </Badge>
-            </div>
+          <CardHeader className="py-2.5 px-4 bg-muted/20 border-b border-border">
+            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Liquidación de IVA
+            </CardTitle>
           </CardHeader>
-          <CardContent className="p-3 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-            <div className="rounded-lg border border-border/70 p-2.5 bg-background">
-              <span className="text-muted-foreground text-[10px] block">2103 IVA Débito Fiscal (Ventas):</span>
-              <span className="text-base font-bold font-mono text-foreground">{formatoMoneda(totalDF)}</span>
+          <CardContent className="p-3 grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+            <div className="rounded-lg border border-border/60 p-2.5 bg-background">
+              <span className="text-muted-foreground text-[11px] block">Débito Fiscal (Ventas)</span>
+              <span className="text-base font-semibold font-mono text-foreground">{formatoMoneda(totalDF)}</span>
             </div>
-            <div className="rounded-lg border border-border/70 p-2.5 bg-background">
-              <span className="text-muted-foreground text-[10px] block">1105 IVA Crédito Fiscal (Compras):</span>
-              <span className="text-base font-bold font-mono text-foreground">{formatoMoneda(totalCF)}</span>
+            <div className="rounded-lg border border-border/60 p-2.5 bg-background">
+              <span className="text-muted-foreground text-[11px] block">Crédito Fiscal (Compras)</span>
+              <span className="text-base font-semibold font-mono text-foreground">{formatoMoneda(totalCF)}</span>
             </div>
-            <div className={`rounded-lg border p-2.5 ${diferenciaIVA > 0 ? "border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200" : diferenciaIVA < 0 ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-200" : "border-border bg-background"}`}>
-              <span className="text-[10px] font-semibold block">{diferenciaIVA > 0 ? "(=) Impuesto por Pagar:" : diferenciaIVA < 0 ? "(=) Crédito Fiscal a Favor:" : "(=) Saldo Neto:"}</span>
-              <span className="text-base font-bold font-mono">{formatoMoneda(Math.abs(diferenciaIVA))}</span>
+            <div className="rounded-lg border border-border/60 p-2.5 bg-background">
+              <span className="text-muted-foreground text-[11px] block">
+                {diferenciaIVA > 0 ? "Impuesto por Pagar" : diferenciaIVA < 0 ? "Remanente a Favor" : "Saldo Neto"}
+              </span>
+              <span className="text-base font-bold font-mono text-foreground">
+                {formatoMoneda(Math.abs(diferenciaIVA))}
+              </span>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* PANEL ANALÍTICO: DETERMINACIÓN DE COMPRAS NETAS */}
+      {/* RESUMEN ANALÍTICO DE COMPRAS */}
       {codigoSeleccionado === "4101" && (
         <Card className="border-border bg-card shadow-xs">
-          <CardHeader className="py-2 px-4 bg-muted/30 border-b border-border">
-            <span className="text-xs font-bold uppercase tracking-wider text-primary">
-              Cuentas Analíticas Complementarias de Adquisiciones
-            </span>
+          <CardHeader className="py-2.5 px-4 bg-muted/20 border-b border-border">
+            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Resumen de Compras Netas
+            </CardTitle>
           </CardHeader>
-          <CardContent className="p-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-            <div className="rounded-lg border border-border/70 p-2 bg-background">
-              <span className="text-muted-foreground text-[10px] block">4101 Compras Brutas</span>
-              <span className="font-bold font-mono text-foreground">{formatoMoneda(comprasBrutas)}</span>
+          <CardContent className="p-3 grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+            <div className="rounded-lg border border-border/60 p-2.5 bg-background">
+              <span className="text-muted-foreground text-[11px] block">Compras Brutas</span>
+              <span className="text-sm font-semibold font-mono text-foreground">{formatoMoneda(comprasBrutas)}</span>
             </div>
-            <div className="rounded-lg border border-border/70 p-2 bg-background">
-              <span className="text-muted-foreground text-[10px] block">(+) 4102 Fletes s/compras</span>
-              <span className="font-bold font-mono text-foreground">+{formatoMoneda(gastosCompras)}</span>
+            <div className="rounded-lg border border-border/60 p-2.5 bg-background">
+              <span className="text-muted-foreground text-[11px] block">Fletes sobre Compras</span>
+              <span className="text-sm font-semibold font-mono text-foreground">{formatoMoneda(gastosCompras)}</span>
             </div>
-            <div className="rounded-lg border border-border/70 p-2 bg-background">
-              <span className="text-muted-foreground text-[10px] block">(-) 5102 Dev. s/compras</span>
-              <span className="font-bold font-mono text-amber-600 dark:text-amber-400">-{formatoMoneda(devCompras)}</span>
+            <div className="rounded-lg border border-border/60 p-2.5 bg-background">
+              <span className="text-muted-foreground text-[11px] block">Devoluciones y Rebajas</span>
+              <span className="text-sm font-semibold font-mono text-foreground">{formatoMoneda(devCompras + rebCompras)}</span>
             </div>
-            <div className="rounded-lg border border-border/70 p-2 bg-background">
-              <span className="text-muted-foreground text-[10px] block">(-) 5103 Rebajas s/compras</span>
-              <span className="font-bold font-mono text-amber-600 dark:text-amber-400">-{formatoMoneda(rebCompras)}</span>
+            <div className="rounded-lg border border-border/60 p-2.5 bg-background">
+              <span className="text-muted-foreground text-[11px] block">Compras Netas</span>
+              <span className="text-sm font-bold font-mono text-foreground">{formatoMoneda(comprasNetas)}</span>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* PANEL ANALÍTICO: DETERMINACIÓN DE VENTAS NETAS */}
+      {/* RESUMEN ANALÍTICO DE VENTAS */}
       {codigoSeleccionado === "5101" && (
         <Card className="border-border bg-card shadow-xs">
-          <CardHeader className="py-2 px-4 bg-muted/30 border-b border-border">
-            <span className="text-xs font-bold uppercase tracking-wider text-primary">
-              Cuentas Analíticas Complementarias de Ingresos
-            </span>
+          <CardHeader className="py-2.5 px-4 bg-muted/20 border-b border-border">
+            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Resumen de Ventas Netas
+            </CardTitle>
           </CardHeader>
-          <CardContent className="p-3 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-            <div className="rounded-lg border border-border/70 p-2 bg-background">
-              <span className="text-muted-foreground text-[10px] block">5101 Ventas Brutas</span>
-              <span className="font-bold font-mono text-foreground">{formatoMoneda(ventasBrutas)}</span>
+          <CardContent className="p-3 grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+            <div className="rounded-lg border border-border/60 p-2.5 bg-background">
+              <span className="text-muted-foreground text-[11px] block">Ventas Brutas</span>
+              <span className="text-sm font-semibold font-mono text-foreground">{formatoMoneda(ventasBrutas)}</span>
             </div>
-            <div className="rounded-lg border border-border/70 p-2 bg-background">
-              <span className="text-muted-foreground text-[10px] block">(-) 4103 Dev. s/ventas</span>
-              <span className="font-bold font-mono text-amber-600 dark:text-amber-400">-{formatoMoneda(devVentas)}</span>
+            <div className="rounded-lg border border-border/60 p-2.5 bg-background">
+              <span className="text-muted-foreground text-[11px] block">Devoluciones y Rebajas</span>
+              <span className="text-sm font-semibold font-mono text-foreground">{formatoMoneda(devVentas + rebVentas)}</span>
             </div>
-            <div className="rounded-lg border border-border/70 p-2 bg-background">
-              <span className="text-muted-foreground text-[10px] block">(-) 4104 Rebajas s/ventas</span>
-              <span className="font-bold font-mono text-amber-600 dark:text-amber-400">-{formatoMoneda(rebVentas)}</span>
+            <div className="rounded-lg border border-border/60 p-2.5 bg-background">
+              <span className="text-muted-foreground text-[11px] block">Ventas Netas</span>
+              <span className="text-sm font-bold font-mono text-foreground">{formatoMoneda(ventasNetas)}</span>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* ======================================================== */}
-      {/* 4. TABLA OFICIAL DEL LIBRO AUXILIAR (FOLIO DE MOVIMIENTOS) */}
-      {/* ======================================================== */}
+      {/* 4. TABLA DE MOVIMIENTOS */}
       <Card className="border-border shadow-xs overflow-hidden">
-        <CardHeader className="py-3 px-4 sm:px-5 bg-muted/20 border-b border-border">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <CardTitle className="text-sm sm:text-base font-semibold text-foreground">
-                Folio de Operaciones Contables
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Asientos registrados con afectación directa a esta cuenta. Haz clic en el número de partida para ver el comprobante diario completo.
-              </CardDescription>
-            </div>
-
-            <div className="flex items-center gap-2 text-xs">
-              <Badge variant="muted" className="font-mono">
-                {movimientos.length} {movimientos.length === 1 ? "movimiento" : "movimientos"}
-              </Badge>
-            </div>
+        <CardHeader className="py-2.5 px-4 sm:px-5 bg-muted/20 border-b border-border">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-semibold text-foreground">
+              Movimientos Registrados
+            </CardTitle>
+            <span className="text-xs font-mono text-muted-foreground">
+              {movimientos.length} {movimientos.length === 1 ? "movimiento" : "movimientos"}
+            </span>
           </div>
         </CardHeader>
 
@@ -873,16 +785,16 @@ function KardexContent() {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
-                <thead className="border-b border-border bg-muted/50 text-muted-foreground uppercase font-semibold text-[11px]">
+                <thead className="border-b border-border bg-muted/40 text-muted-foreground uppercase font-semibold text-[11px]">
                   <tr>
                     <th className="py-2.5 px-3 whitespace-nowrap">Fecha</th>
                     <th className="py-2.5 px-2 text-center whitespace-nowrap">Partida</th>
                     <th className="py-2.5 px-2 text-center whitespace-nowrap">Tipo</th>
-                    <th className="py-2.5 px-2 whitespace-nowrap">Ref. / Doc</th>
-                    <th className="py-2.5 px-3">Concepto / Glosa de la Operación</th>
-                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Debe (Cargos)</th>
-                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Haber (Abonos)</th>
-                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Saldo Progresivo</th>
+                    <th className="py-2.5 px-2 whitespace-nowrap">Referencia</th>
+                    <th className="py-2.5 px-3">Concepto</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Debe</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Haber</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Saldo</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
@@ -1007,17 +919,17 @@ function KardexContent() {
                 {/* PIE DE TABLA: SUMAS Y SALDO FINAL CON DOBLE RAYA CONTABLE */}
                 <tfoot className="border-t-2 border-border bg-muted/40 font-semibold text-xs border-b-4 border-double border-foreground/30">
                   <tr>
-                    <td colSpan={5} className="py-3 px-3 uppercase tracking-wider text-muted-foreground">
-                      SUMAS DEL PERÍODO ({mesFiltro === "todos" ? "Año Completo" : MESES.find((m) => m.valor === mesFiltro)?.label}) · {movimientos.length} OPERACIONES
+                    <td colSpan={5} className="py-2.5 px-3 uppercase text-muted-foreground">
+                      Sumas del Período
                     </td>
-                    <td className="py-3 px-3 text-right font-mono tabular-nums text-foreground whitespace-nowrap">
+                    <td className="py-2.5 px-3 text-right font-mono tabular-nums text-foreground whitespace-nowrap">
                       {formatoMoneda(totalDebe)}
                     </td>
-                    <td className="py-3 px-3 text-right font-mono tabular-nums text-foreground whitespace-nowrap">
+                    <td className="py-2.5 px-3 text-right font-mono tabular-nums text-foreground whitespace-nowrap">
                       {formatoMoneda(totalHaber)}
                     </td>
-                    <td className="py-3 px-3 text-right font-mono tabular-nums font-bold whitespace-nowrap">
-                      <span className={esSaldoAnomalo ? "text-red-600 dark:text-red-400" : "text-primary"}>
+                    <td className="py-2.5 px-3 text-right font-mono tabular-nums font-bold whitespace-nowrap">
+                      <span className="text-foreground">
                         {formatoMoneda(Math.abs(saldoFinalPeriodo))}
                       </span>
                       <span className="ml-1 text-[10px] font-normal text-muted-foreground">
@@ -1027,20 +939,6 @@ function KardexContent() {
                   </tr>
                 </tfoot>
               </table>
-
-              {/* BANDA DE VERIFICACIÓN CONTABLE (CUADRE MATEMÁTICO DE AUDITORÍA) */}
-              <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-muted/20 border-t border-border/80 text-[11px] text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="size-4 text-emerald-600" />
-                  <span>
-                    <strong>Ecuación de Saldo:</strong> Saldo Anterior ({formatoMoneda(Math.abs(saldoInicialPeriodo))}) + Cargos ({formatoMoneda(totalDebe)}) - Abonos ({formatoMoneda(totalHaber)}) = Saldo al Corte ({formatoMoneda(Math.abs(saldoFinalPeriodo))})
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-400 font-mono">
-                  <CheckCircle2 className="size-3.5" />
-                  <span>Cuadre Matemático Verificado ✓</span>
-                </div>
-              </div>
             </div>
           )}
         </CardContent>
