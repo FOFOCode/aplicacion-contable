@@ -126,9 +126,18 @@ export default function CiclosContablesPage() {
               : "border-red-500/30 bg-red-500/10 text-red-800 dark:text-red-300"
           }`}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <CheckCircle2 className="size-4 shrink-0" />
             <p>{mensajeApertura.texto}</p>
+            {mensajeApertura.tipo === "exito" && (
+              <Link
+                href="/libro-diario"
+                className="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-[11px] font-semibold text-white hover:bg-emerald-700 transition ml-2"
+              >
+                <span>Ver Partida #1 en Diario</span>
+                <ArrowRight className="size-3" />
+              </Link>
+            )}
           </div>
           <button
             type="button"
@@ -248,7 +257,7 @@ export default function CiclosContablesPage() {
                         <div>
                           <span>{cierreInfo.fecha_cierre}</span>
                           <span className="text-[10px] text-muted-foreground/70 block">
-                            Póliza #{cierreInfo.asiento_numero ?? "-"}
+                            Partida #{cierreInfo.asiento_numero ?? "-"}
                           </span>
                         </div>
                       ) : (
@@ -277,6 +286,24 @@ export default function CiclosContablesPage() {
                           title="Ver Libro Diario"
                         >
                           Diario
+                        </Link>
+
+                        <Link
+                          href="/libro-mayor"
+                          onClick={() => setEjercicioSeleccionado(c.ejercicio)}
+                          className="rounded px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                          title="Ver Libro Mayor"
+                        >
+                          Mayor
+                        </Link>
+
+                        <Link
+                          href="/kardex"
+                          onClick={() => setEjercicioSeleccionado(c.ejercicio)}
+                          className="rounded px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                          title="Ver Libro Auxiliar / Kardex"
+                        >
+                          Auxiliar
                         </Link>
 
                         <Link

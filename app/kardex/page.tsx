@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { Suspense, useEffect, useMemo, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -64,12 +65,20 @@ const MESES = [
   { valor: "12", label: "Diciembre" },
 ]
 
-export default function KardexPage() {
+function KardexContent() {
   const { cuentas, asientos, ejercicioSeleccionado } = useContabilidad()
-  const [codigoSeleccionado, setCodigoSeleccionado] = useState<string>("1104")
+  const searchParams = useSearchParams()
+  const codigoParam = searchParams.get("codigo") || searchParams.get("cuenta")
+  const [codigoSeleccionado, setCodigoSeleccionado] = useState<string>(codigoParam || "1104")
   const [busqueda, setBusqueda] = useState("")
   const [mesFiltro, setMesFiltro] = useState<string>("todos")
   const [partidaDetalle, setPartidaDetalle] = useState<Asiento | null>(null)
+
+  useEffect(() => {
+    if (codigoParam && codigoParam !== codigoSeleccionado) {
+      setCodigoSeleccionado(codigoParam)
+    }
+  }, [codigoParam])
 
   const cuentasActivas = useMemo(() => cuentas.filter((c) => c.activa), [cuentas])
 
@@ -694,5 +703,13 @@ export default function KardexPage() {
         </div>
       </footer>
     </div>
+  )
+}
+
+export default function KardexPage() {
+  return (
+    <Suspense fallback={<div className="py-12 text-center text-sm text-muted-foreground animate-pulse">Cargando Libro Auxiliar...</div>}>
+      <KardexContent />
+    </Suspense>
   )
 }

@@ -155,15 +155,15 @@ export function AppShell({ children }: { children: ReactNode }) {
             >
               {ejercicios.map((ej) => (
                 <option key={ej.ejercicio} value={ej.ejercicio}>
-                  {ej.ejercicio}
+                  {ej.ejercicio} ({ej.estado === "ABIERTO" ? "Abierto" : "Cerrado"})
                 </option>
               ))}
             </select>
             <button
               type="button"
               onClick={abrirModalCrear}
-              className="flex size-7 items-center justify-center rounded border border-primary/30 bg-primary/10 text-primary"
-              title="Registrar nuevo año fiscal"
+              className="flex size-7 items-center justify-center rounded border border-primary/30 bg-primary/10 text-primary cursor-pointer"
+              title="Registrar nuevo ciclo"
             >
               <CalendarPlus className="size-3.5" />
             </button>
@@ -171,7 +171,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8 md:py-8">
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 print:hidden">
+          <div className="mb-5 hidden md:flex flex-wrap items-center justify-between gap-3 print:hidden">
             <div className="flex flex-wrap items-center gap-2.5">
               {!dbConnected && (
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-300">

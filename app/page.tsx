@@ -49,25 +49,25 @@ export default function DashboardPage() {
   )
 
   /* ── Saldos operativos que el contador necesita ── */
-  const saldo = (codigo: string, naturaleza: "d" | "a") => {
+  const saldoRaw = (codigo: string) => {
     const m = mayor.find((x) => x.cuenta.codigo === codigo)
     if (!m) return 0
-    return naturaleza === "d"
-      ? Math.max(0, m.debe - m.haber)
-      : Math.max(0, m.haber - m.debe)
+    return m.debe - m.haber
   }
 
-  const caja = saldo("1101", "d")
-  const bancos = saldo("1102", "d")
-  const efectivo = caja + bancos
+  const caja = Math.max(0, saldoRaw("1101"))
+  const bancosNeto = saldoRaw("1102")
+  const bancoSobregirado = bancosNeto < 0
+  const efectivo = caja + bancosNeto
 
-  const cxc = saldo("1103", "d")       // Clientes por cobrar
-  const cxp = saldo("2101", "a")       // Proveedores por pagar
+  const cxc = Math.max(0, saldoRaw("1103"))       // Clientes por cobrar
+  const cxp = Math.max(0, -saldoRaw("2101"))      // Proveedores por pagar (haber - debe)
 
-  const ivaCF = saldo("1105", "d")     // Crédito fiscal
-  const ivaDF = saldo("2103", "a")     // Débito fiscal
+  const ivaCF = Math.max(0, saldoRaw("1105"))     // Crédito fiscal
+  const ivaDF = Math.max(0, -saldoRaw("2103"))    // Débito fiscal
   const ivaNeto = ivaDF - ivaCF
-  const ivaPorPagar = ivaNeto > 0
+  const ivaAlDia = ivaDF === 0 && ivaCF === 0
+  const ivaPorPagar = !ivaAlDia && ivaNeto > 0
 
   if (cargando) {
     return (
@@ -83,22 +83,31 @@ export default function DashboardPage() {
       {/* ═══ 1. ACCIÓN PRINCIPAL ═══ */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-lg font-bold tracking-tight text-foreground">
-            {esEjercicioCerrado
-              ? `Ciclo ${ejercicioSeleccionado} — Cerrado`
-              : `Partida #${proximoNumero}`}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {asientosEj.filter((a) => a.estado !== "ANULADO").length} partidas en ciclo {ejercicioSeleccionado}
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold tracking-tight text-foreground">
+              Inicio · Ciclo {ejercicioSeleccionado}
+            </h1>
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
+                esEjercicioCerrado
+                  ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20"
+                  : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
+              }`}
+            >
+              {esEjercicioCerrado ? "Solo Lectura" : "Abierto"}
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {asientosEj.filter((a) => a.estado !== "ANULADO").length} partidas registradas en el ciclo {ejercicioSeleccionado}
           </p>
         </div>
         {!esEjercicioCerrado && (
           <Link
             href="/libro-diario"
-            className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition shadow-xs whitespace-nowrap"
+            className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition shadow-xs whitespace-nowrap"
           >
-            <Plus className="size-4" />
-            Registrar Partida
+            <Plus className="size-3.5" />
+            <span>Registrar Partida (Póliza #{proximoNumero})</span>
           </Link>
         )}
       </div>
@@ -108,16 +117,21 @@ export default function DashboardPage() {
 
         {/* Efectivo disponible */}
         <MetricCard
-          href="/kardex"
+          href="/kardex?codigo=1102"
           icon={Wallet}
           label="Efectivo disponible"
           valor={efectivo}
-          sub={`Banco ${formatoMoneda(bancos)} · Caja ${formatoMoneda(caja)}`}
+          sub={
+            bancoSobregirado
+              ? `Banco: -${formatoMoneda(Math.abs(bancosNeto))} (Sobregiro) · Caja: ${formatoMoneda(caja)}`
+              : `Banco: ${formatoMoneda(bancosNeto)} · Caja: ${formatoMoneda(caja)}`
+          }
+          negative={efectivo < 0 || bancoSobregirado}
         />
 
         {/* Clientes por cobrar */}
         <MetricCard
-          href="/kardex"
+          href="/kardex?codigo=1103"
           icon={Users}
           label="Clientes por cobrar"
           valor={cxc}
@@ -126,7 +140,7 @@ export default function DashboardPage() {
 
         {/* Proveedores por pagar */}
         <MetricCard
-          href="/kardex"
+          href="/kardex?codigo=2101"
           icon={Landmark}
           label="Proveedores por pagar"
           valor={cxp}
@@ -136,11 +150,11 @@ export default function DashboardPage() {
 
         {/* IVA */}
         <MetricCard
-          href="/libro-mayor"
+          href="/libro-mayor?buscar=1105"
           icon={Receipt}
-          label={ivaPorPagar ? "IVA por pagar" : "IVA a favor"}
+          label={ivaAlDia ? "IVA al día" : ivaPorPagar ? "IVA por pagar" : "IVA a favor"}
           valor={Math.abs(ivaNeto)}
-          sub={`DF ${formatoMoneda(ivaDF)} · CF ${formatoMoneda(ivaCF)}`}
+          sub={ivaAlDia ? "Sin movimientos en ciclo" : `DF ${formatoMoneda(ivaDF)} · CF ${formatoMoneda(ivaCF)}`}
           negative={ivaPorPagar}
         />
       </div>
@@ -177,8 +191,14 @@ export default function DashboardPage() {
         {ultimas.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 p-8 text-center">
             <FileSpreadsheet className="mx-auto size-8 text-muted-foreground/50 mb-2" />
-            <p className="text-sm font-medium text-foreground">Sin partidas todavía</p>
-            <p className="text-xs text-muted-foreground mt-1">Registra la primera partida para comenzar.</p>
+            <p className="text-sm font-medium text-foreground">
+              {esEjercicioCerrado ? "Ciclo cerrado sin partidas" : "Sin partidas todavía"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {esEjercicioCerrado
+                ? "Este periodo está cerrado y en modo solo lectura."
+                : "Registra la primera partida para comenzar."}
+            </p>
             {!esEjercicioCerrado && (
               <Link href="/libro-diario" className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition">
                 <Plus className="size-3.5" /> Registrar
