@@ -803,9 +803,9 @@ function KardexContent() {
           "Fecha",
           "Comprobante / Ref",
           "Concepto / Detalle Operativo",
-          "Entrada (Físico)",
-          "Salida (Físico)",
-          "Existencia (Saldo Físico)",
+          "Entrada (Unidades)",
+          "Salida (Unidades)",
+          "Existencias (Unidades)",
           "Costo Unitario ($)",
           "Debe (Entradas $)",
           "Haber (Salidas $)",
@@ -993,59 +993,46 @@ function KardexContent() {
   return (
     <div className="space-y-5">
       {/* CABECERA FORMAL EXCLUSIVA PARA IMPRESIÓN OFICIAL (PDF) */}
-      <div className="hidden print:block pb-4 mb-4 border-b-2 border-foreground/80 text-foreground">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold uppercase tracking-wider">
-              Sistema de Información Contable
-            </h1>
-            <p className="text-sm font-semibold uppercase text-muted-foreground">
-              {pestañaPrincipal === "kardex_inventario"
-                ? "Tarjeta de Control de Inventarios (Kardex Físico-Valorado)"
-                : modoVista === "continuo"
-                ? "Libro Auxiliar General de Mayor · Todas las Cuentas"
-                : "Libro Auxiliar de Mayor · Folio Contable Individual"}
-            </p>
-          </div>
-          <div className="text-right text-xs font-mono">
-            <p><strong>Ciclo Fiscal:</strong> {ejercicioSeleccionado}</p>
-            <p><strong>Fecha de Emisión:</strong> {new Date().toLocaleDateString("es-SV")}</p>
-            <p><strong>Moneda:</strong> USD ($)</p>
-          </div>
+      <div className="hidden print:block pb-3 mb-4 border-b-2 border-black text-black">
+        <div className="text-center pb-2 border-b border-black/40">
+          <h1 className="text-base font-bold uppercase tracking-wider">
+            Sistema de Información Contable
+          </h1>
+          <p className="text-sm font-bold uppercase tracking-wide">
+            {pestañaPrincipal === "kardex_inventario"
+              ? "Tarjeta de Control de Inventarios (Kardex)"
+              : modoVista === "continuo"
+              ? "Libro Auxiliar General de Mayor"
+              : "Libro Auxiliar de Mayor"}
+          </p>
         </div>
 
         {pestañaPrincipal === "kardex_inventario" ? (
-          <div className="mt-3 grid grid-cols-2 gap-2 text-xs border-t border-foreground/30 pt-2 font-mono">
-            <div>
-              <p><strong>Artículo:</strong> {articuloActual.codigo} — {articuloActual.nombre}</p>
-              <p><strong>Ubicación:</strong> {articuloActual.ubicacion} · <strong>Unidad:</strong> {articuloActual.unidad}</p>
-              <p><strong>Cuenta Mayor:</strong> {articuloActual.cuentaCodigo} — {articuloActual.cuentaNombre}</p>
-            </div>
-            <div className="text-right">
-              <p><strong>Método de Valuación:</strong> Costo Promedio Ponderado (Art. 143 C.T.)</p>
-              <p><strong>Existencia Final:</strong> {totalesKardex.saldoUnidades.toLocaleString()} {articuloActual.unidad.toLowerCase()}</p>
-              <p><strong>Saldo Valorado en Libros:</strong> {formatoMoneda(totalesKardex.saldoValor)}</p>
-            </div>
+          <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs font-mono">
+            <p><strong>Artículo:</strong> {articuloActual.codigo} — {articuloActual.nombre}</p>
+            <p className="text-right"><strong>Ejercicio Fiscal:</strong> {ejercicioSeleccionado}</p>
+            <p><strong>Ubicación:</strong> {articuloActual.ubicacion} · <strong>Unidad:</strong> {articuloActual.unidad}</p>
+            <p className="text-right"><strong>Fecha de Emisión:</strong> {new Date().toLocaleDateString("es-SV")}</p>
+            <p><strong>Cuenta Contable:</strong> {articuloActual.cuentaCodigo} — {articuloActual.cuentaNombre}</p>
+            <p className="text-right"><strong>Existencia Final:</strong> {totalesKardex.saldoUnidades.toLocaleString()} {articuloActual.unidad.toLowerCase()} ({formatoMoneda(totalesKardex.saldoValor)})</p>
           </div>
         ) : (
           <>
             {modoVista === "ficha" && cuentaActual && (
-              <div className="mt-3 grid grid-cols-2 gap-2 text-xs border-t border-foreground/30 pt-2 font-mono">
-                <div>
-                  <p><strong>Cuenta:</strong> {cuentaActual.codigo} — {cuentaActual.nombre}</p>
-                  <p><strong>Clasificación:</strong> {cuentaActual.tipo.toUpperCase()} · <strong>Naturaleza:</strong> {cuentaActual.naturaleza.toUpperCase()}</p>
-                </div>
-                <div className="text-right">
-                  <p><strong>Período:</strong> {MESES.find((m) => m.valor === mesFiltro)?.label || "Todo el año"}</p>
-                  <p><strong>Saldo al Corte:</strong> {formatoMoneda(Math.abs(saldoFinalPeriodo))} ({condicionSaldoTexto})</p>
-                </div>
+              <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs font-mono">
+                <p><strong>Cuenta:</strong> {cuentaActual.codigo} — {cuentaActual.nombre}</p>
+                <p className="text-right"><strong>Ejercicio Fiscal:</strong> {ejercicioSeleccionado}</p>
+                <p><strong>Clasificación:</strong> {cuentaActual.tipo.toUpperCase()} ({cuentaActual.naturaleza.toUpperCase()})</p>
+                <p className="text-right"><strong>Fecha de Emisión:</strong> {new Date().toLocaleDateString("es-SV")}</p>
+                <p><strong>Período:</strong> {MESES.find((m) => m.valor === mesFiltro)?.label || "Todo el año"}</p>
+                <p className="text-right"><strong>Saldo al Corte:</strong> {formatoMoneda(Math.abs(saldoFinalPeriodo))} ({condicionSaldoTexto})</p>
               </div>
             )}
 
             {modoVista === "continuo" && (
-              <div className="mt-3 flex items-center justify-between text-xs border-t border-foreground/30 pt-2 font-mono">
+              <div className="mt-2 flex items-center justify-between text-xs font-mono">
                 <p><strong>Período:</strong> {MESES.find((m) => m.valor === mesFiltro)?.label || "Todo el año fiscal"}</p>
-                <p><strong>Cuentas reportadas:</strong> {libroContinuoData.length} cuentas con movimientos</p>
+                <p><strong>Cuentas reportadas:</strong> {libroContinuoData.length} cuentas</p>
                 <p><strong>Total Cargos:</strong> {formatoMoneda(totalesLibroContinuo.debe)} · <strong>Total Abonos:</strong> {formatoMoneda(totalesLibroContinuo.haber)}</p>
               </div>
             )}
@@ -1065,10 +1052,7 @@ function KardexContent() {
           }`}
         >
           <Boxes className="size-4" />
-          <span>Tarjeta de Kardex (Inventario)</span>
-          <Badge variant="muted" className="text-[10px] ml-1 px-1.5 py-0 font-normal">
-            Físico-Valorado
-          </Badge>
+          <span>Tarjeta de Kardex</span>
         </button>
         <button
           type="button"
@@ -1080,10 +1064,7 @@ function KardexContent() {
           }`}
         >
           <BookOpenText className="size-4" />
-          <span>Libro Auxiliar (Cuentas Contables)</span>
-          <Badge variant="muted" className="text-[10px] ml-1 px-1.5 py-0 font-normal">
-            Folio de Mayor
-          </Badge>
+          <span>Libro Auxiliar</span>
         </button>
       </div>
 
@@ -1092,18 +1073,13 @@ function KardexContent() {
         <div className="space-y-4">
           {/* Header Web del Kardex */}
           <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-3 print:hidden">
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold tracking-tight text-foreground">
-                  Tarjeta de Kardex
-                </h1>
-                <Badge variant="outline" className="text-xs font-mono">
-                  Ciclo {ejercicioSeleccionado}
-                </Badge>
-              </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Valuación por Costo Promedio Ponderado
-              </p>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold tracking-tight text-foreground">
+                Tarjeta de Kardex
+              </h1>
+              <Badge variant="outline" className="text-xs font-mono">
+                Ciclo {ejercicioSeleccionado}
+              </Badge>
             </div>
 
             <div className="flex items-center gap-2 print:hidden shrink-0">
@@ -1149,7 +1125,7 @@ function KardexContent() {
           </header>
 
           {/* Selector de Artículo en Bodega */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 rounded-xl border border-border bg-card p-3 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 rounded-xl border border-border bg-card p-3 shadow-xs print:hidden">
             <div className="flex items-center gap-2.5 flex-1 min-w-0">
               <span className="text-xs font-medium text-muted-foreground shrink-0">
                 Artículo:
@@ -1177,7 +1153,7 @@ function KardexContent() {
           </div>
 
           {/* Resumen de Existencias y Valores */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 print:hidden">
             <div className="rounded-xl border border-border bg-card p-3 shadow-xs">
               <span className="text-[11px] text-muted-foreground block uppercase font-medium">Existencia Física</span>
               <div className="text-xl font-bold font-mono text-foreground mt-0.5">
@@ -1225,9 +1201,9 @@ function KardexContent() {
           </div>
 
           {/* TABLA PRINCIPAL DEL KARDEX: 9 COLUMNAS CLÁSICAS */}
-          <div className="rounded-xl border border-border bg-card overflow-hidden shadow-xs">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left border-collapse">
+          <div className="rounded-xl border border-border bg-card overflow-hidden shadow-xs print:border-0 print:shadow-none print:rounded-none print:bg-transparent">
+            <div className="overflow-x-auto print:overflow-visible">
+              <table className="w-full text-xs text-left border-collapse print-accounting-table">
                 <thead>
                   {/* Fila 1 de encabezado agrupado */}
                   <tr className="bg-muted/80 border-b border-border text-[11px] uppercase tracking-wider font-bold text-muted-foreground">
@@ -1235,11 +1211,11 @@ function KardexContent() {
                     <th rowSpan={2} className="py-2.5 px-3 border-r border-border/60">Comprobante</th>
                     <th rowSpan={2} className="py-2.5 px-3 border-r border-border/60 min-w-[220px]">Concepto / Detalle Operativo</th>
                     <th colSpan={3} className="py-2 px-3 text-center border-r border-border/60 bg-muted/90 text-foreground font-semibold">
-                      Control Físico (Cantidades)
+                      Unidades
                     </th>
                     <th rowSpan={2} className="py-2.5 px-3 text-right border-r border-border/60">Costo Unit.</th>
                     <th colSpan={3} className="py-2 px-3 text-center bg-muted/90 text-foreground font-semibold">
-                      Control Valorado (Valores Monetarios en USD)
+                      Valores en USD
                     </th>
                   </tr>
                   {/* Fila 2 de sub-encabezados */}
@@ -1356,7 +1332,7 @@ function KardexContent() {
                     <td className="py-3 px-3 text-right tabular-nums text-rose-600 dark:text-rose-400 border-r border-border/40">
                       {formatoMoneda(totalesKardex.totalHaber)}
                     </td>
-                    <td className="py-3 px-3 text-right tabular-nums text-primary border-b-4 border-double border-primary text-sm font-extrabold">
+                    <td className="py-3 px-3 text-right tabular-nums text-primary border-b-4 border-double border-primary text-sm font-extrabold saldo-doble-linea">
                       {formatoMoneda(totalesKardex.saldoValor)}
                     </td>
                   </tr>
@@ -1415,7 +1391,7 @@ function KardexContent() {
             className="h-8 gap-1.5 text-xs shadow-xs"
           >
             <FileDown className="size-3.5" />
-            Imprimir {modoVista === "continuo" ? "Libro Completo" : "Folio"}
+            Imprimir {modoVista === "continuo" ? "Libro Completo" : "Ficha"}
           </Button>
           <Button
             type="button"
@@ -1737,62 +1713,8 @@ function KardexContent() {
         </Card>
       )}
 
-      {/* RESUMEN ANALÍTICO DE COMPRAS */}
-      {codigoSeleccionado === "4101" && (
-        <Card className="border-border bg-card shadow-xs print:hidden">
-          <CardHeader className="py-2.5 px-4 bg-muted/20 border-b border-border">
-            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Resumen de Compras Netas
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
-            <div className="rounded-lg border border-border/60 p-2.5 bg-background">
-              <span className="text-muted-foreground text-[11px] block">Compras Brutas</span>
-              <span className="text-sm font-semibold font-mono text-foreground">{formatoMoneda(comprasBrutas)}</span>
-            </div>
-            <div className="rounded-lg border border-border/60 p-2.5 bg-background">
-              <span className="text-muted-foreground text-[11px] block">Fletes sobre Compras</span>
-              <span className="text-sm font-semibold font-mono text-foreground">{formatoMoneda(gastosCompras)}</span>
-            </div>
-            <div className="rounded-lg border border-border/60 p-2.5 bg-background">
-              <span className="text-muted-foreground text-[11px] block">Devoluciones y Rebajas</span>
-              <span className="text-sm font-semibold font-mono text-foreground">{formatoMoneda(devCompras + rebCompras)}</span>
-            </div>
-            <div className="rounded-lg border border-border/60 p-2.5 bg-background">
-              <span className="text-muted-foreground text-[11px] block">Compras Netas</span>
-              <span className="text-sm font-bold font-mono text-foreground">{formatoMoneda(comprasNetas)}</span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* RESUMEN ANALÍTICO DE VENTAS */}
-      {codigoSeleccionado === "5101" && (
-        <Card className="border-border bg-card shadow-xs print:hidden">
-          <CardHeader className="py-2.5 px-4 bg-muted/20 border-b border-border">
-            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Resumen de Ventas Netas
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
-            <div className="rounded-lg border border-border/60 p-2.5 bg-background">
-              <span className="text-muted-foreground text-[11px] block">Ventas Brutas</span>
-              <span className="text-sm font-semibold font-mono text-foreground">{formatoMoneda(ventasBrutas)}</span>
-            </div>
-            <div className="rounded-lg border border-border/60 p-2.5 bg-background">
-              <span className="text-muted-foreground text-[11px] block">Devoluciones y Rebajas</span>
-              <span className="text-sm font-semibold font-mono text-foreground">{formatoMoneda(devVentas + rebVentas)}</span>
-            </div>
-            <div className="rounded-lg border border-border/60 p-2.5 bg-background">
-              <span className="text-muted-foreground text-[11px] block">Ventas Netas</span>
-              <span className="text-sm font-bold font-mono text-foreground">{formatoMoneda(ventasNetas)}</span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* 4. TABLA DE MOVIMIENTOS */}
-      <Card className="border-border shadow-xs overflow-hidden print:border-0 print:shadow-none print:bg-transparent">
+      <Card className="border-border shadow-xs overflow-hidden print:border-0 print:shadow-none print:bg-transparent print:rounded-none">
         <CardHeader className="py-2.5 px-4 sm:px-5 bg-muted/20 border-b border-border print:hidden">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-semibold text-foreground">
@@ -1816,8 +1738,8 @@ function KardexContent() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
+            <div className="overflow-x-auto print:overflow-visible">
+              <table className="w-full text-left text-xs border-collapse print-accounting-table">
                 <thead className="border-b border-border bg-muted/40 text-muted-foreground uppercase font-semibold text-[11px]">
                   <tr>
                     <th className="py-2.5 px-3 whitespace-nowrap">Fecha</th>
@@ -1950,22 +1872,22 @@ function KardexContent() {
                 </tbody>
 
                 {/* PIE DE TABLA: SUMAS Y SALDO FINAL CON DOBLE RAYA CONTABLE */}
-                <tfoot className="border-t-2 border-border bg-muted/40 font-semibold text-xs border-b-4 border-double border-foreground/30">
+                <tfoot className="border-t-2 border-border bg-muted/40 font-semibold text-xs border-b-4 border-double border-foreground/30 print:bg-transparent print:border-black">
                   <tr>
-                    <td colSpan={5} className="py-2.5 px-3 uppercase text-muted-foreground">
+                    <td colSpan={5} className="py-2.5 px-3 uppercase text-muted-foreground print:text-black">
                       Sumas del Período
                     </td>
-                    <td className="py-2.5 px-3 text-right font-mono tabular-nums text-foreground whitespace-nowrap">
+                    <td className="py-2.5 px-3 text-right font-mono tabular-nums text-foreground print:text-black whitespace-nowrap">
                       {formatoMoneda(totalDebe)}
                     </td>
-                    <td className="py-2.5 px-3 text-right font-mono tabular-nums text-foreground whitespace-nowrap">
+                    <td className="py-2.5 px-3 text-right font-mono tabular-nums text-foreground print:text-black whitespace-nowrap">
                       {formatoMoneda(totalHaber)}
                     </td>
                     <td className="py-2.5 px-3 text-right font-mono tabular-nums font-bold whitespace-nowrap">
-                      <span className="text-foreground">
+                      <span className="text-foreground saldo-doble-linea print:text-black">
                         {formatoMoneda(Math.abs(saldoFinalPeriodo))}
                       </span>
-                      <span className="ml-1 text-[10px] font-normal text-muted-foreground">
+                      <span className="ml-1 text-[10px] font-normal text-muted-foreground print:text-black">
                         ({condicionSaldoTexto})
                       </span>
                     </td>
@@ -2074,8 +1996,8 @@ function KardexContent() {
                   </div>
 
                   {/* Tabla de movimientos */}
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs border-collapse">
+                  <div className="overflow-x-auto print:overflow-visible">
+                    <table className="w-full text-left text-xs border-collapse print-accounting-table">
                       <thead className="border-b border-border bg-muted/20 text-muted-foreground uppercase font-semibold text-[10px]">
                         <tr>
                           <th className="py-2 px-3 whitespace-nowrap">Fecha</th>
@@ -2131,19 +2053,21 @@ function KardexContent() {
                           </tr>
                         ))}
                       </tbody>
-                      <tfoot className="border-t border-border bg-muted/30 font-semibold text-[11px]">
+                      <tfoot className="border-t border-border bg-muted/30 font-semibold text-[11px] print:bg-transparent print:border-black">
                         <tr>
-                          <td colSpan={4} className="py-2 px-3 uppercase text-muted-foreground">
+                          <td colSpan={4} className="py-2 px-3 uppercase text-muted-foreground print:text-black">
                             Subtotal Cuenta {cuenta.codigo}
                           </td>
-                          <td className="py-2 px-3 text-right font-mono tabular-nums whitespace-nowrap">
+                          <td className="py-2 px-3 text-right font-mono tabular-nums whitespace-nowrap print:text-black">
                             {formatoMoneda(tDebe)}
                           </td>
-                          <td className="py-2 px-3 text-right font-mono tabular-nums whitespace-nowrap">
+                          <td className="py-2 px-3 text-right font-mono tabular-nums whitespace-nowrap print:text-black">
                             {formatoMoneda(tHaber)}
                           </td>
                           <td className="py-2 px-3 text-right font-mono tabular-nums font-bold whitespace-nowrap">
-                            {formatoMoneda(Math.abs(sFinal))} ({tagNat})
+                            <span className="saldo-doble-linea print:text-black">
+                              {formatoMoneda(Math.abs(sFinal))} ({tagNat})
+                            </span>
                           </td>
                         </tr>
                       </tfoot>
@@ -2156,27 +2080,27 @@ function KardexContent() {
 
           {/* Gran Total del Libro Auxiliar al Final */}
           {libroContinuoData.length > 0 && (
-            <div className="rounded-xl border-2 border-border bg-muted/40 p-4 font-mono shadow-xs text-xs flex flex-wrap items-center justify-between gap-4">
+            <div className="rounded-xl border-2 border-border bg-muted/40 p-4 font-mono shadow-xs text-xs flex flex-wrap items-center justify-between gap-4 print:border-black print:bg-transparent print:rounded-none">
               <div className="font-sans">
-                <span className="font-bold text-sm text-foreground block">
+                <span className="font-bold text-sm text-foreground block print:text-black">
                   GRAN TOTAL DEL LIBRO AUXILIAR DE MAYOR
                 </span>
-                <span className="text-xs text-muted-foreground">
+                <span className="text-xs text-muted-foreground print:text-black">
                   Suma acumulada de todas las cuentas analíticas en el período
                 </span>
               </div>
               <div className="flex items-center gap-6 text-sm">
                 <div>
-                  <span className="text-xs font-sans text-muted-foreground block">Total Cargos</span>
-                  <span className="font-bold text-foreground">{formatoMoneda(totalesLibroContinuo.debe)}</span>
+                  <span className="text-xs font-sans text-muted-foreground block print:text-black">Total Cargos</span>
+                  <span className="font-bold text-foreground print:text-black">{formatoMoneda(totalesLibroContinuo.debe)}</span>
                 </div>
                 <div>
-                  <span className="text-xs font-sans text-muted-foreground block">Total Abonos</span>
-                  <span className="font-bold text-foreground">{formatoMoneda(totalesLibroContinuo.haber)}</span>
+                  <span className="text-xs font-sans text-muted-foreground block print:text-black">Total Abonos</span>
+                  <span className="font-bold text-foreground print:text-black">{formatoMoneda(totalesLibroContinuo.haber)}</span>
                 </div>
                 <div>
-                  <span className="text-xs font-sans text-muted-foreground block">Estado</span>
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                  <span className="text-xs font-sans text-muted-foreground block print:text-black">Estado</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400 print:text-black">
                     {totalesLibroContinuo.debe === totalesLibroContinuo.haber ? "CUADRADO (D == H)" : "DESCUADRADO"}
                   </span>
                 </div>
@@ -2488,23 +2412,23 @@ function KardexContent() {
       {/* ======================================================== */}
       {/* 7. PIE DE FIRMAS DE AUDITORÍA (IMPRESIÓN OFICIAL)        */}
       {/* ======================================================== */}
-      <footer className="hidden border-t border-border pt-8 text-center text-xs text-muted-foreground print:block">
-        <p className="font-semibold text-foreground">
+      <footer className="hidden border-t-2 border-black pt-6 text-center text-xs text-black print:block print:mt-8">
+        <p className="font-semibold text-black">
           {pestañaPrincipal === "kardex_inventario"
-            ? "Tarjeta de Control de Inventarios (Kardex Físico-Valorado) emitida oficialmente por el Sistema de Información Contable."
+            ? "Tarjeta de Control de Inventarios (Kardex) emitida oficialmente por el Sistema de Información Contable."
             : "Libro Auxiliar emitido oficialmente por el Sistema de Información Contable."}
         </p>
-        <p className="mt-1">
+        <p className="mt-1 text-[11px] text-neutral-600">
           Certificación de saldos, existencias y operaciones según principios contables y normativa tributaria aplicable (Art. 143 C.T.).
         </p>
-        <div className="mt-14 grid grid-cols-3 gap-10">
-          <div className="border-t border-foreground/50 pt-2 font-medium">
+        <div className="mt-12 grid grid-cols-3 gap-8">
+          <div className="border-t border-black pt-2 font-medium text-black">
             {pestañaPrincipal === "kardex_inventario" ? "Encargado de Bodega / Almacén" : "Elaboró (Auxiliar Contable)"}
           </div>
-          <div className="border-t border-foreground/50 pt-2 font-medium">
+          <div className="border-t border-black pt-2 font-medium text-black">
             Revisó (Contador General - JVPCPA)
           </div>
-          <div className="border-t border-foreground/50 pt-2 font-medium">
+          <div className="border-t border-black pt-2 font-medium text-black">
             Autorizó (Representante Legal / Auditor)
           </div>
         </div>
