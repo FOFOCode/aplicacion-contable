@@ -92,6 +92,17 @@ function extraerReferenciaOperativa(concepto: string, tipo: string = "OPERACION"
   return `PD-${String(partidaNumero).padStart(3, "0")}`
 }
 
+/**
+ * Normaliza cadenas para búsqueda insensible a acentos, diacríticos y mayúsculas.
+ */
+function normalizar(texto: string): string {
+  return (texto || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+}
+
 function KardexContent() {
   const { cuentas, asientos, ejercicioSeleccionado, mayor } = useContabilidad()
   const searchParams = useSearchParams()
@@ -99,6 +110,7 @@ function KardexContent() {
 
   // Cuenta inicial seleccionada
   const [codigoSeleccionado, setCodigoSeleccionado] = useState<string>(codigoParam || "1101")
+  const [modoVista, setModoVista] = useState<"ficha" | "continuo">("ficha")
   const [busqueda, setBusqueda] = useState("")
   const [mesFiltro, setMesFiltro] = useState<string>("todos")
   const [soloConMovimientos, setSoloConMovimientos] = useState<boolean>(true)
@@ -187,12 +199,14 @@ function KardexContent() {
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [partidaDetalle, cuentaAnterior, cuentaSiguiente])
 
-  // Cuentas filtradas por texto de búsqueda
+  // Cuentas filtradas por texto de búsqueda (insensible a acentos/tildes y mayúsculas)
   const cuentasFiltradas = useMemo(() => {
-    const q = busqueda.trim().toLowerCase()
+    const q = normalizar(busqueda)
+    if (!q) return cuentasNavegables
     return cuentasNavegables.filter((c) => {
-      if (!q) return true
-      return c.codigo.toLowerCase().includes(q) || c.nombre.toLowerCase().includes(q)
+      const codNorm = normalizar(c.codigo)
+      const nomNorm = normalizar(c.nombre)
+      return codNorm.includes(q) || nomNorm.includes(q)
     })
   }, [cuentasNavegables, busqueda])
 
@@ -247,6 +261,94 @@ function KardexContent() {
 
     return lista
   }, [asientos, cuentaActual, ejercicioSeleccionado])
+
+  // Datos consolidados para Libro Auxiliar Continuo (Todas las cuentas con saldo o movimientos)
+  const libroContinuoData = useMemo(() => {
+    if (modoVista !== "continuo") return []
+
+    const asientosDelEjercicio = asientos
+      .filter((a) => {
+        if (a.estado === "ANULADO") return false
+        const ej = a.ejercicio || (a.fecha ? new Date(a.fecha).getFullYear() : undefined)
+        if (ej !== undefined && ej !== ejercicioSeleccionado) return false
+        return true
+      })
+      .slice()
+      .sort((a, b) => {
+        const fComp = (a.fecha || "").localeCompare(b.fecha || "")
+        if (fComp !== 0) return fComp
+        return a.numero - b.numero
+      })
+
+    const mesNum = mesFiltro !== "todos" ? Number(mesFiltro) : null
+
+    return cuentasFiltradas.map((cuenta) => {
+      let saldoAcumulado = 0
+      let saldoInicial = 0
+      const movs: MovimientoKardex[] = []
+
+      for (const a of asientosDelEjercicio) {
+        for (const linea of a.lineas) {
+          if (linea.codigo === cuenta.codigo) {
+            const debe = Number(linea.debe) || 0
+            const haber = Number(linea.haber) || 0
+            if (cuenta.naturaleza === "deudora") {
+              saldoAcumulado = redondear(saldoAcumulado + debe - haber)
+            } else {
+              saldoAcumulado = redondear(saldoAcumulado + haber - debe)
+            }
+
+            const mItem: MovimientoKardex = {
+              fecha: a.fecha,
+              partidaNumero: a.numero,
+              correlativoGlobal: a.correlativo_global,
+              tipoPartida: a.tipo || "OPERACION",
+              referenciaDoc: extraerReferenciaOperativa(a.concepto, a.tipo || "OPERACION", a.numero),
+              concepto: a.concepto,
+              debe,
+              haber,
+              saldo: saldoAcumulado,
+              asientoOriginal: a,
+            }
+
+            if (mesNum !== null) {
+              const mMes = new Date(a.fecha + "T00:00:00").getMonth() + 1
+              if (mMes < mesNum) {
+                saldoInicial = saldoAcumulado
+              } else if (mMes === mesNum) {
+                movs.push(mItem)
+              }
+            } else {
+              movs.push(mItem)
+            }
+          }
+        }
+      }
+
+      const totalDebe = redondear(movs.reduce((acc, m) => acc + m.debe, 0))
+      const totalHaber = redondear(movs.reduce((acc, m) => acc + m.haber, 0))
+      const saldoFinal = movs.length > 0 ? movs[movs.length - 1].saldo : saldoInicial
+
+      return {
+        cuenta,
+        movimientos: movs,
+        saldoInicial,
+        totalDebe,
+        totalHaber,
+        saldoFinal,
+      }
+    }).filter((item) => item.movimientos.length > 0 || item.saldoInicial !== 0)
+  }, [modoVista, asientos, ejercicioSeleccionado, mesFiltro, cuentasFiltradas])
+
+  const totalesLibroContinuo = useMemo(() => {
+    let debe = 0
+    let haber = 0
+    for (const item of libroContinuoData) {
+      debe += item.totalDebe
+      haber += item.totalHaber
+    }
+    return { debe: redondear(debe), haber: redondear(haber) }
+  }, [libroContinuoData])
 
   // Movimientos del período seleccionado con arrastre exacto de saldo anterior
   const { movimientos, saldoInicialPeriodo } = useMemo(() => {
@@ -348,7 +450,9 @@ function KardexContent() {
   // Funciones de exportación e impresión
   function exportarPdf() {
     const previousTitle = document.title
-    document.title = `Libro_Auxiliar_${cuentaActual?.codigo || "cuenta"}_${ejercicioSeleccionado}`
+    document.title = modoVista === "continuo"
+      ? `Libro_Auxiliar_General_Completo_${ejercicioSeleccionado}`
+      : `Libro_Auxiliar_${cuentaActual?.codigo || "cuenta"}_${ejercicioSeleccionado}`
     window.print()
     window.setTimeout(() => {
       document.title = previousTitle
@@ -356,6 +460,70 @@ function KardexContent() {
   }
 
   function exportarExcel() {
+    if (modoVista === "continuo") {
+      const hojas = libroContinuoData.map((item) => {
+        const filas: (string | number | null | undefined)[][] = [
+          ["SISTEMA CONTABLE OFICIAL - LIBRO AUXILIAR DE MAYOR"],
+          [`Ejercicio fiscal: ${ejercicioSeleccionado}`],
+          [`Cuenta: ${item.cuenta.codigo} - ${item.cuenta.nombre}`],
+          [`Clasificación: ${item.cuenta.tipo.toUpperCase()} | Naturaleza: ${item.cuenta.naturaleza.toUpperCase()}`],
+          [`Período reportado: ${MESES.find((m) => m.valor === mesFiltro)?.label || "Todo el año"}`],
+          [`Fecha de emisión: ${new Date().toLocaleDateString("es-SV")}`],
+          [],
+          ["Fecha", "Partida #", "Tipo", "Referencia / Doc", "Concepto / Glosa", "Debe (Cargos)", "Haber (Abonos)", "Saldo Progresivo", "Nat."],
+        ]
+
+        if (mesFiltro !== "todos") {
+          filas.push([
+            `${ejercicioSeleccionado}-${mesFiltro.padStart(2, "0")}-01`,
+            "-",
+            "INICIAL",
+            "TRASLADO",
+            "SALDO ANTERIOR TRASLADADO DEL PERÍODO PREVIO",
+            "",
+            "",
+            item.saldoInicial,
+            item.saldoInicial >= 0 ? (item.cuenta.naturaleza === "deudora" ? "D" : "A") : (item.cuenta.naturaleza === "deudora" ? "A" : "D"),
+          ])
+        }
+
+        for (const m of item.movimientos) {
+          filas.push([
+            m.fecha,
+            m.partidaNumero,
+            m.tipoPartida,
+            m.referenciaDoc,
+            m.concepto,
+            m.debe > 0 ? m.debe : "",
+            m.haber > 0 ? m.haber : "",
+            m.saldo,
+            m.saldo >= 0 ? (item.cuenta.naturaleza === "deudora" ? "D" : "A") : (item.cuenta.naturaleza === "deudora" ? "A" : "D"),
+          ])
+        }
+
+        filas.push([])
+        filas.push([
+          "SUMAS DE LA CUENTA",
+          "",
+          "",
+          "",
+          "",
+          item.totalDebe,
+          item.totalHaber,
+          item.saldoFinal,
+          item.saldoFinal >= 0 ? (item.cuenta.naturaleza === "deudora" ? "D" : "A") : (item.cuenta.naturaleza === "deudora" ? "A" : "D"),
+        ])
+
+        return {
+          nombre: `Aux ${item.cuenta.codigo}`,
+          filas,
+        }
+      })
+
+      exportarLibroExcel(`Libro_Auxiliar_General_${ejercicioSeleccionado}`, hojas)
+      return
+    }
+
     if (!cuentaActual) return
 
     const filas: (string | number | null | undefined)[][] = [
@@ -441,7 +609,9 @@ function KardexContent() {
               Sistema de Información Contable
             </h1>
             <p className="text-sm font-semibold uppercase text-muted-foreground">
-              Libro Auxiliar de Mayor · Folio Contable Oficial
+              {modoVista === "continuo"
+                ? "Libro Auxiliar General de Mayor · Todas las Cuentas"
+                : "Libro Auxiliar de Mayor · Folio Contable Individual"}
             </p>
           </div>
           <div className="text-right text-xs font-mono">
@@ -451,7 +621,7 @@ function KardexContent() {
           </div>
         </div>
 
-        {cuentaActual && (
+        {modoVista === "ficha" && cuentaActual && (
           <div className="mt-3 grid grid-cols-2 gap-2 text-xs border-t border-foreground/30 pt-2 font-mono">
             <div>
               <p><strong>Cuenta:</strong> {cuentaActual.codigo} — {cuentaActual.nombre}</p>
@@ -463,17 +633,53 @@ function KardexContent() {
             </div>
           </div>
         )}
+
+        {modoVista === "continuo" && (
+          <div className="mt-3 flex items-center justify-between text-xs border-t border-foreground/30 pt-2 font-mono">
+            <p><strong>Período:</strong> {MESES.find((m) => m.valor === mesFiltro)?.label || "Todo el año fiscal"}</p>
+            <p><strong>Cuentas reportadas:</strong> {libroContinuoData.length} cuentas con movimientos</p>
+            <p><strong>Total Cargos:</strong> {formatoMoneda(totalesLibroContinuo.debe)} · <strong>Total Abonos:</strong> {formatoMoneda(totalesLibroContinuo.haber)}</p>
+          </div>
+        )}
       </div>
 
       {/* 1. CABECERA WEB */}
-      <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-3 print:hidden">
-        <div className="flex items-center gap-2.5">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-3 print:hidden">
+        <div className="flex items-center gap-2.5 flex-wrap">
           <h1 className="text-xl font-bold tracking-tight md:text-2xl text-foreground">
             Libro Auxiliar
           </h1>
           <Badge variant="outline" className="text-xs font-mono font-medium">
             Ciclo {ejercicioSeleccionado}
           </Badge>
+
+          {/* Selector de Modo de Visualización */}
+          <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5 text-xs font-medium ml-1">
+            <button
+              type="button"
+              onClick={() => setModoVista("ficha")}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-all ${
+                modoVista === "ficha"
+                  ? "bg-background text-foreground font-semibold shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <FileSpreadsheet className="size-3.5" />
+              <span>Ficha Individual</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setModoVista("continuo")}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-all ${
+                modoVista === "continuo"
+                  ? "bg-background text-foreground font-semibold shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <ClipboardList className="size-3.5" />
+              <span>Libro Continuo (Todas)</span>
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 print:hidden shrink-0">
@@ -485,7 +691,7 @@ function KardexContent() {
             className="h-8 gap-1.5 text-xs shadow-xs"
           >
             <FileDown className="size-3.5" />
-            Imprimir
+            Imprimir {modoVista === "continuo" ? "Libro Completo" : "Folio"}
           </Button>
           <Button
             type="button"
@@ -503,75 +709,113 @@ function KardexContent() {
       {/* 2. BARRA DE CONTROL */}
       <div className="space-y-2.5 print:hidden">
         <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between rounded-xl border border-border bg-card p-3 shadow-xs">
-          {/* Selector principal de cuenta */}
-          <div className="flex flex-1 items-center gap-2">
-            <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Cuenta:</span>
-            <select
-              className="flex h-9 w-full max-w-xl rounded-md border border-input bg-background px-3 py-1 text-sm font-medium shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              value={codigoSeleccionado}
-              onChange={(e) => setCodigoSeleccionado(e.target.value)}
-              aria-label="Seleccionar cuenta contable"
-            >
-              {cuentasPorGrupo.map((g) => (
-                <optgroup key={g.id} label={g.nombre}>
-                  {g.cuentas.map((c) => {
-                    const sm = saldoMayorMap.get(c.codigo)
-                    const tieneMovs = sm !== undefined && sm.movs > 0
-                    const saldoVal = sm ? (c.naturaleza === "deudora" ? sm.debe - sm.haber : sm.haber - sm.debe) : 0
-
-                    return (
-                      <option key={c.codigo} value={c.codigo}>
-                        {c.codigo} — {c.nombre} {tieneMovs ? `(${formatoMoneda(Math.abs(saldoVal))})` : ""}
-                      </option>
-                    )
-                  })}
-                </optgroup>
-              ))}
-            </select>
-
-            {/* Navegación anterior / siguiente entre cuentas */}
-            <div className="flex items-center gap-0.5 shrink-0">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                onClick={cuentaAnterior}
-                disabled={indiceActual <= 0}
-                title="Cuenta anterior (Alt + Flecha Izquierda)"
-                className="size-7"
+          {/* Selector principal de cuenta (solo en modo ficha) */}
+          {modoVista === "ficha" ? (
+            <div className="flex flex-1 items-center gap-2">
+              <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Cuenta:</span>
+              <select
+                className="flex h-9 w-full max-w-xl rounded-md border border-input bg-background px-3 py-1 text-sm font-medium shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                value={codigoSeleccionado}
+                onChange={(e) => setCodigoSeleccionado(e.target.value)}
+                aria-label="Seleccionar cuenta contable"
               >
-                <ChevronLeft className="size-4" />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                onClick={cuentaSiguiente}
-                disabled={indiceActual < 0 || indiceActual >= cuentasNavegables.length - 1}
-                title="Siguiente cuenta (Alt + Flecha Derecha)"
-                className="size-7"
-              >
-                <ChevronRight className="size-4" />
-              </Button>
+                {!cuentasFiltradas.some((c) => c.codigo === codigoSeleccionado) && cuentaActual && (
+                  <optgroup label="Cuenta actualmente abierta">
+                    <option value={cuentaActual.codigo}>
+                      {cuentaActual.codigo} — {cuentaActual.nombre} (Actual)
+                    </option>
+                  </optgroup>
+                )}
+                {cuentasPorGrupo.map((g) => (
+                  <optgroup key={g.id} label={g.nombre}>
+                    {g.cuentas.map((c) => {
+                      const sm = saldoMayorMap.get(c.codigo)
+                      const tieneMovs = sm !== undefined && sm.movs > 0
+                      const saldoVal = sm ? (c.naturaleza === "deudora" ? sm.debe - sm.haber : sm.haber - sm.debe) : 0
+
+                      return (
+                        <option key={c.codigo} value={c.codigo}>
+                          {c.codigo} — {c.nombre} {tieneMovs ? `(${formatoMoneda(Math.abs(saldoVal))})` : ""}
+                        </option>
+                      )
+                    })}
+                  </optgroup>
+                ))}
+              </select>
+
+              {/* Navegación anterior / siguiente entre cuentas */}
+              <div className="flex items-center gap-0.5 shrink-0">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={cuentaAnterior}
+                  disabled={indiceActual <= 0}
+                  title="Cuenta anterior (Alt + Flecha Izquierda)"
+                  className="size-7"
+                >
+                  <ChevronLeft className="size-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={cuentaSiguiente}
+                  disabled={indiceActual < 0 || indiceActual >= cuentasNavegables.length - 1}
+                  title="Siguiente cuenta (Alt + Flecha Derecha)"
+                  className="size-7"
+                >
+                  <ChevronRight className="size-4" />
+                </Button>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <ClipboardList className="size-4 text-primary" />
+              <span>Mostrando el Libro Auxiliar Continuo con todas las cuentas del ejercicio</span>
+            </div>
+          )}
 
           {/* Filtros: Búsqueda rápida, Filtro por Mes y Toggle de movimientos */}
           <div className="flex flex-wrap items-center gap-2">
             {/* Buscador de texto */}
-            <div className="relative w-full sm:w-44 shrink-0">
+            <div className="relative w-full sm:w-56 shrink-0">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
               <Input
-                placeholder="Filtrar catálogo..."
+                placeholder="Buscar cuenta... (Enter)"
                 value={busqueda}
                 onChange={(e) => {
                   const val = e.target.value
                   setBusqueda(val)
-                  const match = cuentasActivas.find((c) => c.codigo === val.trim())
-                  if (match) setCodigoSeleccionado(match.codigo)
+                  const q = normalizar(val)
+                  if (!q) return
+                  const match = cuentasActivas.find(
+                    (c) => normalizar(c.codigo) === q || normalizar(c.nombre) === q
+                  )
+                  if (match) {
+                    setCodigoSeleccionado(match.codigo)
+                  }
                 }}
-                className="pl-8 h-8 text-xs"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault()
+                    if (cuentasFiltradas.length > 0) {
+                      setCodigoSeleccionado(cuentasFiltradas[0].codigo)
+                    }
+                  }
+                }}
+                className="pl-8 pr-7 h-8 text-xs"
               />
+              {busqueda && (
+                <button
+                  type="button"
+                  onClick={() => setBusqueda("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  title="Limpiar búsqueda"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
             </div>
 
             {/* Selector de Mes / Período */}
@@ -605,34 +849,67 @@ function KardexContent() {
           </div>
         </div>
 
-        {/* Accesos rápidos frecuentes */}
-        <div className="flex flex-wrap items-center gap-1.5 px-1">
-          <span className="text-xs text-muted-foreground font-medium mr-1">Frecuentes:</span>
-          {CUENTAS_RAPIDAS_SV.map((c) => {
-            const activa = codigoSeleccionado === c.codigo
-            return (
+        {/* Accesos rápidos frecuentes (solo en modo ficha) */}
+        {modoVista === "ficha" && (
+          <div className="flex flex-wrap items-center gap-1.5 px-1">
+            <span className="text-xs text-muted-foreground font-medium mr-1">Frecuentes:</span>
+            {CUENTAS_RAPIDAS_SV.map((c) => {
+              const activa = codigoSeleccionado === c.codigo
+              return (
+                <button
+                  key={c.codigo}
+                  type="button"
+                  onClick={() => setCodigoSeleccionado(c.codigo)}
+                  className={`rounded-md px-2.5 py-1 text-xs transition-colors ${
+                    activa
+                      ? "bg-primary text-primary-foreground font-medium shadow-xs"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                  }`}
+                >
+                  {c.nombre}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Chips de coincidencia de búsqueda rápida al tipear */}
+        {busqueda.trim() && cuentasFiltradas.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground px-1 pt-1">
+            <span className="text-[11px] font-medium">Coincidencias ({cuentasFiltradas.length}):</span>
+            {cuentasFiltradas.slice(0, 4).map((c) => (
               <button
                 key={c.codigo}
                 type="button"
-                onClick={() => setCodigoSeleccionado(c.codigo)}
-                className={`rounded-md px-2.5 py-1 text-xs transition-colors ${
-                  activa
-                    ? "bg-primary text-primary-foreground font-medium shadow-xs"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                onClick={() => {
+                  setCodigoSeleccionado(c.codigo)
+                  if (modoVista !== "ficha") setModoVista("ficha")
+                }}
+                className={`px-2 py-0.5 rounded text-xs font-mono transition-colors ${
+                  codigoSeleccionado === c.codigo
+                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                    : "bg-muted hover:bg-muted/80 text-foreground"
                 }`}
+                title="Clic para seleccionar cuenta"
               >
-                {c.nombre}
+                {c.codigo} {c.nombre}
               </button>
-            )
-          })}
-        </div>
+            ))}
+            {cuentasFiltradas.length > 4 && (
+              <span className="text-[10px] text-muted-foreground">+{cuentasFiltradas.length - 4} más</span>
+            )}
+            <span className="text-[11px] text-primary font-medium ml-1">· Pulsa Enter para abrir la primera</span>
+          </div>
+        )}
       </div>
 
-      {/* ======================================================== */}
-      {/* 3. FICHA TÉCNICA DEL FOLIO CONTABLE (ENCABEZADO DE MAYOR) */}
-      {/* ======================================================== */}
-      {/* 3. RESUMEN DE LA CUENTA */}
-      {cuentaActual && (
+      {modoVista === "ficha" ? (
+        <>
+          {/* ======================================================== */}
+          {/* 3. FICHA TÉCNICA DEL FOLIO CONTABLE (ENCABEZADO DE MAYOR) */}
+          {/* ======================================================== */}
+          {/* 3. RESUMEN DE LA CUENTA */}
+          {cuentaActual && (
         <Card className="border-border shadow-xs overflow-hidden print:hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/30 px-4 py-2.5 border-b border-border">
             <div className="flex items-center gap-2.5 flex-wrap">
@@ -975,6 +1252,215 @@ function KardexContent() {
           )}
         </CardContent>
       </Card>
+        </>
+      ) : (
+        /* ======================================================== */
+        /* 4. VISTA CONTINUA: TODAS LAS CUENTAS CON MOVIMIENTO     */
+        /* ======================================================== */
+        <div className="space-y-6">
+          {/* Tarjeta resumen consolidado del libro */}
+          <Card className="border-border bg-card shadow-xs print:hidden">
+            <CardHeader className="py-2.5 px-4 bg-muted/20 border-b border-border">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Libro Auxiliar General Consolidado · Ejercicio {ejercicioSeleccionado}
+                </CardTitle>
+                <Badge variant="outline" className="text-xs font-mono">
+                  {libroContinuoData.length} cuentas con saldo o movimientos
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="p-3 grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs text-center">
+              <div className="rounded-lg border border-border/60 p-2.5 bg-background">
+                <span className="text-muted-foreground text-[11px] block uppercase">Período</span>
+                <span className="text-sm font-semibold text-foreground">
+                  {MESES.find((m) => m.valor === mesFiltro)?.label || "Todo el año"}
+                </span>
+              </div>
+              <div className="rounded-lg border border-border/60 p-2.5 bg-background">
+                <span className="text-muted-foreground text-[11px] block uppercase">Total Cargos (Debe)</span>
+                <span className="text-sm font-semibold font-mono text-foreground">
+                  {formatoMoneda(totalesLibroContinuo.debe)}
+                </span>
+              </div>
+              <div className="rounded-lg border border-border/60 p-2.5 bg-background">
+                <span className="text-muted-foreground text-[11px] block uppercase">Total Abonos (Haber)</span>
+                <span className="text-sm font-semibold font-mono text-foreground">
+                  {formatoMoneda(totalesLibroContinuo.haber)}
+                </span>
+              </div>
+              <div className="rounded-lg border border-border/60 p-2.5 bg-background">
+                <span className="text-muted-foreground text-[11px] block uppercase">Cuadre Global</span>
+                <span className="text-sm font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                  {totalesLibroContinuo.debe === totalesLibroContinuo.haber ? "Cuadrado (D == H)" : "Diferencia"}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Listado secuencial de cada cuenta con su tabla de movimientos */}
+          {libroContinuoData.length === 0 ? (
+            <Card className="border-border shadow-xs p-12 text-center">
+              <ClipboardList className="mx-auto size-9 text-muted-foreground/40 mb-2" />
+              <p className="text-sm font-semibold text-muted-foreground">
+                No hay movimientos registrados en este período.
+              </p>
+            </Card>
+          ) : (
+            libroContinuoData.map(({ cuenta, movimientos: movs, saldoInicial, totalDebe: tDebe, totalHaber: tHaber, saldoFinal: sFinal }) => {
+              const esAnomalo = sFinal < 0
+              const tagNat = sFinal >= 0 ? (cuenta.naturaleza === "deudora" ? "D" : "A") : (cuenta.naturaleza === "deudora" ? "A" : "D")
+
+              return (
+                <div
+                  key={cuenta.codigo}
+                  className="rounded-xl border border-border bg-card shadow-xs overflow-hidden print:border print:border-foreground/30 print:shadow-none print:break-inside-avoid"
+                >
+                  {/* Cabecera de la cuenta */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 bg-muted/40 px-4 py-2 border-b border-border">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-xs bg-background px-2 py-0.5 rounded border border-border">
+                        {cuenta.codigo}
+                      </span>
+                      <h3 className="text-sm font-semibold text-foreground">
+                        {cuenta.nombre}
+                      </h3>
+                      <span className="text-xs text-muted-foreground capitalize">
+                        · {cuenta.tipo} ({cuenta.naturaleza})
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3 text-xs font-mono">
+                      <span className="text-muted-foreground">
+                        Saldo Final: <strong className={esAnomalo ? "text-red-600" : "text-foreground"}>{formatoMoneda(Math.abs(sFinal))} ({tagNat})</strong>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCodigoSeleccionado(cuenta.codigo)
+                          setModoVista("ficha")
+                        }}
+                        className="inline-flex items-center gap-1 text-[11px] font-sans text-primary hover:underline print:hidden"
+                        title="Abrir en ficha individual"
+                      >
+                        <span>Ver Ficha</span>
+                        <ArrowRight className="size-3" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Tabla de movimientos */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="border-b border-border bg-muted/20 text-muted-foreground uppercase font-semibold text-[10px]">
+                        <tr>
+                          <th className="py-2 px-3 whitespace-nowrap">Fecha</th>
+                          <th className="py-2 px-2 text-center whitespace-nowrap">Partida</th>
+                          <th className="py-2 px-2 whitespace-nowrap">Doc / Ref</th>
+                          <th className="py-2 px-3">Concepto</th>
+                          <th className="py-2 px-3 text-right whitespace-nowrap">Debe</th>
+                          <th className="py-2 px-3 text-right whitespace-nowrap">Haber</th>
+                          <th className="py-2 px-3 text-right whitespace-nowrap">Saldo</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/60">
+                        {mesFiltro !== "todos" && saldoInicial !== 0 && (
+                          <tr className="bg-muted/20 italic text-muted-foreground">
+                            <td className="py-1.5 px-3 font-mono">{`${ejercicioSeleccionado}-${mesFiltro.padStart(2, "0")}-01`}</td>
+                            <td className="py-1.5 px-2 text-center font-mono">-</td>
+                            <td className="py-1.5 px-2 font-mono text-[10px]">TRASLADO</td>
+                            <td className="py-1.5 px-3">Saldo anterior acumulado trasladado</td>
+                            <td className="py-1.5 px-3 text-right font-mono">-</td>
+                            <td className="py-1.5 px-3 text-right font-mono">-</td>
+                            <td className="py-1.5 px-3 text-right font-mono font-semibold">
+                              {formatoMoneda(Math.abs(saldoInicial))}
+                            </td>
+                          </tr>
+                        )}
+                        {movs.map((m, mIdx) => (
+                          <tr key={mIdx} className="hover:bg-muted/20">
+                            <td className="py-1.5 px-3 font-mono text-muted-foreground whitespace-nowrap">{m.fecha}</td>
+                            <td className="py-1.5 px-2 text-center whitespace-nowrap">
+                              {m.asientoOriginal ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setPartidaDetalle(m.asientoOriginal!)}
+                                  className="font-mono text-primary hover:underline"
+                                >
+                                  #{m.partidaNumero}
+                                </button>
+                              ) : (
+                                <span className="font-mono text-muted-foreground">#{m.partidaNumero}</span>
+                              )}
+                            </td>
+                            <td className="py-1.5 px-2 font-mono text-[10px] text-muted-foreground whitespace-nowrap">{m.referenciaDoc}</td>
+                            <td className="py-1.5 px-3 text-foreground/90 max-w-sm truncate">{m.concepto}</td>
+                            <td className="py-1.5 px-3 text-right font-mono tabular-nums whitespace-nowrap">
+                              {m.debe > 0 ? formatoMoneda(m.debe) : "-"}
+                            </td>
+                            <td className="py-1.5 px-3 text-right font-mono tabular-nums whitespace-nowrap">
+                              {m.haber > 0 ? formatoMoneda(m.haber) : "-"}
+                            </td>
+                            <td className="py-1.5 px-3 text-right font-mono tabular-nums font-semibold whitespace-nowrap">
+                              {formatoMoneda(Math.abs(m.saldo))}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="border-t border-border bg-muted/30 font-semibold text-[11px]">
+                        <tr>
+                          <td colSpan={4} className="py-2 px-3 uppercase text-muted-foreground">
+                            Subtotal Cuenta {cuenta.codigo}
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono tabular-nums whitespace-nowrap">
+                            {formatoMoneda(tDebe)}
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono tabular-nums whitespace-nowrap">
+                            {formatoMoneda(tHaber)}
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono tabular-nums font-bold whitespace-nowrap">
+                            {formatoMoneda(Math.abs(sFinal))} ({tagNat})
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              )
+            })
+          )}
+
+          {/* Gran Total del Libro Auxiliar al Final */}
+          {libroContinuoData.length > 0 && (
+            <div className="rounded-xl border-2 border-border bg-muted/40 p-4 font-mono shadow-xs text-xs flex flex-wrap items-center justify-between gap-4">
+              <div className="font-sans">
+                <span className="font-bold text-sm text-foreground block">
+                  GRAN TOTAL DEL LIBRO AUXILIAR DE MAYOR
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Suma acumulada de todas las cuentas analíticas en el período
+                </span>
+              </div>
+              <div className="flex items-center gap-6 text-sm">
+                <div>
+                  <span className="text-xs font-sans text-muted-foreground block">Total Cargos</span>
+                  <span className="font-bold text-foreground">{formatoMoneda(totalesLibroContinuo.debe)}</span>
+                </div>
+                <div>
+                  <span className="text-xs font-sans text-muted-foreground block">Total Abonos</span>
+                  <span className="font-bold text-foreground">{formatoMoneda(totalesLibroContinuo.haber)}</span>
+                </div>
+                <div>
+                  <span className="text-xs font-sans text-muted-foreground block">Estado</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                    {totalesLibroContinuo.debe === totalesLibroContinuo.haber ? "CUADRADO (D == H)" : "DESCUADRADO"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ======================================================== */}
       {/* 5. MODAL DRILL-DOWN: VER COMPROBANTE DE DIARIO COMPLETO */}
