@@ -214,5 +214,34 @@
     border-color: #0f766e !important;
     background: #ecfdf5 !important;
   }
+
+  .print-accounting-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 8.5pt !important;
+    color: #000 !important;
+  }
+
+  .print-accounting-table th,
+  .print-accounting-table td {
+    border: 0.5pt solid #000 !important;
+    padding: 3pt 4pt !important;
+    color: #000 !important;
+  }
+
+  .print-accounting-table th {
+    background-color: #f1f5f9 !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+  }
+
+  .print-accounting-table tfoot td {
+    font-weight: 700 !important;
+    background-color: #f8fafc !important;
+  }
+
+  .print-accounting-table .saldo-doble-linea {
+    border-bottom: 2pt double #000 !important;
+  }
 }
 

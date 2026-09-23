@@ -1,13 +1,21 @@
 import { NextResponse } from "next/server"
 import { getDbPool } from "@/lib/db"
 
-export async function GET() {
+export async function GET(req: Request) {
   const pool = getDbPool()
   if (!pool) return NextResponse.json({ error: "No database configured" }, { status: 503 })
   try {
-    const resAsientos = await pool.query(
-      "SELECT id, correlativo_global, ejercicio, numero, fecha::text, concepto, tipo, estado, anulado_en::text, motivo_anulacion FROM asiento ORDER BY fecha DESC, numero DESC"
-    )
+    const { searchParams } = new URL(req.url)
+    const ejercicioParam = searchParams.get("ejercicio")
+    let query = "SELECT id, correlativo_global, ejercicio, numero, fecha::text, concepto, tipo, estado, anulado_en::text, motivo_anulacion FROM asiento"
+    const params: unknown[] = []
+    if (ejercicioParam) {
+      query += " WHERE ejercicio = $1"
+      params.push(parseInt(ejercicioParam, 10))
+    }
+    query += " ORDER BY fecha DESC, numero DESC"
+
+    const resAsientos = await pool.query(query, params)
     const resLineas = await pool.query(
       "SELECT asiento_id, cuenta_codigo, debe::float, haber::float, linea_numero FROM asiento_linea ORDER BY asiento_id, linea_numero ASC"
     )
@@ -51,7 +59,8 @@ export async function POST(req: Request) {
 
   const client = await pool.connect()
   try {
-    const { fecha, concepto, lineas, tipo: tipoInput, documento_soporte, folio_diario_id } = await req.json()
+    const { fecha, concepto, lineas, tipo: tipoInput, documento_soporte, folio_diario_id, usuario_email } = await req.json()
+    const email = usuario_email || "admin@contable.sv"
 
     if (!Array.isArray(lineas) || lineas.length < 2) {
       return NextResponse.json(
@@ -60,7 +69,7 @@ export async function POST(req: Request) {
       )
     }
 
-    const ejercicio = fecha ? new Date(fecha).getFullYear() : new Date().getFullYear()
+    const ejercicio = fecha ? parseInt(fecha.split("-")[0], 10) : new Date().getFullYear()
 
     await client.query("BEGIN")
 
@@ -105,10 +114,10 @@ export async function POST(req: Request) {
       )
     }
 
-    // Registrar traza en el historial de auditoría
+    // Registrar traza en el historial de auditoría con identificación de autoría legal
     await client.query(
-      "INSERT INTO asiento_historial (asiento_id, accion, ejercicio, numero, concepto, total_debe, total_haber, motivo) VALUES ($1, 'CREACION', $2, $3, $4, $5, $6, 'Registro regular de partida contable')",
-      [asientoId, ejercicio, numero, concepto, totalDebe, totalHaber]
+      "INSERT INTO asiento_historial (asiento_id, accion, ejercicio, numero, concepto, total_debe, total_haber, motivo, usuario_email) VALUES ($1, 'CREACION', $2, $3, $4, $5, $6, 'Registro regular de partida contable', $7)",
+      [asientoId, ejercicio, numero, concepto, totalDebe, totalHaber, email]
     )
 
     await client.query("COMMIT")
@@ -141,4 +150,3 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: msg }, { status: 400 })
   }
 }
-
