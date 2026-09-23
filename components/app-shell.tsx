@@ -25,7 +25,7 @@ const NAV = [
   { href: "/", label: "Inicio", icon: LayoutDashboard },
   { href: "/libro-diario", label: "Libro Diario", icon: BookOpenText },
   { href: "/libro-mayor", label: "Libro Mayor", icon: ListTree },
-  { href: "/kardex", label: "Kardex", icon: ClipboardList },
+  { href: "/kardex", label: "Kardex / Auxiliar", icon: ClipboardList },
   { href: "/estados-financieros", label: "Estados Financieros", icon: Scale },
   { href: "/ciclos", label: "Ciclos Contables", icon: History },
   { href: "/catalogo", label: "Catálogo de Cuentas", icon: Library },

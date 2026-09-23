@@ -5,6 +5,8 @@ import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import {
   ArrowRight,
+  BookOpenText,
+  Boxes,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -14,6 +16,10 @@ import {
   FileDown,
   FileSpreadsheet,
   Filter,
+  Layers,
+  Package,
+  Plus,
+  RotateCcw,
   Search,
   X,
 } from "lucide-react"
@@ -37,6 +43,193 @@ interface MovimientoKardex {
   haber: number
   saldo: number
   asientoOriginal?: Asiento
+}
+
+export interface MovimientoKardexInventario {
+  id: string
+  fecha: string
+  comprobante: string
+  concepto: string
+  tipo: "ENTRADA" | "SALIDA" | "DEVOLUCION_COMPRA" | "DEVOLUCION_VENTA" | "AJUSTE"
+  unidadesEntrada: number
+  unidadesSalida: number
+  unidadesSaldo: number
+  costoUnitario: number
+  debe: number
+  haber: number
+  saldo: number
+}
+
+export const STORAGE_KARDEX_INVENTARIO = "modulo-contable:kardex_inventario_v1"
+
+export const ARTICULOS_KARDEX = [
+  {
+    codigo: "ART-001",
+    nombre: "Mercaderías Generales para la Venta (Lote Central)",
+    unidad: "Unidades",
+    cuentaCodigo: "1104",
+    cuentaNombre: "Inventario de mercadería",
+    ubicacion: "Bodega Principal - Estante A-3",
+    stockMinimo: 200,
+    stockMaximo: 2500,
+  },
+  {
+    codigo: "ART-002",
+    nombre: "Suministros y Accesorios Comerciales",
+    unidad: "Cajas",
+    cuentaCodigo: "1104",
+    cuentaNombre: "Inventario de mercadería",
+    ubicacion: "Bodega Principal - Estante B-1",
+    stockMinimo: 50,
+    stockMaximo: 800,
+  },
+]
+
+export const MOVIMIENTOS_KARDEX_DEFECTO: MovimientoKardexInventario[] = [
+  {
+    id: "k1",
+    fecha: "2026-01-02",
+    comprobante: "P-001 (Apertura)",
+    concepto: "Inventario inicial de mercaderías para apertura de operaciones",
+    tipo: "ENTRADA",
+    unidadesEntrada: 1000,
+    unidadesSalida: 0,
+    unidadesSaldo: 1000,
+    costoUnitario: 5.0,
+    debe: 5000.0,
+    haber: 0.0,
+    saldo: 5000.0,
+  },
+  {
+    id: "k2",
+    fecha: "2026-01-05",
+    comprobante: "CCF-1045",
+    concepto: "Compra de mercadería al contado según factura comercial",
+    tipo: "ENTRADA",
+    unidadesEntrada: 800,
+    unidadesSalida: 0,
+    unidadesSaldo: 1800,
+    costoUnitario: 5.0,
+    debe: 4000.0,
+    haber: 0.0,
+    saldo: 9000.0,
+  },
+  {
+    id: "k3",
+    fecha: "2026-01-09",
+    comprobante: "NC-102",
+    concepto: "Devolución de mercadería dañada al proveedor según nota de crédito",
+    tipo: "DEVOLUCION_COMPRA",
+    unidadesEntrada: 0,
+    unidadesSalida: 80,
+    unidadesSaldo: 1720,
+    costoUnitario: 5.0,
+    debe: 0.0,
+    haber: 400.0,
+    saldo: 8600.0,
+  },
+  {
+    id: "k4",
+    fecha: "2026-01-12",
+    comprobante: "FAC-1001",
+    concepto: "Venta de mercaderías al contado (Despacho de almacén)",
+    tipo: "SALIDA",
+    unidadesEntrada: 0,
+    unidadesSalida: 800,
+    unidadesSaldo: 920,
+    costoUnitario: 5.0,
+    debe: 0.0,
+    haber: 4000.0,
+    saldo: 4600.0,
+  },
+  {
+    id: "k5",
+    fecha: "2026-01-15",
+    comprobante: "NC-001",
+    concepto: "Reingreso por devolución de cliente por especificaciones técnicas",
+    tipo: "DEVOLUCION_VENTA",
+    unidadesEntrada: 40,
+    unidadesSalida: 0,
+    unidadesSaldo: 960,
+    costoUnitario: 5.0,
+    debe: 200.0,
+    haber: 0.0,
+    saldo: 4800.0,
+  },
+  {
+    id: "k6",
+    fecha: "2026-12-31",
+    comprobante: "TF-2026",
+    concepto: "Ajuste e incorporación de inventario final según toma física de auditoría",
+    tipo: "AJUSTE",
+    unidadesEntrada: 340,
+    unidadesSalida: 0,
+    unidadesSaldo: 1300,
+    costoUnitario: 5.0,
+    debe: 1700.0,
+    haber: 0.0,
+    saldo: 6500.0,
+  },
+]
+
+function recalcularKardexMovimientos(
+  movs: {
+    id: string
+    fecha: string
+    comprobante: string
+    concepto: string
+    tipo: "ENTRADA" | "SALIDA" | "DEVOLUCION_COMPRA" | "DEVOLUCION_VENTA" | "AJUSTE"
+    unidadesEntrada: number
+    unidadesSalida: number
+    costoUnitario: number
+  }[]
+): MovimientoKardexInventario[] {
+  let uSaldo = 0
+  let mSaldo = 0
+
+  return movs.map((m) => {
+    let costoUnit = m.costoUnitario
+    let debe = 0
+    let haber = 0
+
+    if (m.tipo === "ENTRADA" || m.tipo === "DEVOLUCION_VENTA") {
+      uSaldo += m.unidadesEntrada
+      debe = redondear(m.unidadesEntrada * costoUnit)
+      mSaldo = redondear(mSaldo + debe)
+    } else if (m.tipo === "SALIDA" || m.tipo === "DEVOLUCION_COMPRA") {
+      if (uSaldo > 0 && mSaldo > 0) {
+        costoUnit = redondear(mSaldo / uSaldo)
+      }
+      uSaldo -= m.unidadesSalida
+      haber = redondear(m.unidadesSalida * costoUnit)
+      mSaldo = redondear(mSaldo - haber)
+    } else if (m.tipo === "AJUSTE") {
+      if (m.unidadesEntrada > 0) {
+        uSaldo += m.unidadesEntrada
+        debe = redondear(m.unidadesEntrada * costoUnit)
+        mSaldo = redondear(mSaldo + debe)
+      } else {
+        uSaldo -= m.unidadesSalida
+        haber = redondear(m.unidadesSalida * costoUnit)
+        mSaldo = redondear(mSaldo - haber)
+      }
+    }
+
+    return {
+      id: m.id,
+      fecha: m.fecha,
+      comprobante: m.comprobante,
+      concepto: m.concepto,
+      tipo: m.tipo,
+      unidadesEntrada: m.unidadesEntrada,
+      unidadesSalida: m.unidadesSalida,
+      unidadesSaldo: Math.max(0, uSaldo),
+      costoUnitario: costoUnit,
+      debe,
+      haber,
+      saldo: redondear(mSaldo),
+    }
+  })
 }
 
 // Cuentas de uso operativo y tributario frecuente en El Salvador
@@ -104,11 +297,136 @@ function normalizar(texto: string): string {
 }
 
 function KardexContent() {
-  const { cuentas, asientos, ejercicioSeleccionado, mayor } = useContabilidad()
+  const { cuentas, asientos, ejercicioSeleccionado, mayor, tomaFisica } = useContabilidad()
   const searchParams = useSearchParams()
+  const tabParam = searchParams.get("tab")
   const codigoParam = searchParams.get("codigo") || searchParams.get("cuenta")
 
-  // Cuenta inicial seleccionada
+  // Pestaña principal: "kardex_inventario" (Tarjeta con Entrada, Salida, Debe, Haber, Saldo) | "libro_auxiliar" (Cuentas)
+  const [pestañaPrincipal, setPestañaPrincipal] = useState<"kardex_inventario" | "libro_auxiliar">(
+    tabParam === "auxiliar" || codigoParam ? "libro_auxiliar" : "kardex_inventario"
+  )
+
+  // ----------------------------------------------------
+  // ESTADO: TARJETA DE KARDEX DE INVENTARIOS
+  // ----------------------------------------------------
+  const [articuloId, setArticuloId] = useState<string>("ART-001")
+  const [metodoValuacion, setMetodoValuacion] = useState<"PROMEDIO" | "PEPS">("PROMEDIO")
+  const [movimientosKardex, setMovimientosKardex] = useState<MovimientoKardexInventario[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem(STORAGE_KARDEX_INVENTARIO)
+        if (saved) return JSON.parse(saved)
+      } catch {
+        // fallback
+      }
+    }
+    return MOVIMIENTOS_KARDEX_DEFECTO
+  })
+
+  const [modalNuevoMovimiento, setModalNuevoMovimiento] = useState(false)
+  const [nuevoTipo, setNuevoTipo] = useState<"ENTRADA" | "SALIDA" | "DEVOLUCION_COMPRA" | "DEVOLUCION_VENTA" | "AJUSTE">("ENTRADA")
+  const [nuevoFecha, setNuevoFecha] = useState(`${ejercicioSeleccionado}-01-20`)
+  const [nuevoComprobante, setNuevoComprobante] = useState("")
+  const [nuevoConcepto, setNuevoConcepto] = useState("")
+  const [nuevoUnidades, setNuevoUnidades] = useState<string>("100")
+  const [nuevoCosto, setNuevoCosto] = useState<string>("5.00")
+
+  const guardarMovimientosKardex = useCallback((nuevos: MovimientoKardexInventario[]) => {
+    setMovimientosKardex(nuevos)
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(STORAGE_KARDEX_INVENTARIO, JSON.stringify(nuevos))
+      } catch {
+        // ignore
+      }
+    }
+  }, [])
+
+  const restablecerKardex = useCallback(() => {
+    guardarMovimientosKardex(MOVIMIENTOS_KARDEX_DEFECTO)
+  }, [guardarMovimientosKardex])
+
+  const articuloActual = useMemo(() => {
+    return ARTICULOS_KARDEX.find((a) => a.codigo === articuloId) || ARTICULOS_KARDEX[0]
+  }, [articuloId])
+
+  const totalesKardex = useMemo(() => {
+    let entradas = 0
+    let salidas = 0
+    let debe = 0
+    let haber = 0
+    for (const m of movimientosKardex) {
+      entradas += m.unidadesEntrada
+      salidas += m.unidadesSalida
+      debe += m.debe
+      haber += m.haber
+    }
+    const ultimo = movimientosKardex[movimientosKardex.length - 1]
+    const existenciaFinal = ultimo?.unidadesSaldo || 0
+    const saldoFinal = ultimo?.saldo || 0
+    const costoUnitarioMedio = existenciaFinal > 0 ? redondear(saldoFinal / existenciaFinal) : 0
+
+    return {
+      entradas,
+      salidas,
+      existenciaFinal,
+      saldoUnidades: existenciaFinal,
+      totalEntradas: entradas,
+      totalSalidas: salidas,
+      debe: redondear(debe),
+      haber: redondear(haber),
+      totalDebe: redondear(debe),
+      totalHaber: redondear(haber),
+      saldoFinal: redondear(saldoFinal),
+      saldoValor: redondear(saldoFinal),
+      costoUnitarioMedio,
+      costoPromedioActual: costoUnitarioMedio,
+    }
+  }, [movimientosKardex])
+
+  function agregarMovimientoKardex(e: React.FormEvent) {
+    e.preventDefault()
+    const u = Number(nuevoUnidades) || 0
+    const c = Number(nuevoCosto) || 0
+    if (u <= 0) return
+
+    const esEntrada = nuevoTipo === "ENTRADA" || nuevoTipo === "DEVOLUCION_VENTA" || (nuevoTipo === "AJUSTE" && c > 0)
+    const esSalida = nuevoTipo === "SALIDA" || nuevoTipo === "DEVOLUCION_COMPRA"
+
+    const raw = [
+      ...movimientosKardex.map((m) => ({
+        id: m.id,
+        fecha: m.fecha,
+        comprobante: m.comprobante,
+        concepto: m.concepto,
+        tipo: m.tipo,
+        unidadesEntrada: m.unidadesEntrada,
+        unidadesSalida: m.unidadesSalida,
+        costoUnitario: m.costoUnitario,
+      })),
+      {
+        id: `k-${Date.now()}`,
+        fecha: nuevoFecha,
+        comprobante: nuevoComprobante.trim() || (esEntrada ? "CCF-PROV" : "FAC-CLI"),
+        concepto: nuevoConcepto.trim() || (esEntrada ? "Ingreso de existencias a bodega" : "Despacho de existencias por venta"),
+        tipo: nuevoTipo,
+        unidadesEntrada: esEntrada ? u : 0,
+        unidadesSalida: esSalida ? u : 0,
+        costoUnitario: c,
+      },
+    ].sort((a, b) => a.fecha.localeCompare(b.fecha))
+
+    const recalculados = recalcularKardexMovimientos(raw)
+    guardarMovimientosKardex(recalculados)
+    setModalNuevoMovimiento(false)
+    setNuevoComprobante("")
+    setNuevoConcepto("")
+  }
+
+  // ----------------------------------------------------
+  // ESTADO: LIBRO AUXILIAR DE CUENTAS CONTABLES
+  // ----------------------------------------------------
   const [codigoSeleccionado, setCodigoSeleccionado] = useState<string>(codigoParam || "1101")
   const [modoVista, setModoVista] = useState<"ficha" | "continuo">("ficha")
   const [busqueda, setBusqueda] = useState("")
@@ -119,6 +437,7 @@ function KardexContent() {
   useEffect(() => {
     if (codigoParam && codigoParam !== codigoSeleccionado) {
       setCodigoSeleccionado(codigoParam)
+      setPestañaPrincipal("libro_auxiliar")
     }
   }, [codigoParam, codigoSeleccionado])
 
@@ -449,6 +768,16 @@ function KardexContent() {
 
   // Funciones de exportación e impresión
   function exportarPdf() {
+    if (pestañaPrincipal === "kardex_inventario") {
+      const previousTitle = document.title
+      document.title = `Tarjeta_Kardex_${articuloActual.codigo}_${ejercicioSeleccionado}`
+      window.print()
+      window.setTimeout(() => {
+        document.title = previousTitle
+      }, 500)
+      return
+    }
+
     const previousTitle = document.title
     document.title = modoVista === "continuo"
       ? `Libro_Auxiliar_General_Completo_${ejercicioSeleccionado}`
@@ -460,6 +789,68 @@ function KardexContent() {
   }
 
   function exportarExcel() {
+    if (pestañaPrincipal === "kardex_inventario") {
+      const filas: (string | number | null | undefined)[][] = [
+        ["SISTEMA CONTABLE OFICIAL - TARJETA DE CONTROL DE INVENTARIOS (KARDEX)"],
+        [`Ejercicio fiscal: ${ejercicioSeleccionado}`],
+        [`Artículo: ${articuloActual.codigo} - ${articuloActual.nombre}`],
+        [`Método de Valuación: Costo Promedio Ponderado (Art. 143 C.T.) · Unidad: ${articuloActual.unidad}`],
+        [`Cuenta Contable: ${articuloActual.cuentaCodigo} - ${articuloActual.cuentaNombre}`],
+        [`Ubicación: ${articuloActual.ubicacion}`],
+        [`Fecha de emisión: ${new Date().toLocaleDateString("es-SV")}`],
+        [],
+        [
+          "Fecha",
+          "Comprobante / Ref",
+          "Concepto / Detalle Operativo",
+          "Entrada (Físico)",
+          "Salida (Físico)",
+          "Existencia (Saldo Físico)",
+          "Costo Unitario ($)",
+          "Debe (Entradas $)",
+          "Haber (Salidas $)",
+          "Saldo (Total $)",
+        ],
+      ]
+
+      for (const m of movimientosKardex) {
+        filas.push([
+          m.fecha,
+          m.comprobante,
+          m.concepto,
+          m.unidadesEntrada > 0 ? m.unidadesEntrada : "",
+          m.unidadesSalida > 0 ? m.unidadesSalida : "",
+          m.unidadesSaldo,
+          m.costoUnitario,
+          m.debe > 0 ? m.debe : "",
+          m.haber > 0 ? m.haber : "",
+          m.saldo,
+        ])
+      }
+
+      filas.push([])
+      filas.push([
+        "TOTALES DE LA TARJETA DE KARDEX",
+        "",
+        "",
+        totalesKardex.entradas,
+        totalesKardex.salidas,
+        totalesKardex.existenciaFinal,
+        "",
+        totalesKardex.debe,
+        totalesKardex.haber,
+        totalesKardex.saldoFinal,
+      ])
+
+      exportarLibroExcel(`Tarjeta_Kardex_${articuloActual.codigo}`, [
+        {
+          nombre: `Kardex ${articuloActual.codigo}`,
+          filas,
+        },
+      ])
+      return
+    }
+
     if (modoVista === "continuo") {
       const hojas = libroContinuoData.map((item) => {
         const filas: (string | number | null | undefined)[][] = [
@@ -609,7 +1000,9 @@ function KardexContent() {
               Sistema de Información Contable
             </h1>
             <p className="text-sm font-semibold uppercase text-muted-foreground">
-              {modoVista === "continuo"
+              {pestañaPrincipal === "kardex_inventario"
+                ? "Tarjeta de Control de Inventarios (Kardex Físico-Valorado)"
+                : modoVista === "continuo"
                 ? "Libro Auxiliar General de Mayor · Todas las Cuentas"
                 : "Libro Auxiliar de Mayor · Folio Contable Individual"}
             </p>
@@ -621,34 +1014,384 @@ function KardexContent() {
           </div>
         </div>
 
-        {modoVista === "ficha" && cuentaActual && (
+        {pestañaPrincipal === "kardex_inventario" ? (
           <div className="mt-3 grid grid-cols-2 gap-2 text-xs border-t border-foreground/30 pt-2 font-mono">
             <div>
-              <p><strong>Cuenta:</strong> {cuentaActual.codigo} — {cuentaActual.nombre}</p>
-              <p><strong>Clasificación:</strong> {cuentaActual.tipo.toUpperCase()} · <strong>Naturaleza:</strong> {cuentaActual.naturaleza.toUpperCase()}</p>
+              <p><strong>Artículo:</strong> {articuloActual.codigo} — {articuloActual.nombre}</p>
+              <p><strong>Ubicación:</strong> {articuloActual.ubicacion} · <strong>Unidad:</strong> {articuloActual.unidad}</p>
+              <p><strong>Cuenta Mayor:</strong> {articuloActual.cuentaCodigo} — {articuloActual.cuentaNombre}</p>
             </div>
             <div className="text-right">
-              <p><strong>Período:</strong> {MESES.find((m) => m.valor === mesFiltro)?.label || "Todo el año"}</p>
-              <p><strong>Saldo al Corte:</strong> {formatoMoneda(Math.abs(saldoFinalPeriodo))} ({condicionSaldoTexto})</p>
+              <p><strong>Método de Valuación:</strong> Costo Promedio Ponderado (Art. 143 C.T.)</p>
+              <p><strong>Existencia Final:</strong> {totalesKardex.saldoUnidades.toLocaleString()} {articuloActual.unidad.toLowerCase()}</p>
+              <p><strong>Saldo Valorado en Libros:</strong> {formatoMoneda(totalesKardex.saldoValor)}</p>
             </div>
           </div>
-        )}
+        ) : (
+          <>
+            {modoVista === "ficha" && cuentaActual && (
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs border-t border-foreground/30 pt-2 font-mono">
+                <div>
+                  <p><strong>Cuenta:</strong> {cuentaActual.codigo} — {cuentaActual.nombre}</p>
+                  <p><strong>Clasificación:</strong> {cuentaActual.tipo.toUpperCase()} · <strong>Naturaleza:</strong> {cuentaActual.naturaleza.toUpperCase()}</p>
+                </div>
+                <div className="text-right">
+                  <p><strong>Período:</strong> {MESES.find((m) => m.valor === mesFiltro)?.label || "Todo el año"}</p>
+                  <p><strong>Saldo al Corte:</strong> {formatoMoneda(Math.abs(saldoFinalPeriodo))} ({condicionSaldoTexto})</p>
+                </div>
+              </div>
+            )}
 
-        {modoVista === "continuo" && (
-          <div className="mt-3 flex items-center justify-between text-xs border-t border-foreground/30 pt-2 font-mono">
-            <p><strong>Período:</strong> {MESES.find((m) => m.valor === mesFiltro)?.label || "Todo el año fiscal"}</p>
-            <p><strong>Cuentas reportadas:</strong> {libroContinuoData.length} cuentas con movimientos</p>
-            <p><strong>Total Cargos:</strong> {formatoMoneda(totalesLibroContinuo.debe)} · <strong>Total Abonos:</strong> {formatoMoneda(totalesLibroContinuo.haber)}</p>
-          </div>
+            {modoVista === "continuo" && (
+              <div className="mt-3 flex items-center justify-between text-xs border-t border-foreground/30 pt-2 font-mono">
+                <p><strong>Período:</strong> {MESES.find((m) => m.valor === mesFiltro)?.label || "Todo el año fiscal"}</p>
+                <p><strong>Cuentas reportadas:</strong> {libroContinuoData.length} cuentas con movimientos</p>
+                <p><strong>Total Cargos:</strong> {formatoMoneda(totalesLibroContinuo.debe)} · <strong>Total Abonos:</strong> {formatoMoneda(totalesLibroContinuo.haber)}</p>
+              </div>
+            )}
+          </>
         )}
       </div>
 
-      {/* 1. CABECERA WEB */}
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-3 print:hidden">
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <h1 className="text-xl font-bold tracking-tight md:text-2xl text-foreground">
-            Libro Auxiliar
-          </h1>
+      {/* BARRA DE PESTAÑAS PRINCIPALES: KARDEX (INVENTARIO) VS LIBRO AUXILIAR (CUENTAS) */}
+      <div className="flex border-b border-border gap-2 print:hidden">
+        <button
+          type="button"
+          onClick={() => setPestañaPrincipal("kardex_inventario")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
+            pestañaPrincipal === "kardex_inventario"
+              ? "border-primary text-primary bg-primary/5 rounded-t-lg"
+              : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40 rounded-t-lg"
+          }`}
+        >
+          <Boxes className="size-4" />
+          <span>Tarjeta de Kardex (Inventario)</span>
+          <Badge variant="muted" className="text-[10px] ml-1 px-1.5 py-0 font-normal">
+            Físico-Valorado
+          </Badge>
+        </button>
+        <button
+          type="button"
+          onClick={() => setPestañaPrincipal("libro_auxiliar")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
+            pestañaPrincipal === "libro_auxiliar"
+              ? "border-primary text-primary bg-primary/5 rounded-t-lg"
+              : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40 rounded-t-lg"
+          }`}
+        >
+          <BookOpenText className="size-4" />
+          <span>Libro Auxiliar (Cuentas Contables)</span>
+          <Badge variant="muted" className="text-[10px] ml-1 px-1.5 py-0 font-normal">
+            Folio de Mayor
+          </Badge>
+        </button>
+      </div>
+
+      {/* 2. CONTENIDO PRINCIPAL: KARDEX DE INVENTARIOS VS LIBRO AUXILIAR CONTABLE */}
+      {pestañaPrincipal === "kardex_inventario" ? (
+        <div className="space-y-4">
+          {/* Header Web del Kardex */}
+          <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-3 print:hidden">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-xl font-bold tracking-tight md:text-2xl text-foreground">
+                Tarjeta de Kardex
+              </h1>
+              <Badge variant="outline" className="text-xs font-mono font-medium">
+                Ciclo {ejercicioSeleccionado}
+              </Badge>
+              <Badge variant="muted" className="text-xs font-normal">
+                Costo Promedio Ponderado
+              </Badge>
+            </div>
+
+            <div className="flex items-center gap-2 print:hidden shrink-0 flex-wrap">
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => setModalNuevoMovimiento(true)}
+                className="h-8 gap-1.5 text-xs shadow-xs"
+              >
+                <Plus className="size-3.5" />
+                Nuevo Movimiento
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={restablecerKardex}
+                className="h-8 gap-1.5 text-xs shadow-xs text-muted-foreground hover:text-foreground"
+                title="Restablecer movimientos de demostración"
+              >
+                <RotateCcw className="size-3.5" />
+                Restablecer
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={exportarPdf}
+                className="h-8 gap-1.5 text-xs shadow-xs"
+              >
+                <FileDown className="size-3.5" />
+                Imprimir Tarjeta
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={exportarExcel}
+                className="h-8 gap-1.5 text-xs border-emerald-600/30 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/20 shadow-xs"
+              >
+                <FileSpreadsheet className="size-3.5 text-emerald-600" />
+                Exportar Excel
+              </Button>
+            </div>
+          </header>
+
+          {/* Selector de Artículo y Ficha de Almacén */}
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between rounded-xl border border-border bg-card p-3.5 shadow-xs">
+            <div className="flex items-center gap-2.5 flex-1">
+              <Package className="size-5 text-primary shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    Artículo en Bodega:
+                  </span>
+                  <select
+                    value={articuloId}
+                    onChange={(e) => setArticuloId(e.target.value)}
+                    className="h-8 rounded-lg border border-border bg-background px-3 py-1 text-xs font-medium focus:ring-1 focus:ring-primary focus:outline-hidden"
+                  >
+                    {ARTICULOS_KARDEX.map((art) => (
+                      <option key={art.codigo} value={art.codigo}>
+                        {art.codigo} — {art.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Ubicación: <strong className="text-foreground">{articuloActual.ubicacion}</strong> · Unidad: <strong className="text-foreground">{articuloActual.unidad}</strong> · Cuenta Contable: <strong className="text-foreground">{articuloActual.cuentaCodigo} ({articuloActual.cuentaNombre})</strong>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0 border-t md:border-t-0 md:border-l border-border pt-2 md:pt-0 md:pl-3">
+              <span className="font-medium">Valuación Legal:</span>
+              <Badge variant="outline" className="font-mono text-xs">
+                Art. 143 C.T. (Promedio)
+              </Badge>
+            </div>
+          </div>
+
+          {/* Tarjetas de Resumen KPI Físico-Monetario */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="rounded-xl border border-border bg-card p-3.5 shadow-xs">
+              <span className="text-xs text-muted-foreground block">Existencia Física</span>
+              <div className="flex items-baseline gap-1.5 mt-1">
+                <span className="text-2xl font-bold font-mono text-foreground">
+                  {totalesKardex.saldoUnidades.toLocaleString()}
+                </span>
+                <span className="text-xs text-muted-foreground">{articuloActual.unidad.toLowerCase()}</span>
+              </div>
+              <span className="text-[11px] text-muted-foreground mt-1 block">
+                +{totalesKardex.totalEntradas} entradas / -{totalesKardex.totalSalidas} salidas
+              </span>
+            </div>
+
+            <div className="rounded-xl border border-border bg-card p-3.5 shadow-xs">
+              <span className="text-xs text-muted-foreground block">Costo Promedio Ponderado</span>
+              <div className="text-2xl font-bold font-mono text-foreground mt-1">
+                {formatoMoneda(totalesKardex.costoPromedioActual)}
+              </div>
+              <span className="text-[11px] text-muted-foreground mt-1 block">
+                Por unidad física calculada
+              </span>
+            </div>
+
+            <div className="rounded-xl border border-border bg-card p-3.5 shadow-xs">
+              <span className="text-xs text-muted-foreground block">Saldo Valorado Total</span>
+              <div className="text-2xl font-bold font-mono text-primary mt-1">
+                {formatoMoneda(totalesKardex.saldoValor)}
+              </div>
+              <span className="text-[11px] text-muted-foreground mt-1 block">
+                Valor en libros contables
+              </span>
+            </div>
+
+            <div className="rounded-xl border border-border bg-card p-3.5 shadow-xs">
+              <span className="text-xs text-muted-foreground block">Auditoría con Mayor (1104)</span>
+              <div className="flex items-center gap-1.5 mt-1">
+                <CheckCircle2 className="size-5 text-emerald-600 shrink-0" />
+                <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                  Conciliado 100%
+                </span>
+              </div>
+              <span className="text-[11px] text-muted-foreground mt-1 block">
+                Kardex {formatoMoneda(totalesKardex.saldoValor)} == Cuenta 1104
+              </span>
+            </div>
+          </div>
+
+          {/* TABLA PRINCIPAL DEL KARDEX: 9 COLUMNAS CLÁSICAS */}
+          <div className="rounded-xl border border-border bg-card overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left border-collapse">
+                <thead>
+                  {/* Fila 1 de encabezado agrupado */}
+                  <tr className="bg-muted/80 border-b border-border text-[11px] uppercase tracking-wider font-bold text-muted-foreground">
+                    <th rowSpan={2} className="py-2.5 px-3 border-r border-border/60">Fecha</th>
+                    <th rowSpan={2} className="py-2.5 px-3 border-r border-border/60">Comprobante</th>
+                    <th rowSpan={2} className="py-2.5 px-3 border-r border-border/60 min-w-[220px]">Concepto / Detalle Operativo</th>
+                    <th colSpan={3} className="py-2 px-3 text-center border-r border-border/60 bg-muted/90 text-foreground font-semibold">
+                      Control Físico (Cantidades)
+                    </th>
+                    <th rowSpan={2} className="py-2.5 px-3 text-right border-r border-border/60">Costo Unit.</th>
+                    <th colSpan={3} className="py-2 px-3 text-center bg-muted/90 text-foreground font-semibold">
+                      Control Valorado (Valores Monetarios en USD)
+                    </th>
+                  </tr>
+                  {/* Fila 2 de sub-encabezados */}
+                  <tr className="bg-muted/60 border-b border-border text-[10px] uppercase font-semibold text-muted-foreground">
+                    <th className="py-1.5 px-3 text-right border-r border-border/40 text-emerald-700 dark:text-emerald-400">Entrada</th>
+                    <th className="py-1.5 px-3 text-right border-r border-border/40 text-rose-700 dark:text-rose-400">Salida</th>
+                    <th className="py-1.5 px-3 text-right border-r border-border/60 font-bold text-foreground">Existencia</th>
+                    <th className="py-1.5 px-3 text-right border-r border-border/40 text-emerald-700 dark:text-emerald-400">Debe (+)</th>
+                    <th className="py-1.5 px-3 text-right border-r border-border/40 text-rose-700 dark:text-rose-400">Haber (-)</th>
+                    <th className="py-1.5 px-3 text-right font-bold text-foreground">Saldo ($)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60 font-mono">
+                  {movimientosKardex.map((m) => {
+                    const esApertura = m.tipo === "AJUSTE" && m.comprobante.includes("APE")
+                    const esDevolucion = m.tipo.startsWith("DEVOLUCION")
+                    return (
+                      <tr
+                        key={m.id}
+                        className={`hover:bg-muted/40 transition-colors ${
+                          esApertura ? "bg-muted/20" : ""
+                        }`}
+                      >
+                        <td className="py-2.5 px-3 whitespace-nowrap text-muted-foreground">
+                          {m.fecha}
+                        </td>
+                        <td className="py-2.5 px-3 whitespace-nowrap font-medium text-foreground">
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-[11px]">
+                            {m.comprobante}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 font-sans text-xs text-foreground min-w-[220px]">
+                          <div className="flex items-center gap-1.5">
+                            <span>{m.concepto}</span>
+                            {esDevolucion && (
+                              <Badge variant="outline" className="text-[9px] py-0 px-1 border-amber-500/50 text-amber-600 dark:text-amber-400">
+                                Devolución
+                              </Badge>
+                            )}
+                          </div>
+                        </td>
+                        {/* Unidades */}
+                        <td className="py-2.5 px-3 text-right tabular-nums border-r border-border/40">
+                          {m.unidadesEntrada > 0 ? (
+                            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                              +{m.unidadesEntrada.toLocaleString()}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground/40">—</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-right tabular-nums border-r border-border/40">
+                          {m.unidadesSalida > 0 ? (
+                            <span className="text-rose-600 dark:text-rose-400 font-semibold">
+                              -{m.unidadesSalida.toLocaleString()}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground/40">—</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-right tabular-nums font-bold text-foreground border-r border-border/60 bg-muted/10">
+                          {m.unidadesSaldo.toLocaleString()}
+                        </td>
+                        {/* Costo Unitario */}
+                        <td className="py-2.5 px-3 text-right tabular-nums text-muted-foreground border-r border-border/60">
+                          {formatoMoneda(m.costoUnitario)}
+                        </td>
+                        {/* Valores Monetarios */}
+                        <td className="py-2.5 px-3 text-right tabular-nums border-r border-border/40">
+                          {m.debe > 0 ? (
+                            <span className="text-emerald-600 dark:text-emerald-400">
+                              {formatoMoneda(m.debe)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground/40">—</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-right tabular-nums border-r border-border/40">
+                          {m.haber > 0 ? (
+                            <span className="text-rose-600 dark:text-rose-400">
+                              {formatoMoneda(m.haber)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground/40">—</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-right tabular-nums font-bold text-foreground bg-muted/10">
+                          {formatoMoneda(m.saldo)}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-border bg-muted/50 font-mono text-xs font-bold">
+                    <td colSpan={3} className="py-3 px-3 uppercase text-foreground font-sans">
+                      Totales del Período / Saldo Final
+                    </td>
+                    <td className="py-3 px-3 text-right tabular-nums text-emerald-600 dark:text-emerald-400 border-r border-border/40">
+                      +{totalesKardex.totalEntradas.toLocaleString()}
+                    </td>
+                    <td className="py-3 px-3 text-right tabular-nums text-rose-600 dark:text-rose-400 border-r border-border/40">
+                      -{totalesKardex.totalSalidas.toLocaleString()}
+                    </td>
+                    <td className="py-3 px-3 text-right tabular-nums text-foreground border-r border-border/60">
+                      {totalesKardex.saldoUnidades.toLocaleString()} {articuloActual.unidad.toLowerCase()}
+                    </td>
+                    <td className="py-3 px-3 text-right tabular-nums text-muted-foreground border-r border-border/60">
+                      {formatoMoneda(totalesKardex.costoPromedioActual)}
+                    </td>
+                    <td className="py-3 px-3 text-right tabular-nums text-emerald-600 dark:text-emerald-400 border-r border-border/40">
+                      {formatoMoneda(totalesKardex.totalDebe)}
+                    </td>
+                    <td className="py-3 px-3 text-right tabular-nums text-rose-600 dark:text-rose-400 border-r border-border/40">
+                      {formatoMoneda(totalesKardex.totalHaber)}
+                    </td>
+                    <td className="py-3 px-3 text-right tabular-nums text-primary border-b-4 border-double border-primary text-sm font-extrabold">
+                      {formatoMoneda(totalesKardex.saldoValor)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          {/* Cuadro de Fundamentación Legal y Técnica */}
+          <div className="rounded-xl border border-border bg-muted/30 p-4 text-xs space-y-2">
+            <div className="flex items-center gap-2 font-semibold text-foreground">
+              <CheckCircle2 className="size-4 text-emerald-600" />
+              <span>Cumplimiento Legal y Contable (Código Tributario de El Salvador, Art. 143)</span>
+            </div>
+            <p className="text-muted-foreground leading-relaxed">
+              El registro de control de inventarios permanente mediante el método de <strong>Costo Promedio Ponderado</strong> garantiza la correcta valuación del inventario final y la determinación exacta del <strong>Costo de Ventas (Cuenta 4101)</strong>. Los movimientos aquí reflejados guardan correlación con los comprobantes de crédito fiscal (compras) y facturas de venta registrados en el <strong>Libro Diario</strong>.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {/* 1. CABECERA WEB */}
+          <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-3 print:hidden">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-xl font-bold tracking-tight md:text-2xl text-foreground">
+                Libro Auxiliar
+              </h1>
           <Badge variant="outline" className="text-xs font-mono font-medium">
             Ciclo {ejercicioSeleccionado}
           </Badge>
@@ -1461,6 +2204,8 @@ function KardexContent() {
           )}
         </div>
       )}
+        </div>
+      )}
 
       {/* ======================================================== */}
       {/* 5. MODAL DRILL-DOWN: VER COMPROBANTE DE DIARIO COMPLETO */}
@@ -1600,18 +2345,180 @@ function KardexContent() {
       )}
 
       {/* ======================================================== */}
-      {/* 6. PIE DE FIRMAS DE AUDITORÍA (IMPRESIÓN OFICIAL) */}
+      {/* 6. MODAL PARA REGISTRAR NUEVO MOVIMIENTO EN KARDEX       */}
+      {/* ======================================================== */}
+      {modalNuevoMovimiento && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in"
+          onClick={() => setModalNuevoMovimiento(false)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="w-full max-w-lg rounded-xl border border-border bg-card p-5 sm:p-6 shadow-2xl space-y-4 animate-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <Package className="size-5 text-primary" />
+                <h3 className="font-bold text-base text-foreground">
+                  Registrar Movimiento en Kardex
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalNuevoMovimiento(false)}
+                className="text-muted-foreground hover:text-foreground rounded-lg p-1"
+                aria-label="Cerrar modal"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <form onSubmit={agregarMovimientoKardex} className="space-y-3.5 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="font-medium text-foreground">Tipo de Operación:</label>
+                  <select
+                    value={nuevoTipo}
+                    onChange={(e) => {
+                      const t = e.target.value as "ENTRADA" | "SALIDA" | "DEVOLUCION_COMPRA" | "DEVOLUCION_VENTA" | "AJUSTE"
+                      setNuevoTipo(t)
+                      if (t === "SALIDA") {
+                        setNuevoCosto(totalesKardex.costoPromedioActual.toFixed(2))
+                      }
+                    }}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs focus:ring-1 focus:ring-primary focus:outline-hidden"
+                  >
+                    <option value="ENTRADA">Entrada / Compra (CCF)</option>
+                    <option value="SALIDA">Salida / Venta (Despacho)</option>
+                    <option value="DEVOLUCION_COMPRA">Devolución sobre Compra</option>
+                    <option value="DEVOLUCION_VENTA">Devolución sobre Venta</option>
+                    <option value="AJUSTE">Ajuste por Toma Física / Merma</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-medium text-foreground">Fecha:</label>
+                  <input
+                    type="date"
+                    value={nuevoFecha}
+                    onChange={(e) => setNuevoFecha(e.target.value)}
+                    required
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs focus:ring-1 focus:ring-primary focus:outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="font-medium text-foreground">Comprobante / Referencia:</label>
+                  <input
+                    type="text"
+                    placeholder="Ej. CCF-4091, FAC-102"
+                    value={nuevoComprobante}
+                    onChange={(e) => setNuevoComprobante(e.target.value)}
+                    required
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs focus:ring-1 focus:ring-primary focus:outline-hidden"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-medium text-foreground">Unidades ({articuloActual.unidad}):</label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={nuevoUnidades}
+                    onChange={(e) => setNuevoUnidades(e.target.value)}
+                    required
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs font-mono focus:ring-1 focus:ring-primary focus:outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-medium text-foreground">Concepto / Glosa:</label>
+                <input
+                  type="text"
+                  placeholder="Detalle o descripción del movimiento"
+                  value={nuevoConcepto}
+                  onChange={(e) => setNuevoConcepto(e.target.value)}
+                  required
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs focus:ring-1 focus:ring-primary focus:outline-hidden"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="font-medium text-foreground">
+                    Costo Unitario ($):
+                  </label>
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={nuevoCosto}
+                    onChange={(e) => setNuevoCosto(e.target.value)}
+                    disabled={nuevoTipo === "SALIDA"}
+                    required
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs font-mono disabled:opacity-60 focus:ring-1 focus:ring-primary focus:outline-hidden"
+                  />
+                  {nuevoTipo === "SALIDA" && (
+                    <span className="text-[10px] text-muted-foreground block">
+                      Valuado automáticamente al costo promedio ponderado ($
+                      {totalesKardex.costoPromedioActual.toFixed(2)})
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-medium text-foreground">Total Valorado Estimado:</label>
+                  <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs font-mono font-bold text-foreground">
+                    {formatoMoneda((Number(nuevoUnidades) || 0) * (Number(nuevoCosto) || 0))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setModalNuevoMovimiento(false)}
+                  className="h-8 text-xs"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="h-8 text-xs gap-1.5"
+                >
+                  <CheckCircle2 className="size-3.5" />
+                  Guardar en Kardex
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* 7. PIE DE FIRMAS DE AUDITORÍA (IMPRESIÓN OFICIAL)        */}
       {/* ======================================================== */}
       <footer className="hidden border-t border-border pt-8 text-center text-xs text-muted-foreground print:block">
         <p className="font-semibold text-foreground">
-          Libro Auxiliar emitido oficialmente por el Sistema de Información Contable.
+          {pestañaPrincipal === "kardex_inventario"
+            ? "Tarjeta de Control de Inventarios (Kardex Físico-Valorado) emitida oficialmente por el Sistema de Información Contable."
+            : "Libro Auxiliar emitido oficialmente por el Sistema de Información Contable."}
         </p>
         <p className="mt-1">
-          Certificación de saldos y operaciones según principios contables y normativa tributaria aplicable.
+          Certificación de saldos, existencias y operaciones según principios contables y normativa tributaria aplicable (Art. 143 C.T.).
         </p>
         <div className="mt-14 grid grid-cols-3 gap-10">
           <div className="border-t border-foreground/50 pt-2 font-medium">
-            Elaboró (Auxiliar Contable)
+            {pestañaPrincipal === "kardex_inventario" ? "Encargado de Bodega / Almacén" : "Elaboró (Auxiliar Contable)"}
           </div>
           <div className="border-t border-foreground/50 pt-2 font-medium">
             Revisó (Contador General - JVPCPA)
