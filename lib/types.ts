@@ -54,7 +54,21 @@ export interface Asiento {
   estado?: "APLICADO" | "ANULADO"
   anulado_en?: string | null
   motivo_anulacion?: string | null
+  usuario_id?: string | null
   lineas: AsientoLinea[]
+}
+
+export type TipoUsuario = "contador"
+
+export interface Usuario {
+  id: string
+  nombre: string
+  email: string
+  tipo: TipoUsuario
+  activo: boolean
+  ultimo_acceso?: string | null
+  creado_en?: string
+  actualizado_en?: string
 }
 
 export interface AsientoHistorial {
@@ -68,6 +82,7 @@ export interface AsientoHistorial {
   total_haber: number
   motivo?: string
   usuario_email?: string
+  usuario_id?: string | null
   creado_en?: string
 }
 

@@ -18,10 +18,28 @@ DROP TABLE IF EXISTS asiento_historial CASCADE;
 DROP TABLE IF EXISTS cierre_contable CASCADE;
 DROP TABLE IF EXISTS asiento_linea CASCADE;
 DROP TABLE IF EXISTS asiento CASCADE;
+DROP TABLE IF EXISTS usuario CASCADE;
 DROP TABLE IF EXISTS ejercicio_fiscal CASCADE;
 DROP TABLE IF EXISTS catalogo_cuentas CASCADE;
 
--- 2. TABLA: CATÁLOGO DE CUENTAS
+-- 2. TABLA: USUARIOS DEL SISTEMA (SEGURIDAD Y ROLES)
+CREATE TABLE usuario (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nombre VARCHAR(150) NOT NULL,
+    email VARCHAR(150) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    tipo VARCHAR(50) NOT NULL DEFAULT 'contador' CHECK (tipo IN ('contador')),
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
+    ultimo_acceso TIMESTAMP WITH TIME ZONE,
+    creado_en TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_usuario_email ON usuario(email);
+CREATE INDEX idx_usuario_tipo ON usuario(tipo);
+CREATE INDEX idx_usuario_activo ON usuario(activo);
+
+-- 3. TABLA: CATÁLOGO DE CUENTAS
 CREATE TABLE catalogo_cuentas (
     codigo VARCHAR(20) PRIMARY KEY,
     nombre VARCHAR(150) NOT NULL,
@@ -115,6 +133,7 @@ CREATE TABLE asiento (
     estado VARCHAR(20) NOT NULL DEFAULT 'APLICADO' CHECK (estado IN ('APLICADO', 'ANULADO')),
     anulado_en TIMESTAMP WITH TIME ZONE,
     motivo_anulacion TEXT,
+    usuario_id UUID REFERENCES usuario(id) ON DELETE SET NULL,
     creado_en TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_asiento_ejercicio_numero UNIQUE (ejercicio, numero),
     CONSTRAINT chk_asiento_anulacion CHECK (
@@ -128,6 +147,7 @@ CREATE INDEX idx_asiento_fecha ON asiento(fecha);
 CREATE INDEX idx_asiento_estado ON asiento(estado);
 CREATE INDEX idx_asiento_tipo ON asiento(tipo);
 CREATE INDEX idx_asiento_correlativo ON asiento(correlativo_global);
+CREATE INDEX idx_asiento_usuario ON asiento(usuario_id);
 
 -- Trigger BEFORE INSERT para asegurar sincronización de correlativo y estado de ejercicio
 CREATE OR REPLACE FUNCTION trg_fn_asiento_validar_ejercicio_y_numero()
@@ -297,12 +317,14 @@ CREATE TABLE asiento_historial (
     total_haber NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
     motivo TEXT,
     usuario_email VARCHAR(150) NOT NULL DEFAULT 'admin@contable.sv',
+    usuario_id UUID REFERENCES usuario(id) ON DELETE SET NULL,
     creado_en TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_historial_asiento ON asiento_historial(asiento_id);
 CREATE INDEX idx_historial_ejercicio ON asiento_historial(ejercicio);
 CREATE INDEX idx_historial_accion ON asiento_historial(accion);
+CREATE INDEX idx_historial_usuario ON asiento_historial(usuario_id);
 
 -- 9. TABLA: TOMA FÍSICA DE INVENTARIO POR EJERCICIO (MÉTODO ANALÍTICO)
 CREATE TABLE inventario_toma_fisica (
