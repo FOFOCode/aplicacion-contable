@@ -433,8 +433,40 @@ function KardexContent() {
 
   return (
     <div className="space-y-5">
-      {/* 1. CABECERA */}
-      <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-3">
+      {/* CABECERA FORMAL EXCLUSIVA PARA IMPRESIÓN OFICIAL (PDF) */}
+      <div className="hidden print:block pb-4 mb-4 border-b-2 border-foreground/80 text-foreground">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold uppercase tracking-wider">
+              Sistema de Información Contable
+            </h1>
+            <p className="text-sm font-semibold uppercase text-muted-foreground">
+              Libro Auxiliar de Mayor · Folio Contable Oficial
+            </p>
+          </div>
+          <div className="text-right text-xs font-mono">
+            <p><strong>Ciclo Fiscal:</strong> {ejercicioSeleccionado}</p>
+            <p><strong>Fecha de Emisión:</strong> {new Date().toLocaleDateString("es-SV")}</p>
+            <p><strong>Moneda:</strong> USD ($)</p>
+          </div>
+        </div>
+
+        {cuentaActual && (
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs border-t border-foreground/30 pt-2 font-mono">
+            <div>
+              <p><strong>Cuenta:</strong> {cuentaActual.codigo} — {cuentaActual.nombre}</p>
+              <p><strong>Clasificación:</strong> {cuentaActual.tipo.toUpperCase()} · <strong>Naturaleza:</strong> {cuentaActual.naturaleza.toUpperCase()}</p>
+            </div>
+            <div className="text-right">
+              <p><strong>Período:</strong> {MESES.find((m) => m.valor === mesFiltro)?.label || "Todo el año"}</p>
+              <p><strong>Saldo al Corte:</strong> {formatoMoneda(Math.abs(saldoFinalPeriodo))} ({condicionSaldoTexto})</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 1. CABECERA WEB */}
+      <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-3 print:hidden">
         <div className="flex items-center gap-2.5">
           <h1 className="text-xl font-bold tracking-tight md:text-2xl text-foreground">
             Libro Auxiliar
@@ -601,7 +633,7 @@ function KardexContent() {
       {/* ======================================================== */}
       {/* 3. RESUMEN DE LA CUENTA */}
       {cuentaActual && (
-        <Card className="border-border shadow-xs overflow-hidden">
+        <Card className="border-border shadow-xs overflow-hidden print:hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/30 px-4 py-2.5 border-b border-border">
             <div className="flex items-center gap-2.5 flex-wrap">
               <span className="font-mono font-bold text-sm text-foreground bg-muted px-2 py-0.5 rounded border border-border">
@@ -677,7 +709,7 @@ function KardexContent() {
 
       {/* RESUMEN DE LIQUIDACIÓN DE IVA */}
       {(codigoSeleccionado === "1105" || codigoSeleccionado === "2103") && (
-        <Card className="border-border bg-card shadow-xs">
+        <Card className="border-border bg-card shadow-xs print:hidden">
           <CardHeader className="py-2.5 px-4 bg-muted/20 border-b border-border">
             <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Liquidación de IVA
@@ -706,7 +738,7 @@ function KardexContent() {
 
       {/* RESUMEN ANALÍTICO DE COMPRAS */}
       {codigoSeleccionado === "4101" && (
-        <Card className="border-border bg-card shadow-xs">
+        <Card className="border-border bg-card shadow-xs print:hidden">
           <CardHeader className="py-2.5 px-4 bg-muted/20 border-b border-border">
             <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Resumen de Compras Netas
@@ -735,7 +767,7 @@ function KardexContent() {
 
       {/* RESUMEN ANALÍTICO DE VENTAS */}
       {codigoSeleccionado === "5101" && (
-        <Card className="border-border bg-card shadow-xs">
+        <Card className="border-border bg-card shadow-xs print:hidden">
           <CardHeader className="py-2.5 px-4 bg-muted/20 border-b border-border">
             <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Resumen de Ventas Netas
@@ -759,8 +791,8 @@ function KardexContent() {
       )}
 
       {/* 4. TABLA DE MOVIMIENTOS */}
-      <Card className="border-border shadow-xs overflow-hidden">
-        <CardHeader className="py-2.5 px-4 sm:px-5 bg-muted/20 border-b border-border">
+      <Card className="border-border shadow-xs overflow-hidden print:border-0 print:shadow-none print:bg-transparent">
+        <CardHeader className="py-2.5 px-4 sm:px-5 bg-muted/20 border-b border-border print:hidden">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-semibold text-foreground">
               Movimientos Registrados

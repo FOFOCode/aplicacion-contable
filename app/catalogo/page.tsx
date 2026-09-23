@@ -40,6 +40,17 @@ const NATURALEZA_DEFAULT: Record<TipoCuenta, Naturaleza> = {
 
 const ORDEN_GRUPOS: TipoCuenta[] = ["activo", "pasivo", "capital", "gasto", "ingreso"]
 
+/**
+ * Normaliza cadenas para búsqueda insensible a mayúsculas, minúsculas y tildes/acentos.
+ */
+function normalizar(texto: string): string {
+  return texto
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+}
+
 export default function CatalogoPage() {
   const {
     cuentas,
@@ -121,13 +132,18 @@ export default function CatalogoPage() {
     return { total, activas, inactivas, enUso, porGrupo }
   }, [cuentas, conteoMovimientos])
 
-  // Filtrado reactivo de cuentas
+  // Filtrado reactivo de cuentas (con búsqueda por palabras y sin distinción de tildes)
   const cuentasFiltradas = useMemo(() => {
-    const q = busqueda.trim().toLowerCase()
+    const q = normalizar(busqueda)
+    const terminos = q.split(/\s+/).filter(Boolean)
+
     return cuentas.filter((c) => {
-      // Filtro de búsqueda
-      if (q && !c.codigo.toLowerCase().includes(q) && !c.nombre.toLowerCase().includes(q)) {
-        return false
+      // Filtro de búsqueda (código y nombre)
+      if (terminos.length > 0) {
+        const codNorm = normalizar(c.codigo)
+        const nomNorm = normalizar(c.nombre)
+        const coincide = terminos.every((term) => codNorm.includes(term) || nomNorm.includes(term))
+        if (!coincide) return false
       }
       // Filtro de grupo contable
       if (grupoFiltro !== "todos" && c.tipo !== grupoFiltro) {
@@ -259,6 +275,147 @@ export default function CatalogoPage() {
     } else {
       mostrarToast(`Cuenta ${cod} eliminada del catálogo.`)
     }
+  }
+
+  const renderFilaCuenta = (c: Cuenta) => {
+    const movs = conteoMovimientos[c.codigo] || 0
+    const esSubcuenta = c.codigo.length > 4
+
+    return (
+      <div
+        key={c.codigo}
+        className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 gap-2 transition-colors hover:bg-muted/25 ${
+          !c.activa ? "bg-muted/15 opacity-75" : ""
+        }`}
+      >
+        {/* Código, Nombre y Badges Especiales */}
+        <div className="flex items-start sm:items-center gap-3">
+          <span
+            className={`font-mono font-semibold text-sm ${
+              esSubcuenta ? "pl-5 text-muted-foreground" : "text-primary"
+            }`}
+          >
+            {c.codigo}
+          </span>
+
+          <div className="space-y-0.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className={`text-sm ${c.activa ? "font-medium text-foreground" : "line-through text-muted-foreground"}`}>
+                {c.nombre}
+              </span>
+
+              {/* Indicadores contables analíticos y correctores */}
+              {c.codigo === "1104" && (
+                <span className="inline-flex items-center text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/30">
+                  Inventario Inicial
+                </span>
+              )}
+              {(c.codigo === "5102" || c.codigo === "5103") && (
+                <span className="inline-flex items-center text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/30">
+                  Correctora Compras (Acreedora)
+                </span>
+              )}
+              {(c.codigo === "4103" || c.codigo === "4104") && (
+                <span className="inline-flex items-center text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/30">
+                  Correctora Ventas (Deudora)
+                </span>
+              )}
+              {c.codigo === "1206" && (
+                <span className="inline-flex items-center text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/30">
+                  Contra-Activo (Acreedora)
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground sm:hidden">
+              <span>Naturaleza {c.naturaleza}</span>
+              <span>·</span>
+              <span>{movs} movimientos</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Badges de Auditoría y Acciones */}
+        <div className="flex items-center justify-between sm:justify-end gap-2.5 shrink-0 pt-1 sm:pt-0 border-t border-border/40 sm:border-0">
+          <div className="flex items-center gap-1.5">
+            {/* Naturaleza */}
+            <Badge
+              variant={c.naturaleza === "deudora" ? "deudora" : "acreedora"}
+              className="text-[11px] font-mono capitalize px-2 py-0"
+            >
+              {c.naturaleza}
+            </Badge>
+
+            {/* Partidas en uso */}
+            <span
+              title={`${movs} asientos contables registrados con esta cuenta`}
+              className={`inline-flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded ${
+                movs > 0 ? "bg-muted text-foreground font-medium" : "text-muted-foreground bg-muted/40"
+              }`}
+            >
+              {movs > 0 ? `${movs} part.` : "Sin uso"}
+            </span>
+
+            {/* Estado */}
+            {!c.activa && (
+              <Badge variant="muted" className="text-[10px] bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20">
+                Inactiva
+              </Badge>
+            )}
+          </div>
+
+          {/* Botonera */}
+          <div className="flex items-center gap-1">
+            {/* Modificar nombre */}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`Editar ${c.nombre}`}
+              title="Modificar nombre de la cuenta"
+              onClick={() => {
+                setCuentaEditando(c)
+                setEditNombre(c.nombre)
+                setEditNaturaleza(c.naturaleza)
+                setEditError("")
+              }}
+            >
+              <Pencil className="size-3.5" />
+            </Button>
+
+            {/* Desactivar o Reactivar */}
+            {c.activa ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Desactivar o eliminar ${c.nombre}`}
+                className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                title={movs > 0 ? "Desactivar cuenta (conservando historial en libros)" : "Eliminar cuenta del catálogo"}
+                onClick={() => setCuentaDesactivando(c)}
+              >
+                {movs > 0 ? <EyeOff className="size-3.5" /> : <Trash2 className="size-3.5" />}
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Reactivar ${c.nombre}`}
+                className="text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+                title="Reactivar cuenta en el catálogo"
+                onClick={() => {
+                  reactivarCuenta(c.codigo)
+                  mostrarToast(`Cuenta ${c.codigo} reactivada para nuevos asientos.`)
+                }}
+              >
+                <RotateCcw className="size-3.5" />
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -479,6 +636,31 @@ export default function CatalogoPage() {
         </div>
       </div>
 
+      {/* Indicador de filtro por grupo activo */}
+      {grupoFiltro !== "todos" && (
+        <div className="flex items-center gap-2 px-1 text-xs">
+          <span className="text-muted-foreground">Filtrando por clase:</span>
+          <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 font-medium">
+            {ETIQUETA_TIPO[grupoFiltro]}
+            <button
+              type="button"
+              onClick={() => setGrupoFiltro("todos")}
+              className="hover:text-destructive transition-colors ml-0.5"
+              title="Quitar filtro de clase y ver todo el catálogo"
+            >
+              <X className="size-3" />
+            </button>
+          </span>
+          <button
+            type="button"
+            onClick={() => setGrupoFiltro("todos")}
+            className="text-primary hover:underline font-medium"
+          >
+            Ver todas las clases
+          </button>
+        </div>
+      )}
+
       {/* LISTADO JERÁRQUICO POR GRUPOS Y RUBROS CONTABLES */}
       <div className="space-y-6">
         {estructuraJerarquica.length === 0 ? (
@@ -488,21 +670,35 @@ export default function CatalogoPage() {
             </div>
             <h3 className="mt-3 text-base font-semibold text-foreground">No se encontraron cuentas</h3>
             <p className="mt-1 text-xs text-muted-foreground max-w-sm mx-auto">
-              No existen cuentas contables que coincidan con la búsqueda &quot;{busqueda}&quot; en el filtro seleccionado.
+              {grupoFiltro !== "todos"
+                ? `No existen cuentas que coincidan con "${busqueda}" dentro de ${ETIQUETA_TIPO[grupoFiltro]}.`
+                : `No existen cuentas contables que coincidan con "${busqueda}".`}
             </p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="mt-4 h-8"
-              onClick={() => {
-                setBusqueda("")
-                setGrupoFiltro("todos")
-                setFiltroEstado("todas")
-              }}
-            >
-              Limpiar filtros
-            </Button>
+            <div className="mt-4 flex items-center justify-center gap-2">
+              {grupoFiltro !== "todos" && (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => setGrupoFiltro("todos")}
+                >
+                  Buscar en todo el catálogo
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => {
+                  setBusqueda("")
+                  setGrupoFiltro("todos")
+                  setFiltroEstado("todas")
+                }}
+              >
+                Limpiar filtros
+              </Button>
+            </div>
           </Card>
         ) : (
           estructuraJerarquica.map((grupo) => (
@@ -557,150 +753,31 @@ export default function CatalogoPage() {
                           No hay cuentas registradas en este rubro.
                         </div>
                       ) : (
-                        rubro.cuentas.map((c) => {
-                          const movs = conteoMovimientos[c.codigo] || 0
-                          const esSubcuenta = c.codigo.length > 4
-
-                          return (
-                            <div
-                              key={c.codigo}
-                              className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 gap-2 transition-colors hover:bg-muted/25 ${
-                                !c.activa ? "bg-muted/15 opacity-75" : ""
-                              }`}
-                            >
-                              {/* Código, Nombre y Badges Especiales */}
-                              <div className="flex items-start sm:items-center gap-3">
-                                <span
-                                  className={`font-mono font-semibold text-sm ${
-                                    esSubcuenta ? "pl-5 text-muted-foreground" : "text-primary"
-                                  }`}
-                                >
-                                  {c.codigo}
-                                </span>
-
-                                <div className="space-y-0.5">
-                                  <div className="flex flex-wrap items-center gap-1.5">
-                                    <span className={`text-sm ${c.activa ? "font-medium text-foreground" : "line-through text-muted-foreground"}`}>
-                                      {c.nombre}
-                                    </span>
-
-                                    {/* Indicadores contables analíticos y correctores */}
-                                    {c.codigo === "1104" && (
-                                      <span className="inline-flex items-center text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/30">
-                                        Inventario Inicial
-                                      </span>
-                                    )}
-                                    {(c.codigo === "5102" || c.codigo === "5103") && (
-                                      <span className="inline-flex items-center text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/30">
-                                        Correctora Compras (Acreedora)
-                                      </span>
-                                    )}
-                                    {(c.codigo === "4103" || c.codigo === "4104") && (
-                                      <span className="inline-flex items-center text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/30">
-                                        Correctora Ventas (Deudora)
-                                      </span>
-                                    )}
-                                    {c.codigo === "1206" && (
-                                      <span className="inline-flex items-center text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/30">
-                                        Contra-Activo (Acreedora)
-                                      </span>
-                                    )}
-                                  </div>
-
-                                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground sm:hidden">
-                                    <span>Naturaleza {c.naturaleza}</span>
-                                    <span>·</span>
-                                    <span>{movs} movimientos</span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Badges de Auditoría y Acciones */}
-                              <div className="flex items-center justify-between sm:justify-end gap-2.5 shrink-0 pt-1 sm:pt-0 border-t border-border/40 sm:border-0">
-                                <div className="flex items-center gap-1.5">
-                                  {/* Naturaleza */}
-                                  <Badge
-                                    variant={c.naturaleza === "deudora" ? "deudora" : "acreedora"}
-                                    className="text-[11px] font-mono capitalize px-2 py-0"
-                                  >
-                                    {c.naturaleza}
-                                  </Badge>
-
-                                  {/* Partidas en uso */}
-                                  <span
-                                    title={`${movs} asientos contables registrados con esta cuenta`}
-                                    className={`inline-flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded ${
-                                      movs > 0 ? "bg-muted text-foreground font-medium" : "text-muted-foreground bg-muted/40"
-                                    }`}
-                                  >
-                                    {movs > 0 ? `${movs} part.` : "Sin uso"}
-                                  </span>
-
-                                  {/* Estado */}
-                                  {!c.activa && (
-                                    <Badge variant="muted" className="text-[10px] bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20">
-                                      Inactiva
-                                    </Badge>
-                                  )}
-                                </div>
-
-                                {/* Botonera */}
-                                <div className="flex items-center gap-1">
-                                  {/* Modificar nombre */}
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon-sm"
-                                    aria-label={`Editar ${c.nombre}`}
-                                    title="Modificar nombre de la cuenta"
-                                    onClick={() => {
-                                      setCuentaEditando(c)
-                                      setEditNombre(c.nombre)
-                                      setEditNaturaleza(c.naturaleza)
-                                      setEditError("")
-                                    }}
-                                  >
-                                    <Pencil className="size-3.5" />
-                                  </Button>
-
-                                  {/* Desactivar o Reactivar */}
-                                  {c.activa ? (
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon-sm"
-                                      aria-label={`Desactivar o eliminar ${c.nombre}`}
-                                      className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                      title={movs > 0 ? "Desactivar cuenta (conservando historial en libros)" : "Eliminar cuenta del catálogo"}
-                                      onClick={() => setCuentaDesactivando(c)}
-                                    >
-                                      {movs > 0 ? <EyeOff className="size-3.5" /> : <Trash2 className="size-3.5" />}
-                                    </Button>
-                                  ) : (
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon-sm"
-                                      aria-label={`Reactivar ${c.nombre}`}
-                                      className="text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
-                                      title="Reactivar cuenta en el catálogo"
-                                      onClick={() => {
-                                        reactivarCuenta(c.codigo)
-                                        mostrarToast(`Cuenta ${c.codigo} reactivada para nuevos asientos.`)
-                                      }}
-                                    >
-                                      <RotateCcw className="size-3.5" />
-                                    </Button>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          )
-                        })
+                        rubro.cuentas.map(renderFilaCuenta)
                       )}
                     </div>
                   </Card>
                 ))}
+
+                {/* Cuentas adicionales del grupo que no pertenezcan a rubro estándar */}
+                {grupo.cuentasOtras && grupo.cuentasOtras.length > 0 && (
+                  <Card className="overflow-hidden border-border/80 shadow-xs">
+                    <div className="flex items-center justify-between bg-muted/40 px-4 py-2 border-b border-border/60">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-xs text-primary bg-background px-1.5 py-0.5 rounded border border-border">
+                          {grupo.digito}
+                        </span>
+                        <span className="text-xs font-semibold text-foreground">Otras cuentas de {grupo.nombreGrupo}</span>
+                      </div>
+                      <span className="text-[11px] text-muted-foreground font-mono">
+                        {grupo.cuentasOtras.length} {grupo.cuentasOtras.length === 1 ? "cuenta" : "cuentas"}
+                      </span>
+                    </div>
+                    <div className="divide-y divide-border/60">
+                      {grupo.cuentasOtras.map(renderFilaCuenta)}
+                    </div>
+                  </Card>
+                )}
               </div>
             </div>
           ))

@@ -79,10 +79,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-svh bg-background">
+    <div className="flex min-h-svh bg-background print:block print:min-h-0 print:bg-white print:text-black">
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex w-64 flex-col bg-sidebar text-sidebar-foreground transition-transform md:static md:translate-x-0",
+          "fixed inset-y-0 left-0 z-40 flex w-64 flex-col bg-sidebar text-sidebar-foreground transition-transform md:static md:translate-x-0 print:hidden",
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
@@ -127,14 +127,14 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {open && (
         <div
-          className="fixed inset-0 z-30 bg-black/40 md:hidden"
+          className="fixed inset-0 z-30 bg-black/40 md:hidden print:hidden"
           onClick={() => setOpen(false)}
           aria-hidden
         />
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-border bg-card px-4 py-3 md:hidden">
+        <header className="flex items-center justify-between border-b border-border bg-card px-4 py-3 md:hidden print:hidden">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setOpen((v) => !v)}
@@ -170,7 +170,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8 md:py-8">
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8 md:py-8 print:max-w-none print:p-0 print:m-0">
           <div className="mb-5 hidden md:flex flex-wrap items-center justify-between gap-3 print:hidden">
             <div className="flex flex-wrap items-center gap-2.5">
               {!dbConnected && (
