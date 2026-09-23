@@ -15,6 +15,7 @@ import {
   CalendarPlus,
   Lock,
   X,
+  History,
 } from "lucide-react"
 import { useState, type ReactNode } from "react"
 import { cn } from "@/lib/utils"
@@ -26,6 +27,7 @@ const NAV = [
   { href: "/libro-mayor", label: "Libro Mayor", icon: ListTree },
   { href: "/kardex", label: "Kardex", icon: ClipboardList },
   { href: "/estados-financieros", label: "Reporte de Estados Financieros", icon: Scale },
+  { href: "/ciclos", label: "Ciclos Contables", icon: History },
   { href: "/catalogo", label: "Catálogo de Cuentas", icon: Library },
 ]
 
@@ -217,6 +219,15 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <CalendarPlus className="size-3.5" />
                 <span>+ Nuevo Año</span>
               </button>
+
+              <Link
+                href="/ciclos"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground shadow-xs"
+                title="Ver historial de ciclos contables"
+              >
+                <History className="size-3.5 text-primary" />
+                <span>Historial de Ciclos</span>
+              </Link>
             </div>
 
             {pathname !== "/" && (

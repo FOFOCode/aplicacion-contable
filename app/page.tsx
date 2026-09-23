@@ -15,6 +15,7 @@ import {
   Scale,
   Users,
   Wallet,
+  History,
 } from "lucide-react"
 import { useContabilidad } from "@/components/contabilidad-provider"
 import { formatoMoneda } from "@/lib/contabilidad"
@@ -235,12 +236,13 @@ export default function DashboardPage() {
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Ir a
         </h2>
-        <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
           {[
             { href: "/libro-diario", title: "Libro Diario", icon: BookOpenText, tag: `${asientosEj.length} partidas` },
             { href: "/libro-mayor", title: "Libro Mayor", icon: ListTree, tag: `${mayor.length} cuentas` },
             { href: "/kardex", title: "Libro Auxiliar", icon: ClipboardList, tag: "Auxiliar" },
             { href: "/estados-financieros", title: "Estados Financieros", icon: Scale, tag: "Balance y Cierre" },
+            { href: "/ciclos", title: "Ciclos Contables", icon: History, tag: "Historial de Años" },
             { href: "/catalogo", title: "Catálogo", icon: Library, tag: `${cuentas.length} cuentas` },
           ].map((m) => {
             const Icon = m.icon

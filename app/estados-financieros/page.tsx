@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import {
   CircleCheck,
   FileDown,
@@ -15,6 +16,7 @@ import {
   Save,
   CheckCircle2,
   CalendarPlus,
+  ArrowRight,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -295,6 +297,13 @@ export default function EstadosFinancierosPage() {
               <FileDown className="size-4 mr-1.5" />
               Exportar PDF
             </Button>
+            <Link
+              href="/ciclos"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors shadow-xs"
+            >
+              <History className="size-4 text-primary" />
+              Historial de Ciclos
+            </Link>
           </div>
         </div>
         <p className="max-w-3xl text-sm text-muted-foreground">
@@ -996,9 +1005,18 @@ export default function EstadosFinancierosPage() {
                 Registro auditable e inmutable de los cierres de ejercicio y liquidación de cuentas nominales.
               </CardDescription>
             </div>
-            <Badge variant="muted">
-              {cierres.length} {cierres.length === 1 ? "cierre registrado" : "cierres registrados"}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="muted">
+                {cierres.length} {cierres.length === 1 ? "cierre registrado" : "cierres registrados"}
+              </Badge>
+              <Link
+                href="/ciclos"
+                className="inline-flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
+              >
+                <span>Ver pantalla de Ciclos</span>
+                <ArrowRight className="size-3" />
+              </Link>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
