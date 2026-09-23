@@ -30,6 +30,9 @@ import {
   ArrowUpRight,
   HelpCircle,
   FileText,
+  ChevronDown,
+  ChevronUp,
+  ChevronsUpDown,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input, Label } from "@/components/ui/field"
@@ -145,12 +148,18 @@ export default function LibroDiarioPage() {
     numero: number
   } | null>(null)
 
+  // Modal de captura
+  const [modalCapturaOpen, setModalCapturaOpen] = useState(false)
+
   // Modales
   const [modalCierreOpen, setModalCierreOpen] = useState(false)
   const [cerrandoFolio, setCerrandoFolio] = useState(false)
   const [modalReabrirOpen, setModalReabrirOpen] = useState(false)
   const [motivoReapertura, setMotivoReapertura] = useState("")
   const [reabriendoFolio, setReabriendoFolio] = useState(false)
+
+  // Partidas colapsadas
+  const [partidasColapsadas, setPartidasColapsadas] = useState<Set<string>>(new Set())
 
   // Notificaciones
   const [notificacion, setNotificacion] = useState<{
@@ -723,9 +732,10 @@ export default function LibroDiarioPage() {
     })
 
     setLineas(nuevasLineas)
+    setModalCapturaOpen(true)
     setNotificacion({
       tipo: "exito",
-      mensaje: `Cargada Partida #${partida.numero} en la mesa de trabajo para edición.`,
+      mensaje: `Cargada Partida #${partida.numero} para edición.`,
     })
   }
 
@@ -830,6 +840,7 @@ export default function LibroDiarioPage() {
         })
 
         handleLimpiarFormulario()
+        setModalCapturaOpen(false)
         await Promise.all([cargarFolioFecha(fechaSeleccionada), recargarAsientos()])
       } catch (e: unknown) {
         setNotificacion({
@@ -867,6 +878,7 @@ export default function LibroDiarioPage() {
     onCancel: () => {
       setModalCierreOpen(false)
       setModalReabrirOpen(false)
+      setModalCapturaOpen(false)
       if (partidaEnEdicion) handleLimpiarFormulario()
     },
   })
@@ -905,6 +917,28 @@ export default function LibroDiarioPage() {
     )
   }
 
+  // Toggle colapsar partida
+  const toggleColapsarPartida = (id: string) => {
+    setPartidasColapsadas((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
+
+  // Colapsar/Expandir todas
+  const handleColapsarTodas = () => {
+    if (partidasColapsadas.size === partidasFolio.length) {
+      setPartidasColapsadas(new Set())
+    } else {
+      setPartidasColapsadas(new Set(partidasFolio.map((p) => p.id)))
+    }
+  }
+
   // Helpers
   const fechaLegible = useMemo(() => {
     if (!fechaSeleccionada) return ""
@@ -932,26 +966,548 @@ export default function LibroDiarioPage() {
     totalPartidas: 0,
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="print:hidden space-y-6">
-        {/* ========================================================================= */}
-        {/* 1. PANEL DE CONTROL SUPERIOR (Sin blancos chillantes, usa bg-card / tokens) */}
-        {/* ========================================================================= */}
-        <div className="rounded-xl border border-border bg-card p-4 sm:p-5 shadow-xs transition-all">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            {/* Lado Izquierdo: Estado del Folio y Fecha */}
-            <div className="flex items-start sm:items-center gap-3.5">
-              <div className="flex size-11 items-center justify-center rounded-lg bg-primary text-primary-foreground font-mono font-bold text-sm shadow-xs shrink-0">
-                {folioActual ? `#${String(folioActual.numero_folio).padStart(2, "0")}` : "FD"}
+  // =========================================================================
+  // RENDER: Formulario de captura (reutilizado en modal)
+  // =========================================================================
+  const renderFormularioCaptura = () => (
+    <form onSubmit={handleGuardarPartida} className="space-y-5">
+      {/* Banner de Modo Edición */}
+      {partidaEnEdicion && (
+        <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs flex items-center justify-between">
+          <div className="flex items-center gap-1.5 font-medium">
+            <Pencil className="size-3.5 text-amber-600 dark:text-amber-400" />
+            <span>Modificando Partida #{partidaEnEdicion.numero} guardada en folio abierto.</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              handleLimpiarFormulario()
+            }}
+            className="text-xs hover:underline cursor-pointer"
+          >
+            Descartar
+          </button>
+        </div>
+      )}
+
+      {/* Selector de Modo de Captura (Segmented Tabs) */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-1 rounded-lg bg-muted/40 p-1 border border-border">
+          <button
+            type="button"
+            onClick={() => handleCambiarModoCaptura("SMART")}
+            className={cn(
+              "py-1.5 px-4 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+              modoCaptura === "SMART"
+                ? "bg-card text-foreground shadow-xs border border-border/50"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Zap className="size-3 text-amber-500" />
+            <span>SMART</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleCambiarModoCaptura("CLASICO")}
+            className={cn(
+              "py-1.5 px-4 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+              modoCaptura === "CLASICO"
+                ? "bg-card text-foreground shadow-xs border border-border/50"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Sliders className="size-3 text-primary" />
+            <span>CLÁSICO</span>
+          </button>
+        </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={handleAddLinea}
+          className="text-xs h-8 gap-1.5 cursor-pointer"
+        >
+          <Plus className="size-3.5" />
+          <span>Agregar Renglón</span>
+        </Button>
+      </div>
+
+      {/* Metadatos: Doc Soporte + Tipo de Asiento */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <Label htmlFor="doc-soporte" className="text-[11px] font-medium text-muted-foreground">
+            Doc. Soporte / Factura
+          </Label>
+          <Input
+            id="doc-soporte"
+            placeholder="Ej: F-102, CH-45..."
+            value={documentoSoporte}
+            onChange={(e) => setDocumentoSoporte(e.target.value)}
+            className="text-xs h-9 font-mono mt-1"
+          />
+        </div>
+        <div>
+          <Label htmlFor="tipo-asiento" className="text-[11px] font-medium text-muted-foreground">
+            Tipo de Asiento
+          </Label>
+          <select
+            id="tipo-asiento"
+            value={tipoPartida}
+            onChange={(e) => setTipoPartida(e.target.value)}
+            className="w-full text-xs h-9 px-3 rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring mt-1 cursor-pointer font-medium"
+          >
+            <option value="OPERACION">Operación</option>
+            <option value="AJUSTE">Ajuste</option>
+            <option value="CIERRE">Cierre</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Concepto / Glosa */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="concepto-modal" className="text-[11px] font-medium text-foreground">
+            Concepto o Glosa *
+          </Label>
+          <span className="text-[10px] text-muted-foreground">Sistema Analítico</span>
+        </div>
+        <textarea
+          id="concepto-modal"
+          rows={2}
+          required
+          placeholder="Ej: Compra de mercadería al contado según factura..."
+          value={concepto}
+          onChange={(e) => setConcepto(e.target.value)}
+          className="w-full text-xs p-3 rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none leading-relaxed"
+        />
+        {/* Sugerencias rápidas */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 text-[10px]">
+          <span className="text-muted-foreground shrink-0 font-medium">Sugerir:</span>
+          {GLOSAS_RAPIDAS.map((g, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => setConcepto(g)}
+              className="shrink-0 rounded-full border border-border/70 bg-muted/30 px-2 py-0.5 text-muted-foreground hover:text-foreground hover:bg-muted hover:border-border transition-colors cursor-pointer truncate max-w-[150px]"
+              title={g}
+            >
+              {g}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Renglones Contables */}
+      <div className="space-y-2 pt-3 border-t border-border">
+        <div className="flex items-center justify-between text-xs mb-2">
+          <span className="font-semibold text-foreground flex items-center gap-1.5">
+            Renglones Contables
+            <Badge variant="outline" className="text-[10px] h-4.5 px-1.5 font-mono">
+              {lineas.length}
+            </Badge>
+          </span>
+          <span className="text-[11px] text-muted-foreground font-mono">
+            {modoCaptura === "SMART" ? "Modo Asistido (+/-)" : "Modo Clásico (D/H)"}
+          </span>
+        </div>
+
+        <div className="space-y-2.5 max-h-[45vh] overflow-y-auto pr-1">
+          {lineasProcesadas.map((linea, index) => (
+            <div
+              key={linea.key}
+              className="p-3 rounded-lg border border-border bg-muted/20 hover:bg-muted/30 transition-colors space-y-2.5"
+            >
+              {/* Fila superior: Índice + Selector de Cuenta + Eliminar */}
+              <div className="flex items-center gap-2.5">
+                <span className="text-[10px] font-mono font-bold text-muted-foreground size-6 rounded-md bg-muted/60 flex items-center justify-center shrink-0">
+                  {index + 1}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <CuentaCombobox
+                    cuentas={cuentas}
+                    value={linea.codigo}
+                    onChange={(cod) => {
+                      const c = cuentasMap.get(cod)
+                      let opSugerida: "AUMENTA" | "DISMINUYE" = linea.operacion
+
+                      if (modoCaptura === "SMART" && c) {
+                        // Si la partida ya tiene otras líneas que suman al Debe más que al Haber,
+                        // deducir inteligentemente qué operación necesita esta nueva cuenta para equilibrar
+                        let sumaDebeOtros = 0
+                        let sumaHaberOtros = 0
+                        lineasProcesadas.forEach((lp) => {
+                          if (lp.key !== linea.key) {
+                            sumaDebeOtros += lp.debe
+                            sumaHaberOtros += lp.haber
+                          }
+                        })
+                        const diff = redondear(sumaDebeOtros - sumaHaberOtros)
+                        const nat = normalizarNaturaleza(c.naturaleza)
+
+                        if (diff > 0) {
+                          // Debe > Haber: la partida necesita abonar al HABER
+                          opSugerida = nat === "acreedora" ? "AUMENTA" : "DISMINUYE"
+                        } else if (diff < 0) {
+                          // Haber > Debe: la partida necesita cargar al DEBE
+                          opSugerida = nat === "deudora" ? "AUMENTA" : "DISMINUYE"
+                        }
+                      }
+
+                      handleUpdateLinea(linea.key, { codigo: cod, operacion: opSugerida })
+                      if (esCuentaSujetaAIVA(cod).esSujeta) {
+                        const monto =
+                          modoCaptura === "CLASICO"
+                            ? Number(linea.debeDirecto) || Number(linea.haberDirecto) || 0
+                            : Number(linea.monto) || 0
+                        if (monto > 0) {
+                          handleDesglosarIVA(linea.key, false, cod)
+                        }
+                      }
+                    }}
+                    placeholder="Seleccionar cuenta contable..."
+                  />
+                  {/* Jerarquía de cuenta seleccionada */}
+                  {linea.codigo && cuentasMap.get(linea.codigo) && (
+                    <div className="mt-1 flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground">
+                      <span className="text-primary font-semibold">
+                        {formatearCuentaJerarquica(cuentasMap.get(linea.codigo)!, cuentasMap).principal}
+                      </span>
+                      <span>—</span>
+                      <span className="text-foreground truncate">
+                        {cuentasMap.get(linea.codigo)!.nombre}
+                      </span>
+                    </div>
+                  )}
+                  {/* IVA indicator */}
+                  {linea.codigo && esCuentaSujetaAIVA(linea.codigo).esSujeta && (() => {
+                    const info = esCuentaSujetaAIVA(linea.codigo)
+                    const montoActual =
+                      modoCaptura === "CLASICO"
+                        ? Number(linea.debeDirecto) || Number(linea.haberDirecto) || 0
+                        : Number(linea.monto) || 0
+
+                    const lineaIva = lineas.find((l, idx) => idx !== index && l.codigo === info.cuentaIvaCodigo)
+                    const ivaMonto = lineaIva
+                      ? modoCaptura === "CLASICO"
+                        ? Number(lineaIva.debeDirecto) || Number(lineaIva.haberDirecto) || 0
+                        : Number(lineaIva.monto) || 0
+                      : 0
+
+                    const yaDesglosado =
+                      montoActual > 0 &&
+                      ivaMonto > 0 &&
+                      Math.abs(redondear(montoActual * 0.13) - ivaMonto) <= 0.02
+                    const totalEstimado = redondear(montoActual + ivaMonto)
+
+                    return (
+                      <div className="mt-1.5 flex flex-wrap items-center justify-between gap-1.5 text-[10px] font-mono bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/25 rounded px-2.5 py-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="inline-flex items-center gap-1 font-bold text-amber-700 dark:text-amber-400">
+                            <Zap className="size-3 text-amber-500" />
+                            {info.impuestoNombre}
+                          </span>
+                          {yaDesglosado ? (
+                            <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
+                              ✓ Base: {formatoMoneda(montoActual)} + IVA: {formatoMoneda(ivaMonto)} = Total: {formatoMoneda(totalEstimado)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">
+                              (Auto-desglose: Base = $X / 1.13 · IVA = Base × 0.13)
+                            </span>
+                          )}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDesglosarIVA(linea.key, true)}
+                          disabled={montoActual <= 0}
+                          className="text-[10px] font-semibold text-amber-800 dark:text-amber-200 hover:text-amber-950 dark:hover:text-white bg-amber-500/25 hover:bg-amber-500/35 disabled:opacity-40 px-2 py-0.5 rounded transition-colors cursor-pointer shrink-0"
+                          title="Calcular o forzar desglose de IVA (13%)"
+                        >
+                          ⚡ Desglosar IVA 13%
+                        </button>
+                      </div>
+                    )
+                  })()}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveLinea(linea.key)}
+                  disabled={lineas.length <= 2}
+                  className="text-muted-foreground hover:text-destructive p-1 rounded transition-colors disabled:opacity-20 cursor-pointer shrink-0"
+                  title="Eliminar renglón"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
               </div>
-              <div className="space-y-1">
+
+              {/* Controles de Importe según Modo */}
+              {modoCaptura === "SMART" ? (
+                <div className="grid grid-cols-12 gap-2.5 items-center pl-8">
+                  <div className="col-span-5">
+                    <select
+                      value={linea.operacion}
+                      onChange={(e) => {
+                        const op = e.target.value as "AUMENTA" | "DISMINUYE"
+                        const c = cuentasMap.get(linea.codigo)
+                        const m = Number(linea.monto) || 0
+                        if (c && m > 0) {
+                          const res = inferirImputacion(c, m, op)
+                          handleUpdateLinea(linea.key, {
+                            operacion: op,
+                            debeDirecto: res.debe > 0 ? res.debe : "",
+                            haberDirecto: res.haber > 0 ? res.haber : "",
+                          })
+                        } else {
+                          handleUpdateLinea(linea.key, { operacion: op })
+                        }
+                      }}
+                      className="w-full text-xs h-9 px-2.5 rounded-md border border-input bg-background text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring font-medium"
+                    >
+                      <option value="AUMENTA">
+                        {linea.cuenta
+                          ? linea.cuenta.naturaleza === "acreedora"
+                            ? "+ Aumenta (Haber)"
+                            : "+ Aumenta (Debe)"
+                          : "+ Aumenta"}
+                      </option>
+                      <option value="DISMINUYE">
+                        {linea.cuenta
+                          ? linea.cuenta.naturaleza === "acreedora"
+                            ? "- Disminuye (Debe)"
+                            : "- Disminuye (Haber)"
+                          : "- Disminuye"}
+                      </option>
+                    </select>
+                  </div>
+                  <div className="col-span-4 relative">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-mono text-muted-foreground">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={linea.monto}
+                      onChange={(e) => {
+                        const val = e.target.value === "" ? "" : parseFloat(e.target.value)
+                        const c = cuentasMap.get(linea.codigo)
+                        if (c && typeof val === "number" && val > 0) {
+                          const res = inferirImputacion(c, val, linea.operacion)
+                          handleUpdateLinea(linea.key, {
+                            monto: val,
+                            debeDirecto: res.debe > 0 ? res.debe : "",
+                            haberDirecto: res.haber > 0 ? res.haber : "",
+                          })
+                        } else {
+                          handleUpdateLinea(linea.key, {
+                            monto: val,
+                            debeDirecto: "",
+                            haberDirecto: "",
+                          })
+                        }
+                      }}
+                      onBlur={() => {
+                        if (esCuentaSujetaAIVA(linea.codigo).esSujeta) {
+                          handleDesglosarIVA(linea.key)
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && esCuentaSujetaAIVA(linea.codigo).esSujeta) {
+                          handleDesglosarIVA(linea.key)
+                        }
+                      }}
+                      className="w-full text-xs h-9 pl-6 pr-2.5 rounded-md border border-input bg-background text-foreground font-mono tabular-nums text-right focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                  </div>
+                  <div className="col-span-3 text-right">
+                    {linea.debe > 0 && (
+                      <Badge variant="default" className="text-[10px] font-mono px-1.5 py-0.5">
+                        D: {formatoMoneda(linea.debe)}
+                      </Badge>
+                    )}
+                    {linea.haber > 0 && (
+                      <Badge variant="muted" className="text-[10px] font-mono px-1.5 py-0.5">
+                        H: {formatoMoneda(linea.haber)}
+                      </Badge>
+                    )}
+                    {linea.debe === 0 && linea.haber === 0 && (
+                      <span className="text-[10px] text-muted-foreground font-mono">—</span>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2.5 pl-8">
+                  <div className="relative">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] font-mono font-bold text-muted-foreground">D$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="Debe 0.00"
+                      value={linea.debeDirecto ?? ""}
+                      onChange={(e) => {
+                        const val = e.target.value === "" ? "" : parseFloat(e.target.value)
+                        const c = cuentasMap.get(linea.codigo)
+                        const nat = normalizarNaturaleza(c?.naturaleza || "deudora")
+                        const op: "AUMENTA" | "DISMINUYE" = nat === "deudora" ? "AUMENTA" : "DISMINUYE"
+                        handleUpdateLinea(linea.key, {
+                          debeDirecto: val,
+                          haberDirecto: val !== "" ? "" : linea.haberDirecto,
+                          monto: val,
+                          operacion: op,
+                        })
+                      }}
+                      onBlur={() => {
+                        if (esCuentaSujetaAIVA(linea.codigo).esSujeta) {
+                          handleDesglosarIVA(linea.key)
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && esCuentaSujetaAIVA(linea.codigo).esSujeta) {
+                          handleDesglosarIVA(linea.key)
+                        }
+                      }}
+                      className="w-full text-xs h-9 pl-7 pr-2.5 rounded-md border border-input bg-background text-foreground font-mono tabular-nums text-right focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] font-mono font-bold text-muted-foreground">H$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="Haber 0.00"
+                      value={linea.haberDirecto ?? ""}
+                      onChange={(e) => {
+                        const val = e.target.value === "" ? "" : parseFloat(e.target.value)
+                        const c = cuentasMap.get(linea.codigo)
+                        const nat = normalizarNaturaleza(c?.naturaleza || "deudora")
+                        const op: "AUMENTA" | "DISMINUYE" = nat === "acreedora" ? "AUMENTA" : "DISMINUYE"
+                        handleUpdateLinea(linea.key, {
+                          haberDirecto: val,
+                          debeDirecto: val !== "" ? "" : linea.debeDirecto,
+                          monto: val,
+                          operacion: op,
+                        })
+                      }}
+                      onBlur={() => {
+                        if (esCuentaSujetaAIVA(linea.codigo).esSujeta) {
+                          handleDesglosarIVA(linea.key)
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && esCuentaSujetaAIVA(linea.codigo).esSujeta) {
+                          handleDesglosarIVA(linea.key)
+                        }
+                      }}
+                      className="w-full text-xs h-9 pl-7 pr-2.5 rounded-md border border-input bg-background text-foreground font-mono tabular-nums text-right focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Botones de Acción de Renglones */}
+        <div className="flex items-center gap-2 pt-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleAddLinea}
+            className="text-xs h-8 gap-1.5 flex-1 cursor-pointer"
+          >
+            <Plus className="size-3.5" />
+            <span>Renglón</span>
+            <kbd className="text-[10px] font-mono text-muted-foreground">Alt+A</kbd>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleAutoCuadrar}
+            className="text-xs h-8 gap-1.5 flex-1 cursor-pointer hover:border-amber-500/50 hover:bg-amber-500/10"
+            title="Calcular y asignar la contrapartida exacta para cuadrar la partida"
+          >
+            <Sliders className="size-3.5 text-amber-500" />
+            <span>Auto-Cuadrar</span>
+            <kbd className="text-[10px] font-mono text-muted-foreground">Alt+C</kbd>
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleLimpiarFormulario}
+            className="text-xs h-8 text-muted-foreground hover:text-foreground cursor-pointer px-2.5"
+          >
+            Limpiar
+          </Button>
+        </div>
+      </div>
+
+      {/* Resumen de Cuadratura y Guardar */}
+      <div className="pt-3 border-t border-border flex items-center justify-between">
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-4 font-mono text-xs tabular-nums">
+            <span>D: <strong className="text-foreground">{formatoMoneda(totalesPartidaEnCurso.totalDebe)}</strong></span>
+            <span>H: <strong className="text-foreground">{formatoMoneda(totalesPartidaEnCurso.totalHaber)}</strong></span>
+          </div>
+          <div>
+            {totalesPartidaEnCurso.cuadrado ? (
+              <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                <CheckCircle2 className="size-3.5" /> Partida Cuadrada
+              </span>
+            ) : (
+              <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1 tabular-nums">
+                <AlertCircle className="size-3.5" /> Dif: {formatoMoneda(totalesPartidaEnCurso.diferencia)}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <Button
+          type="submit"
+          disabled={guardandoPartida || !totalesPartidaEnCurso.cuadrado}
+          className="text-xs h-10 px-5 font-semibold gap-1.5 shadow-xs cursor-pointer"
+          title="Guardar partida (Alt + G)"
+        >
+          {guardandoPartida ? (
+            "Guardando..."
+          ) : partidaEnEdicion ? (
+            "Guardar Cambios"
+          ) : (
+            "Guardar en Folio"
+          )}
+          <ArrowRight className="size-3.5" />
+        </Button>
+      </div>
+    </form>
+  )
+
+  return (
+    <div className="space-y-4">
+      <div className="print:hidden space-y-4">
+        {/* ========================================================================= */}
+        {/* 1. PANEL DE CONTROL SUPERIOR                                               */}
+        {/* ========================================================================= */}
+        <div className="rounded-xl border border-border bg-card p-4 shadow-xs transition-all">
+          {/* Row 1: Date and Folio info */}
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+              {/* Left: Fecha legible + Folio */}
+              <div className="space-y-0.5">
+                <h1 className="text-lg font-bold tracking-tight text-foreground">
+                  {fechaLegible}
+                </h1>
                 <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-lg font-bold tracking-tight text-foreground">
-                    {folioActual
-                      ? `Folio Diario N° ${String(folioActual.numero_folio).padStart(3, "0")}`
-                      : "Libro Diario General"}
-                  </h1>
+                  {folioActual ? (
+                    <span className="text-sm font-semibold text-foreground">
+                      Folio Diario N° {String(folioActual.numero_folio).padStart(3, "0")}
+                    </span>
+                  ) : (
+                    <span className="text-sm font-semibold text-foreground">
+                      Libro Diario General
+                    </span>
+                  )}
                   {estadoFolio === "ABIERTO" && (
                     <Badge variant="success" className="gap-1.5 py-0.5 px-2.5 font-medium shadow-xs">
                       <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -970,120 +1526,130 @@ export default function LibroDiarioPage() {
                     </Badge>
                   )}
                 </div>
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <span className="font-semibold text-foreground">{fechaLegible}</span>
-                  <span>•</span>
-                  <span>Sistema Analítico</span>
-                  <span>•</span>
-                  <span className="text-[11px]">
-                    Atajos rápidos: Alt+A (fila) · Alt+C (cuadrar) · Alt+G (guardar)
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Lado Derecho: Navegador de Fecha y Acciones Globales */}
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Selector de fecha con atajos Hoy/Ayer */}
-              <div className="flex items-center rounded-lg border border-border bg-muted/40 p-1 text-xs shadow-xs">
-                <button
-                  type="button"
-                  onClick={handleSetHoy}
-                  className="rounded px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-card transition-colors cursor-pointer"
-                >
-                  Hoy
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSetAyer}
-                  className="rounded px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-card transition-colors cursor-pointer"
-                >
-                  Ayer
-                </button>
-                <div className="mx-1 h-3.5 w-px bg-border" />
-                <div className="flex items-center gap-1.5 px-2">
-                  <Calendar className="size-3.5 text-muted-foreground" />
-                  <input
-                    type="date"
-                    value={fechaSeleccionada}
-                    onChange={(e) => setFechaSeleccionada(e.target.value)}
-                    className="bg-transparent text-xs font-medium text-foreground focus:outline-none cursor-pointer"
-                  />
+                <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                  <span>Altura jerárquica: A1-R (Dial) · A1-R (Guardia) · A1-A (Guardia)</span>
                 </div>
               </div>
 
-              {/* Botón Drawer Historial */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsHistorialOpen(true)}
-                className="text-xs h-9 gap-1.5 cursor-pointer"
-                title="Ver folios anteriores (Alt + H)"
-              >
-                <FolderOpen className="size-3.5 text-muted-foreground" />
-                <span className="hidden sm:inline">Folios Anteriores</span>
-              </Button>
-
-              {/* Acciones de Exportación */}
-              {folioActual && (
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleExportPDF}
-                    className="text-xs h-9 px-2.5 cursor-pointer"
-                    title="Descargar Comprobante Oficial en PDF con firmas"
+              {/* Right: Actions */}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Selector de fecha con atajos Hoy/Ayer */}
+                <div className="flex items-center rounded-lg border border-border bg-muted/40 p-1 text-xs shadow-xs">
+                  <button
+                    type="button"
+                    onClick={handleSetHoy}
+                    className="rounded px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-card transition-colors cursor-pointer"
                   >
-                    <FileDown className="size-3.5 text-primary" />
-                    <span className="hidden md:inline">PDF</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleExportCSV}
-                    className="text-xs h-9 px-2.5 cursor-pointer"
-                    title="Exportar comprobantes a formato CSV para Excel"
+                    Hoy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSetAyer}
+                    className="rounded px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-card transition-colors cursor-pointer"
                   >
-                    <Table className="size-3.5 text-emerald-600" />
-                    <span className="hidden md:inline">CSV</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => window.print()}
-                    className="text-xs h-9 px-2.5 cursor-pointer"
-                    title="Imprimir Libro Diario foliado"
-                  >
-                    <Printer className="size-3.5 text-muted-foreground" />
-                  </Button>
+                    Ayer
+                  </button>
+                  <div className="mx-1 h-3.5 w-px bg-border" />
+                  <div className="flex items-center gap-1.5 px-2">
+                    <Calendar className="size-3.5 text-muted-foreground" />
+                    <input
+                      type="date"
+                      value={fechaSeleccionada}
+                      onChange={(e) => setFechaSeleccionada(e.target.value)}
+                      className="bg-transparent text-xs font-medium text-foreground focus:outline-none cursor-pointer"
+                    />
+                  </div>
                 </div>
-              )}
 
-              {/* Botón de Cierre de Folio */}
-              {estadoFolio === "ABIERTO" && (
-                <Button
-                  size="sm"
-                  onClick={() => setModalCierreOpen(true)}
-                  disabled={totalesFolio.totalPartidas === 0 || !totalesFolio.cuadrado}
-                  className="text-xs h-9 px-4 gap-2 font-medium cursor-pointer shadow-xs"
-                >
-                  <Lock className="size-3.5 text-emerald-400" />
-                  <span>Cerrar Folio del Día</span>
-                </Button>
-              )}
-
-              {/* Botón de Reapertura */}
-              {estadoFolio === "CERRADO" && (
+                {/* Botón Drawer Historial */}
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setModalReabrirOpen(true)}
-                  className="text-xs h-9 gap-1.5 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/10 cursor-pointer"
+                  onClick={() => setIsHistorialOpen(true)}
+                  className="text-xs h-9 gap-1.5 cursor-pointer"
+                  title="Ver folios anteriores (Alt + H)"
                 >
-                  <Unlock className="size-3.5" />
-                  <span>Reapertura</span>
+                  <FolderOpen className="size-3.5 text-muted-foreground" />
+                  <span className="hidden sm:inline">Folios Anteriores</span>
                 </Button>
-              )}
+
+                {/* Acciones de Exportación */}
+                {folioActual && (
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleExportPDF}
+                      className="text-xs h-9 px-2.5 cursor-pointer"
+                      title="Descargar Comprobante Oficial en PDF con firmas"
+                    >
+                      <FileDown className="size-3.5 text-primary" />
+                      <span className="hidden md:inline">PDF</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleExportCSV}
+                      className="text-xs h-9 px-2.5 cursor-pointer"
+                      title="Exportar comprobantes a formato CSV para Excel"
+                    >
+                      <Table className="size-3.5 text-emerald-600" />
+                      <span className="hidden md:inline">CSV</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.print()}
+                      className="text-xs h-9 px-2.5 cursor-pointer"
+                      title="Imprimir Libro Diario foliado"
+                    >
+                      <Printer className="size-3.5 text-muted-foreground" />
+                    </Button>
+                  </div>
+                )}
+
+                {/* Agregar partida (abre modal) */}
+                {estadoFolio === "ABIERTO" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      handleLimpiarFormulario()
+                      setModalCapturaOpen(true)
+                    }}
+                    className="text-xs h-9 px-4 gap-2 font-semibold cursor-pointer"
+                  >
+                    <Plus className="size-3.5" />
+                    Agregar partida
+                  </Button>
+                )}
+
+                {/* Botón de Cierre de Folio */}
+                {estadoFolio === "ABIERTO" && (
+                  <Button
+                    size="sm"
+                    onClick={() => setModalCierreOpen(true)}
+                    disabled={totalesFolio.totalPartidas === 0 || !totalesFolio.cuadrado}
+                    className="text-xs h-9 px-4 gap-2 font-medium cursor-pointer shadow-xs"
+                  >
+                    <Lock className="size-3.5 text-emerald-400" />
+                    <span>Cerrar Folio del Día</span>
+                  </Button>
+                )}
+
+                {/* Botón de Reapertura */}
+                {estadoFolio === "CERRADO" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setModalReabrirOpen(true)}
+                    className="text-xs h-9 gap-1.5 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/10 cursor-pointer"
+                  >
+                    <Unlock className="size-3.5" />
+                    <span>Reapertura</span>
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1177,51 +1743,49 @@ export default function LibroDiarioPage() {
           </div>
         ) : estadoFolio === "ABIERTO" ? (
           /* ========================================================================= */
-          /* CASO 2: FOLIO ABIERTO (EN PROCESO: CAPTURA EN 2 COLUMNAS)                 */
+          /* CASO 2: FOLIO ABIERTO — VISTA FULL-WIDTH DE PARTIDAS                      */
           /* ========================================================================= */
-          <div className="space-y-6">
-            {/* KPI Strip de la Jornada en Curso */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-              <div className="bg-card border border-border rounded-xl p-4 shadow-xs">
+          <div className="space-y-4">
+            {/* KPI Strip compacto */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="bg-card border border-border rounded-xl p-3.5 shadow-xs">
                 <div className="flex items-center justify-between text-muted-foreground mb-1">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                    Total Debe Jornada
+                    Total Debe
                   </span>
-                  <div className="size-7 rounded-md bg-primary/10 text-primary flex items-center justify-center">
-                    <ArrowDownLeft className="size-3.5" />
+                  <div className="size-6 rounded-md bg-primary/10 text-primary flex items-center justify-center">
+                    <ArrowDownLeft className="size-3" />
                   </div>
                 </div>
-                <p className="text-xl font-black text-foreground font-mono tabular-nums">
+                <p className="text-lg font-black text-foreground font-mono tabular-nums">
                   {formatoMoneda(totalesFolio.totalDebe)}
                 </p>
-                <span className="text-[11px] text-muted-foreground mt-0.5 block">Cargos acumulados hoy</span>
               </div>
 
-              <div className="bg-card border border-border rounded-xl p-4 shadow-xs">
+              <div className="bg-card border border-border rounded-xl p-3.5 shadow-xs">
                 <div className="flex items-center justify-between text-muted-foreground mb-1">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                    Total Haber Jornada
+                    Total Haber
                   </span>
-                  <div className="size-7 rounded-md bg-primary/10 text-primary flex items-center justify-center">
-                    <ArrowUpRight className="size-3.5" />
+                  <div className="size-6 rounded-md bg-primary/10 text-primary flex items-center justify-center">
+                    <ArrowUpRight className="size-3" />
                   </div>
                 </div>
-                <p className="text-xl font-black text-foreground font-mono tabular-nums">
+                <p className="text-lg font-black text-foreground font-mono tabular-nums">
                   {formatoMoneda(totalesFolio.totalHaber)}
                 </p>
-                <span className="text-[11px] text-muted-foreground mt-0.5 block">Abonos acumulados hoy</span>
               </div>
 
-              <div className="bg-card border border-border rounded-xl p-4 shadow-xs">
+              <div className="bg-card border border-border rounded-xl p-3.5 shadow-xs">
                 <div className="flex items-center justify-between text-muted-foreground mb-1">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                     Partida Doble
                   </span>
-                  <div className="size-7 rounded-md bg-primary/10 text-primary flex items-center justify-center">
-                    <ShieldCheck className="size-3.5" />
+                  <div className="size-6 rounded-md bg-primary/10 text-primary flex items-center justify-center">
+                    <ShieldCheck className="size-3" />
                   </div>
                 </div>
-                <div className="mt-0.5 flex items-center gap-1.5">
+                <div className="mt-0.5">
                   {totalesFolio.cuadrado ? (
                     <Badge variant="success" className="text-xs">
                       Balance Exacto ($0.00)
@@ -1232,594 +1796,78 @@ export default function LibroDiarioPage() {
                     </Badge>
                   )}
                 </div>
-                <span className="text-[11px] text-muted-foreground mt-0.5 block">
-                  {totalesFolio.cuadrado ? "Todas las partidas cuadradas" : "Requiere ajuste para cerrar"}
-                </span>
               </div>
 
-              <div className="bg-card border border-border rounded-xl p-4 shadow-xs">
+              <div className="bg-card border border-border rounded-xl p-3.5 shadow-xs">
                 <div className="flex items-center justify-between text-muted-foreground mb-1">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                     Comprobantes
                   </span>
-                  <div className="size-7 rounded-md bg-muted text-muted-foreground flex items-center justify-center">
-                    <FileText className="size-3.5" />
+                  <div className="size-6 rounded-md bg-muted text-muted-foreground flex items-center justify-center">
+                    <FileText className="size-3" />
                   </div>
                 </div>
-                <p className="text-xl font-black text-foreground font-mono tabular-nums">
+                <p className="text-lg font-black text-foreground font-mono tabular-nums">
                   {totalesFolio.totalPartidas} {totalesFolio.totalPartidas === 1 ? "partida" : "partidas"}
                 </p>
-                <span className="text-[11px] text-muted-foreground mt-0.5 block">
-                  Registradas en Folio #{String(folioActual?.numero_folio || 1).padStart(3, "0")}
-                </span>
               </div>
             </div>
 
-            {/* Layout en dos columnas: Captura a la izquierda, Hoja del día a la derecha */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-              {/* ================================================================= */}
-              {/* COLUMNA IZQUIERDA: Formulario de Captura Multimodal (5 cols)     */}
-              {/* ================================================================= */}
-              <div className="lg:col-span-5 bg-card border border-border rounded-xl p-4.5 shadow-xs space-y-3.5">
-                {/* Header de la Mesa de Captura y Segmented Tabs */}
-                <div className="space-y-2.5 pb-2.5 border-b border-border">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="size-6 rounded-md bg-primary text-primary-foreground flex items-center justify-center shadow-xs">
-                        {partidaEnEdicion ? <Pencil className="size-3.5" /> : <Plus className="size-3.5" />}
-                      </div>
-                      <h2 className="text-sm font-bold text-foreground">
-                        {partidaEnEdicion ? `Editando Partida #${partidaEnEdicion.numero}` : "Registrar Comprobante"}
-                      </h2>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {partidaEnEdicion ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={handleLimpiarFormulario}
-                          className="text-xs h-7 text-muted-foreground hover:text-foreground cursor-pointer"
-                        >
-                          Cancelar Edición
-                        </Button>
-                      ) : (
-                        <Badge variant="outline" className="text-[10px] font-mono border-border bg-muted/40">
-                          Folio #{String(folioActual?.numero_folio || 1).padStart(3, "0")}
-                        </Badge>
-                      )}
-                    </div>
+            {/* Full-Width Partidas Area */}
+            <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
+              {/* Header de la sección */}
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/30">
+                <div className="flex items-center gap-2.5">
+                  <div className="size-6 rounded-md bg-muted flex items-center justify-center text-foreground">
+                    <Layers className="size-3.5" />
                   </div>
-
-                  {/* Banner de Modo Edición */}
-                  {partidaEnEdicion && (
-                    <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 font-medium">
-                        <Pencil className="size-3.5 text-amber-600 dark:text-amber-400" />
-                        <span>Modificando partida guardada en folio abierto.</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleLimpiarFormulario}
-                        className="text-xs hover:underline cursor-pointer"
-                      >
-                        Descartar
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Selector de Modo de Captura (Segmented Tabs compacto) */}
-                  <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted/40 p-1 border border-border">
-                    <button
-                      type="button"
-                      onClick={() => handleCambiarModoCaptura("SMART")}
-                      className={cn(
-                        "py-1 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer",
-                        modoCaptura === "SMART"
-                          ? "bg-card text-foreground shadow-xs border border-border/50"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      <Zap className="size-3 text-amber-500" />
-                      <span>Smart (+/-)</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleCambiarModoCaptura("CLASICO")}
-                      className={cn(
-                        "py-1 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer",
-                        modoCaptura === "CLASICO"
-                          ? "bg-card text-foreground shadow-xs border border-border/50"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      <Sliders className="size-3 text-primary" />
-                      <span>Clásico (D/H)</span>
-                    </button>
-                  </div>
+                  <h2 className="text-sm font-bold text-foreground">
+                    Comprobantes de la Jornada
+                  </h2>
+                  <Badge variant="outline" className="text-[10px] font-mono px-1.5">
+                    {partidasFolio.length}
+                  </Badge>
                 </div>
-
-                {/* Formulario de Captura Directo (Smart y Clásico) */}
-                <form onSubmit={handleGuardarPartida} className="space-y-3.5">
-                  {/* Metadatos: Doc Soporte + Tipo de Asiento en fila limpia */}
-                    <div className="grid grid-cols-2 gap-2.5">
-                      <div>
-                        <Label htmlFor="doc-soporte" className="text-[11px] font-medium text-muted-foreground">
-                          Doc. Soporte / Factura
-                        </Label>
-                        <Input
-                          id="doc-soporte"
-                          placeholder="Ej: F-102, CH-45..."
-                          value={documentoSoporte}
-                          onChange={(e) => setDocumentoSoporte(e.target.value)}
-                          className="text-xs h-8 font-mono mt-0.5"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="tipo-asiento" className="text-[11px] font-medium text-muted-foreground">
-                          Tipo de Asiento
-                        </Label>
-                        <select
-                          id="tipo-asiento"
-                          value={tipoPartida}
-                          onChange={(e) => setTipoPartida(e.target.value)}
-                          className="w-full text-xs h-8 px-2.5 rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring mt-0.5 cursor-pointer font-medium"
-                        >
-                          <option value="OPERACION">Operación</option>
-                          <option value="AJUSTE">Ajuste</option>
-                          <option value="CIERRE">Cierre</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* Campo Concepto / Glosa con micro-chips integrados */}
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="concepto" className="text-[11px] font-medium text-foreground">
-                          Concepto o Glosa *
-                        </Label>
-                        <span className="text-[10px] text-muted-foreground">Sistema Analítico</span>
-                      </div>
-                      <textarea
-                        id="concepto"
-                        rows={2}
-                        required
-                        placeholder="Ej: Compra de mercadería al contado según factura..."
-                        value={concepto}
-                        onChange={(e) => setConcepto(e.target.value)}
-                        className="w-full text-xs p-2.5 rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none leading-relaxed"
-                      />
-                      {/* Micro-chips de sugerencias con scroll horizontal suave */}
-                      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 text-[10px]">
-                        <span className="text-muted-foreground shrink-0 font-medium">Sugerir:</span>
-                        {GLOSAS_RAPIDAS.map((g, i) => (
-                          <button
-                            key={i}
-                            type="button"
-                            onClick={() => setConcepto(g)}
-                            className="shrink-0 rounded-full border border-border/70 bg-muted/30 px-2 py-0.5 text-muted-foreground hover:text-foreground hover:bg-muted hover:border-border transition-colors cursor-pointer truncate max-w-[150px]"
-                            title={g}
-                          >
-                            {g}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Renglones Contables */}
-                    <div className="space-y-2 pt-1 border-t border-border">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-semibold text-foreground flex items-center gap-1.5">
-                          Renglones Contables
-                          <Badge variant="outline" className="text-[10px] h-4.5 px-1.5 font-mono">
-                            {lineas.length}
-                          </Badge>
-                        </span>
-                        <span className="text-[11px] text-muted-foreground font-mono">
-                          {modoCaptura === "SMART" ? "Modo Asistido (+/-)" : "Modo Clásico (D/H)"}
-                        </span>
-                      </div>
-
-                      <div className="space-y-2 max-h-[380px] overflow-y-auto pr-0.5">
-                        {lineasProcesadas.map((linea, index) => (
-                          <div
-                            key={linea.key}
-                            className="p-2.5 rounded-lg border border-border bg-card/60 hover:bg-muted/20 transition-colors space-y-2"
-                          >
-                            {/* Fila superior: Índice + Selector de Cuenta + Eliminar */}
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] font-mono font-bold text-muted-foreground size-5 rounded bg-muted/60 flex items-center justify-center shrink-0">
-                                {index + 1}
-                              </span>
-                              <div className="flex-1 min-w-0">
-                                <CuentaCombobox
-                                  cuentas={cuentas}
-                                  value={linea.codigo}
-                                  onChange={(cod) => {
-                                    const c = cuentasMap.get(cod)
-                                    let opSugerida: "AUMENTA" | "DISMINUYE" = linea.operacion
-
-                                    if (modoCaptura === "SMART" && c) {
-                                      // Si la partida ya tiene otras líneas que suman al Debe más que al Haber,
-                                      // deducir inteligentemente qué operación necesita esta nueva cuenta para equilibrar
-                                      let sumaDebeOtros = 0
-                                      let sumaHaberOtros = 0
-                                      lineasProcesadas.forEach((lp) => {
-                                        if (lp.key !== linea.key) {
-                                          sumaDebeOtros += lp.debe
-                                          sumaHaberOtros += lp.haber
-                                        }
-                                      })
-                                      const diff = redondear(sumaDebeOtros - sumaHaberOtros)
-                                      const nat = normalizarNaturaleza(c.naturaleza)
-
-                                      if (diff > 0) {
-                                        // Debe > Haber: la partida necesita abonar al HABER
-                                        opSugerida = nat === "acreedora" ? "AUMENTA" : "DISMINUYE"
-                                      } else if (diff < 0) {
-                                        // Haber > Debe: la partida necesita cargar al DEBE
-                                        opSugerida = nat === "deudora" ? "AUMENTA" : "DISMINUYE"
-                                      }
-                                    }
-
-                                    handleUpdateLinea(linea.key, { codigo: cod, operacion: opSugerida })
-                                    if (esCuentaSujetaAIVA(cod).esSujeta) {
-                                      const monto =
-                                        modoCaptura === "CLASICO"
-                                          ? Number(linea.debeDirecto) || Number(linea.haberDirecto) || 0
-                                          : Number(linea.monto) || 0
-                                      if (monto > 0) {
-                                        handleDesglosarIVA(linea.key, false, cod)
-                                      }
-                                    }
-                                  }}
-                                  placeholder="Seleccionar cuenta contable..."
-                                />
-                                {linea.codigo && cuentasMap.get(linea.codigo) && (
-                                  <div className="mt-1 flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground truncate">
-                                    <span className="text-primary font-semibold">
-                                      {formatearCuentaJerarquica(cuentasMap.get(linea.codigo)!, cuentasMap).principal}
-                                    </span>
-                                    <span>—</span>
-                                    <span className="text-foreground">
-                                      {cuentasMap.get(linea.codigo)!.nombre}
-                                    </span>
-                                  </div>
-                                )}
-                                {linea.codigo && esCuentaSujetaAIVA(linea.codigo).esSujeta && (() => {
-                                  const info = esCuentaSujetaAIVA(linea.codigo)
-                                  const montoActual =
-                                    modoCaptura === "CLASICO"
-                                      ? Number(linea.debeDirecto) || Number(linea.haberDirecto) || 0
-                                      : Number(linea.monto) || 0
-
-                                  const lineaIva = lineas.find((l, idx) => idx !== index && l.codigo === info.cuentaIvaCodigo)
-                                  const ivaMonto = lineaIva
-                                    ? modoCaptura === "CLASICO"
-                                      ? Number(lineaIva.debeDirecto) || Number(lineaIva.haberDirecto) || 0
-                                      : Number(lineaIva.monto) || 0
-                                    : 0
-
-                                  const yaDesglosado =
-                                    montoActual > 0 &&
-                                    ivaMonto > 0 &&
-                                    Math.abs(redondear(montoActual * 0.13) - ivaMonto) <= 0.02
-                                  const totalEstimado = redondear(montoActual + ivaMonto)
-
-                                  return (
-                                    <div className="mt-1.5 flex flex-wrap items-center justify-between gap-1.5 text-[10px] font-mono bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/25 rounded px-2 py-1">
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="inline-flex items-center gap-1 font-bold text-amber-700 dark:text-amber-400">
-                                          <Zap className="size-3 text-amber-500" />
-                                          {info.impuestoNombre}
-                                        </span>
-                                        {yaDesglosado ? (
-                                          <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
-                                            ✓ Base: {formatoMoneda(montoActual)} + IVA: {formatoMoneda(ivaMonto)} = Total: {formatoMoneda(totalEstimado)}
-                                          </span>
-                                        ) : (
-                                          <span className="text-muted-foreground">
-                                            (Auto-desglose: Base = $X / 1.13 · IVA = Base × 0.13)
-                                          </span>
-                                        )}
-                                      </div>
-
-                                      <button
-                                        type="button"
-                                        onClick={() => handleDesglosarIVA(linea.key, true)}
-                                        disabled={montoActual <= 0}
-                                        className="text-[10px] font-semibold text-amber-800 dark:text-amber-200 hover:text-amber-950 dark:hover:text-white bg-amber-500/25 hover:bg-amber-500/35 disabled:opacity-40 px-2 py-0.5 rounded transition-colors cursor-pointer shrink-0"
-                                        title="Calcular o forzar desglose de IVA (13%)"
-                                      >
-                                        ⚡ Desglosar IVA 13%
-                                      </button>
-                                    </div>
-                                  )
-                                })()}
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveLinea(linea.key)}
-                                disabled={lineas.length <= 2}
-                                className="text-muted-foreground hover:text-destructive p-1 rounded transition-colors disabled:opacity-20 cursor-pointer shrink-0"
-                                title="Eliminar renglón"
-                              >
-                                <Trash2 className="size-3.5" />
-                              </button>
-                            </div>
-
-                            {/* Controles de Importe según Modo */}
-                            {modoCaptura === "SMART" ? (
-                              <div className="grid grid-cols-12 gap-2 items-center pl-7">
-                                <div className="col-span-5">
-                                  <select
-                                    value={linea.operacion}
-                                    onChange={(e) => {
-                                      const op = e.target.value as "AUMENTA" | "DISMINUYE"
-                                      const c = cuentasMap.get(linea.codigo)
-                                      const m = Number(linea.monto) || 0
-                                      if (c && m > 0) {
-                                        const res = inferirImputacion(c, m, op)
-                                        handleUpdateLinea(linea.key, {
-                                          operacion: op,
-                                          debeDirecto: res.debe > 0 ? res.debe : "",
-                                          haberDirecto: res.haber > 0 ? res.haber : "",
-                                        })
-                                      } else {
-                                        handleUpdateLinea(linea.key, { operacion: op })
-                                      }
-                                    }}
-                                    className="w-full text-xs h-8 px-2 rounded-md border border-input bg-background text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring font-medium"
-                                  >
-                                    <option value="AUMENTA">
-                                      {linea.cuenta
-                                        ? linea.cuenta.naturaleza === "acreedora"
-                                          ? "+ Aumenta (Abono / Haber)"
-                                          : "+ Aumenta (Cargo / Debe)"
-                                        : "+ Aumenta"}
-                                    </option>
-                                    <option value="DISMINUYE">
-                                      {linea.cuenta
-                                        ? linea.cuenta.naturaleza === "acreedora"
-                                          ? "- Disminuye (Cargo / Debe)"
-                                          : "- Disminuye (Abono / Haber)"
-                                        : "- Disminuye"}
-                                    </option>
-                                  </select>
-                                </div>
-                                <div className="col-span-4 relative">
-                                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-mono text-muted-foreground">$</span>
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    placeholder="0.00"
-                                    value={linea.monto}
-                                    onChange={(e) => {
-                                      const val = e.target.value === "" ? "" : parseFloat(e.target.value)
-                                      const c = cuentasMap.get(linea.codigo)
-                                      if (c && typeof val === "number" && val > 0) {
-                                        const res = inferirImputacion(c, val, linea.operacion)
-                                        handleUpdateLinea(linea.key, {
-                                          monto: val,
-                                          debeDirecto: res.debe > 0 ? res.debe : "",
-                                          haberDirecto: res.haber > 0 ? res.haber : "",
-                                        })
-                                      } else {
-                                        handleUpdateLinea(linea.key, {
-                                          monto: val,
-                                          debeDirecto: "",
-                                          haberDirecto: "",
-                                        })
-                                      }
-                                    }}
-                                    onBlur={() => {
-                                      if (esCuentaSujetaAIVA(linea.codigo).esSujeta) {
-                                        handleDesglosarIVA(linea.key)
-                                      }
-                                    }}
-                                    onKeyDown={(e) => {
-                                      if (e.key === "Enter" && esCuentaSujetaAIVA(linea.codigo).esSujeta) {
-                                        handleDesglosarIVA(linea.key)
-                                      }
-                                    }}
-                                    className="w-full text-xs h-8 pl-6 pr-2 rounded-md border border-input bg-background text-foreground font-mono tabular-nums text-right focus:outline-none focus:ring-1 focus:ring-ring"
-                                  />
-                                </div>
-                                <div className="col-span-3 text-right">
-                                  {linea.debe > 0 && (
-                                    <Badge variant="default" className="text-[10px] font-mono px-1.5 py-0.5">
-                                      D: {formatoMoneda(linea.debe)}
-                                    </Badge>
-                                  )}
-                                  {linea.haber > 0 && (
-                                    <Badge variant="muted" className="text-[10px] font-mono px-1.5 py-0.5">
-                                      H: {formatoMoneda(linea.haber)}
-                                    </Badge>
-                                  )}
-                                  {linea.debe === 0 && linea.haber === 0 && (
-                                    <span className="text-[10px] text-muted-foreground font-mono">—</span>
-                                  )}
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="grid grid-cols-2 gap-2 pl-7">
-                                <div className="relative">
-                                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] font-mono font-bold text-muted-foreground">D$</span>
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    placeholder="Debe 0.00"
-                                    value={linea.debeDirecto ?? ""}
-                                    onChange={(e) => {
-                                      const val = e.target.value === "" ? "" : parseFloat(e.target.value)
-                                      const c = cuentasMap.get(linea.codigo)
-                                      const nat = normalizarNaturaleza(c?.naturaleza || "deudora")
-                                      const op: "AUMENTA" | "DISMINUYE" = nat === "deudora" ? "AUMENTA" : "DISMINUYE"
-                                      handleUpdateLinea(linea.key, {
-                                        debeDirecto: val,
-                                        haberDirecto: val !== "" ? "" : linea.haberDirecto,
-                                        monto: val,
-                                        operacion: op,
-                                      })
-                                    }}
-                                    onBlur={() => {
-                                      if (esCuentaSujetaAIVA(linea.codigo).esSujeta) {
-                                        handleDesglosarIVA(linea.key)
-                                      }
-                                    }}
-                                    onKeyDown={(e) => {
-                                      if (e.key === "Enter" && esCuentaSujetaAIVA(linea.codigo).esSujeta) {
-                                        handleDesglosarIVA(linea.key)
-                                      }
-                                    }}
-                                    className="w-full text-xs h-8 pl-7 pr-2 rounded-md border border-input bg-background text-foreground font-mono tabular-nums text-right focus:outline-none focus:ring-1 focus:ring-ring"
-                                  />
-                                </div>
-                                <div className="relative">
-                                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] font-mono font-bold text-muted-foreground">H$</span>
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    placeholder="Haber 0.00"
-                                    value={linea.haberDirecto ?? ""}
-                                    onChange={(e) => {
-                                      const val = e.target.value === "" ? "" : parseFloat(e.target.value)
-                                      const c = cuentasMap.get(linea.codigo)
-                                      const nat = normalizarNaturaleza(c?.naturaleza || "deudora")
-                                      const op: "AUMENTA" | "DISMINUYE" = nat === "acreedora" ? "AUMENTA" : "DISMINUYE"
-                                      handleUpdateLinea(linea.key, {
-                                        haberDirecto: val,
-                                        debeDirecto: val !== "" ? "" : linea.debeDirecto,
-                                        monto: val,
-                                        operacion: op,
-                                      })
-                                    }}
-                                    onBlur={() => {
-                                      if (esCuentaSujetaAIVA(linea.codigo).esSujeta) {
-                                        handleDesglosarIVA(linea.key)
-                                      }
-                                    }}
-                                    onKeyDown={(e) => {
-                                      if (e.key === "Enter" && esCuentaSujetaAIVA(linea.codigo).esSujeta) {
-                                        handleDesglosarIVA(linea.key)
-                                      }
-                                    }}
-                                    className="w-full text-xs h-8 pl-7 pr-2 rounded-md border border-input bg-background text-foreground font-mono tabular-nums text-right focus:outline-none focus:ring-1 focus:ring-ring"
-                                  />
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Botones de Acción de Renglones */}
-                      <div className="flex items-center gap-2 pt-1">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={handleAddLinea}
-                          className="text-xs h-8 gap-1.5 flex-1 cursor-pointer"
-                        >
-                          <Plus className="size-3.5" />
-                          <span>Renglón</span>
-                          <kbd className="text-[10px] font-mono text-muted-foreground">Alt+A</kbd>
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={handleAutoCuadrar}
-                          className="text-xs h-8 gap-1.5 flex-1 cursor-pointer hover:border-amber-500/50 hover:bg-amber-500/10"
-                          title="Calcular y asignar la contrapartida exacta para cuadrar la partida"
-                        >
-                          <Sliders className="size-3.5 text-amber-500" />
-                          <span>Auto-Cuadrar</span>
-                          <kbd className="text-[10px] font-mono text-muted-foreground">Alt+C</kbd>
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={handleLimpiarFormulario}
-                          className="text-xs h-8 text-muted-foreground hover:text-foreground cursor-pointer px-2.5"
-                        >
-                          Limpiar
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Resumen de Cuadratura y Guardar */}
-                    <div className="pt-2.5 border-t border-border flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-3 font-mono text-xs tabular-nums">
-                          <span>D: <strong className="text-foreground">{formatoMoneda(totalesPartidaEnCurso.totalDebe)}</strong></span>
-                          <span>H: <strong className="text-foreground">{formatoMoneda(totalesPartidaEnCurso.totalHaber)}</strong></span>
-                        </div>
-                        <div>
-                          {totalesPartidaEnCurso.cuadrado ? (
-                            <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                              <CheckCircle2 className="size-3.5" /> Partida Cuadrada
-                            </span>
-                          ) : (
-                            <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1 tabular-nums">
-                              <AlertCircle className="size-3.5" /> Dif: {formatoMoneda(totalesPartidaEnCurso.diferencia)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <Button
-                        type="submit"
-                        disabled={guardandoPartida || !totalesPartidaEnCurso.cuadrado}
-                        className="text-xs h-9 px-4 font-semibold gap-1.5 shadow-xs cursor-pointer"
-                        title="Guardar partida (Alt + G)"
-                      >
-                        {guardandoPartida ? (
-                          "Guardando..."
-                        ) : partidaEnEdicion ? (
-                          "Guardar Cambios"
-                        ) : (
-                          "Guardar en Folio"
-                        )}
-                        <ArrowRight className="size-3.5" />
-                      </Button>
-                    </div>
-                  </form>
+                <div className="flex items-center gap-2">
+                  {partidasFolio.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={handleColapsarTodas}
+                      className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer transition-colors"
+                    >
+                      <ChevronsUpDown className="size-3.5" />
+                      {partidasColapsadas.size === partidasFolio.length ? "Expandir todas" : "Colapsar todas"}
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {/* ================================================================= */}
-              {/* COLUMNA DERECHA: La Hoja del Día (Partidas en Curso) (7 cols)     */}
-              {/* ================================================================= */}
-              <div className="lg:col-span-7 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="size-6 rounded-md bg-muted flex items-center justify-center text-foreground">
-                      <Layers className="size-3.5" />
-                    </div>
-                    <h2 className="text-sm font-bold text-foreground">
-                      Comprobantes de la Jornada ({partidasFolio.length})
-                    </h2>
+              {/* Scrollable partidas container */}
+              {partidasFolio.length === 0 ? (
+                <div className="p-12 text-center space-y-3">
+                  <BookOpen className="size-12 text-muted-foreground/60 mx-auto stroke-1" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-bold text-foreground">Aún no hay comprobantes registrados</p>
+                    <p className="text-xs text-muted-foreground max-w-sm mx-auto leading-relaxed">
+                      Haz clic en &ldquo;Agregar partida&rdquo; para registrar compras, ventas o gastos del día.
+                    </p>
                   </div>
-                  <span className="text-xs text-muted-foreground font-mono">
-                    {fechaLegible}
-                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      handleLimpiarFormulario()
+                      setModalCapturaOpen(true)
+                    }}
+                    className="text-xs h-9 gap-2 cursor-pointer mt-2"
+                  >
+                    <Plus className="size-3.5" />
+                    Agregar primera partida
+                  </Button>
                 </div>
-
-                {partidasFolio.length === 0 ? (
-                  <div className="border-2 border-dashed border-border rounded-xl p-12 text-center bg-card/60 space-y-3">
-                    <BookOpen className="size-12 text-muted-foreground/60 mx-auto stroke-1" />
-                    <div className="space-y-1">
-                      <p className="text-sm font-bold text-foreground">Aún no hay comprobantes registrados en este folio</p>
-                      <p className="text-xs text-muted-foreground max-w-sm mx-auto leading-relaxed">
-                        Utiliza el formulario de la izquierda para registrar compras, ventas o gastos del día. Las partidas se
-                        acumularán en esta hoja antes del cierre definitivo de jornada.
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-3.5">
+              ) : (
+                <div className="max-h-[calc(100vh-22rem)] overflow-y-auto">
+                  <div className="divide-y divide-border">
                     {partidasFolio.map((partida) => {
                       let pDebe = 0
                       let pHaber = 0
@@ -1829,142 +1877,162 @@ export default function LibroDiarioPage() {
                       })
                       const esAnulado = partida.estado === "ANULADO"
                       const estaEditandoEsta = partidaEnEdicion?.id === partida.id
+                      const estaColapsada = partidasColapsadas.has(partida.id)
 
                       return (
                         <div
                           key={partida.id}
                           className={cn(
-                            "border rounded-xl bg-card p-4 shadow-xs transition-all",
+                            "transition-all",
                             estaEditandoEsta
-                              ? "ring-2 ring-primary border-transparent bg-muted/30"
+                              ? "bg-primary/5"
                               : esAnulado
-                              ? "opacity-60 border-red-500/20 bg-red-500/5"
-                              : "border-border hover:border-border/80",
+                              ? "opacity-60 bg-red-500/5"
+                              : "hover:bg-muted/20",
                           )}
                         >
-                          {/* Encabezado de la Partida */}
-                          <div className="flex items-start justify-between gap-3 pb-2.5 border-b border-border">
-                            <div className="space-y-1">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="font-mono text-xs font-bold text-foreground bg-muted px-2 py-0.5 rounded">
-                                  Partida #{partida.numero}
+                          {/* Partida Header Row — always visible, clickable to collapse */}
+                          <div
+                            className="flex items-center gap-3 px-5 py-3 cursor-pointer select-none"
+                            onClick={() => toggleColapsarPartida(partida.id)}
+                          >
+                            <button
+                              type="button"
+                              className="text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
+                            >
+                              {estaColapsada ? (
+                                <ChevronDown className="size-4" />
+                              ) : (
+                                <ChevronUp className="size-4" />
+                              )}
+                            </button>
+
+                            <span className="font-mono text-xs font-bold text-foreground bg-muted px-2 py-0.5 rounded shrink-0">
+                              #{partida.numero}
+                            </span>
+
+                            <p className={cn(
+                              "text-xs font-medium text-foreground flex-1 min-w-0 truncate",
+                              esAnulado && "line-through text-muted-foreground"
+                            )}>
+                              {partida.concepto}
+                            </p>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              {partida.tipo && (
+                                <Badge variant="outline" className="text-[10px] font-normal hidden sm:inline-flex">
+                                  {partida.tipo}
+                                </Badge>
+                              )}
+                              {partida.documento_soporte && (
+                                <span className="text-[10px] text-muted-foreground font-mono hidden sm:inline">
+                                  {partida.documento_soporte}
                                 </span>
-                                {partida.tipo && (
-                                  <Badge variant="outline" className="text-[10px] font-normal">
-                                    {partida.tipo}
-                                  </Badge>
-                                )}
-                                {partida.documento_soporte && (
-                                  <span className="text-[11px] text-muted-foreground bg-muted/50 px-2 py-0.5 rounded border border-border font-mono">
-                                    Doc: {partida.documento_soporte}
-                                  </span>
-                                )}
-                                {esAnulado && (
-                                  <Badge variant="warning" className="text-[10px]">
-                                    ANULADO
-                                  </Badge>
-                                )}
-                              </div>
-                              <p className={cn("text-xs font-medium text-foreground", esAnulado && "line-through text-muted-foreground")}>
-                                {partida.concepto}
-                              </p>
-                            </div>
+                              )}
+                              {esAnulado && (
+                                <Badge variant="warning" className="text-[10px]">
+                                  ANULADO
+                                </Badge>
+                              )}
+                              <span className="font-mono text-xs tabular-nums font-bold text-foreground w-24 text-right">
+                                {formatoMoneda(pDebe)}
+                              </span>
+                              <span className="font-mono text-xs tabular-nums font-bold text-foreground w-24 text-right">
+                                {formatoMoneda(pHaber)}
+                              </span>
 
-                            {!esAnulado && estadoFolio === "ABIERTO" && (
-                              <div className="flex items-center gap-1 shrink-0">
-                                <button
-                                  type="button"
-                                  onClick={() => handleEditarPartida(partida)}
-                                  title="Editar comprobante en folio abierto"
-                                  className="text-muted-foreground hover:text-foreground p-1.5 rounded transition-colors cursor-pointer hover:bg-muted"
-                                >
-                                  <Pencil className="size-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleAnularPartida(partida)}
-                                  title="Anular comprobante del folio"
-                                  className="text-muted-foreground hover:text-destructive p-1.5 rounded transition-colors cursor-pointer hover:bg-red-500/10"
-                                >
-                                  <Trash2 className="size-3.5" />
-                                </button>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Tabla de Renglones */}
-                          <div className="pt-2 overflow-x-auto">
-                            <table className="w-full text-xs">
-                              <thead>
-                                <tr className="text-muted-foreground font-medium border-b border-border text-[11px]">
-                                  <th className="text-left py-1 w-20">Código</th>
-                                  <th className="text-left py-1">Cuenta</th>
-                                  <th className="text-right py-1 w-24">Debe</th>
-                                  <th className="text-right py-1 w-24">Haber</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-border/60 font-mono tabular-nums text-xs">
-                                {partida.lineas.map((linea, idx) => (
-                                  <tr key={idx} className="hover:bg-muted/30">
-                                    <td className="py-1.5 text-primary font-medium">{linea.codigo}</td>
-                                    <td className="py-1.5 text-foreground font-sans truncate max-w-[200px]">
-                                      {getNombreCuenta(linea.codigo)}
-                                    </td>
-                                    <td className="py-1.5 text-right text-foreground font-medium">
-                                      {linea.debe > 0 ? formatoMoneda(linea.debe) : "—"}
-                                    </td>
-                                    <td className="py-1.5 text-right text-foreground font-medium">
-                                      {linea.haber > 0 ? formatoMoneda(linea.haber) : "—"}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-
-                          {/* Pie de Partida */}
-                          <div className="mt-2 pt-2 border-t border-border flex items-center justify-between text-xs font-mono tabular-nums text-muted-foreground">
-                            <span>Sumas Partida:</span>
-                            <div className="flex gap-4 font-bold text-foreground">
-                              <span>D: {formatoMoneda(pDebe)}</span>
-                              <span>H: {formatoMoneda(pHaber)}</span>
+                              {/* Action buttons */}
+                              {!esAnulado && estadoFolio === "ABIERTO" && (
+                                <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEditarPartida(partida)}
+                                    title="Editar comprobante"
+                                    className="text-muted-foreground hover:text-foreground p-1.5 rounded transition-colors cursor-pointer hover:bg-muted"
+                                  >
+                                    <Pencil className="size-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAnularPartida(partida)}
+                                    title="Anular comprobante"
+                                    className="text-muted-foreground hover:text-destructive p-1.5 rounded transition-colors cursor-pointer hover:bg-red-500/10"
+                                  >
+                                    <Trash2 className="size-3.5" />
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </div>
+
+                          {/* Expandable detail — account lines table */}
+                          {!estaColapsada && (
+                            <div className="px-5 pb-3">
+                              <div className="ml-9 rounded-lg border border-border overflow-hidden">
+                                <table className="w-full text-xs">
+                                  <thead>
+                                    <tr className="text-muted-foreground font-medium bg-muted/40 text-[11px]">
+                                      <th className="text-left py-1.5 px-3 w-20">Código</th>
+                                      <th className="text-left py-1.5 px-3">Cuenta</th>
+                                      <th className="text-right py-1.5 px-3 w-28">Debe</th>
+                                      <th className="text-right py-1.5 px-3 w-28">Haber</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-border/60 font-mono tabular-nums text-xs">
+                                    {partida.lineas.map((linea, idx) => (
+                                      <tr key={idx} className="hover:bg-muted/20">
+                                        <td className="py-1.5 px-3 text-primary font-medium">{linea.codigo}</td>
+                                        <td className="py-1.5 px-3 text-foreground font-sans">
+                                          {getNombreCuenta(linea.codigo)}
+                                        </td>
+                                        <td className="py-1.5 px-3 text-right text-foreground font-medium">
+                                          {linea.debe > 0 ? formatoMoneda(linea.debe) : "—"}
+                                        </td>
+                                        <td className="py-1.5 px-3 text-right text-foreground font-medium">
+                                          {linea.haber > 0 ? formatoMoneda(linea.haber) : "—"}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )
                     })}
+                  </div>
 
-                    {/* Resumen Total al Pie de la Hoja del Día */}
-                    <div className="bg-muted/80 border border-border rounded-xl p-5 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono tabular-nums">
+                  {/* Resumen Total al Pie */}
+                  <div className="sticky bottom-0 bg-muted/80 backdrop-blur-sm border-t border-border px-5 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-mono tabular-nums">
+                    <div>
+                      <span className="font-sans font-bold text-sm block text-foreground">
+                        TOTALES DEL FOLIO #{String(folioActual?.numero_folio || 1).padStart(3, "0")}
+                      </span>
+                      <span className="text-muted-foreground font-sans text-xs">
+                        {totalesFolio.totalPartidas} {totalesFolio.totalPartidas === 1 ? "partida registrada" : "partidas registradas"} · Partida Doble Verificada
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-8 text-sm">
                       <div>
-                        <span className="font-sans font-bold text-sm block text-foreground">
-                          TOTALES DEL FOLIO #{String(folioActual?.numero_folio || 1).padStart(3, "0")}
-                        </span>
-                        <span className="text-muted-foreground font-sans text-xs">
-                          {totalesFolio.totalPartidas} {totalesFolio.totalPartidas === 1 ? "partida registrada" : "partidas registradas"} · Partida Doble Verificada
-                        </span>
+                        <span className="text-[10px] text-muted-foreground block font-sans uppercase tracking-wider">Total Debe</span>
+                        <strong className="text-base text-primary">{formatoMoneda(totalesFolio.totalDebe)}</strong>
                       </div>
-                      <div className="flex items-center gap-8 text-sm">
-                        <div>
-                          <span className="text-[10px] text-muted-foreground block font-sans uppercase tracking-wider">Total Debe</span>
-                          <strong className="text-base text-primary">{formatoMoneda(totalesFolio.totalDebe)}</strong>
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-muted-foreground block font-sans uppercase tracking-wider">Total Haber</span>
-                          <strong className="text-base text-foreground">{formatoMoneda(totalesFolio.totalHaber)}</strong>
-                        </div>
+                      <div>
+                        <span className="text-[10px] text-muted-foreground block font-sans uppercase tracking-wider">Total Haber</span>
+                        <strong className="text-base text-foreground">{formatoMoneda(totalesFolio.totalHaber)}</strong>
                       </div>
                     </div>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         ) : (
           /* ========================================================================= */
           /* CASO 3: FOLIO CERRADO (JORNADA SELLADA CON INMUTABILIDAD ESTRICTA)         */
           /* ========================================================================= */
-          <div className="space-y-6">
+          <div className="space-y-4">
             {/* Banner de Jornada Cerrada */}
             <div className="bg-card border border-border rounded-xl p-6 sm:p-8 shadow-xs">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -2027,13 +2095,25 @@ export default function LibroDiarioPage() {
             </div>
 
             {/* Hoja de Consulta de Partidas Cerradas */}
-            <div className="bg-card border border-border rounded-xl p-6 shadow-xs space-y-4">
-              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                <FileCheck className="size-4 text-primary" />
-                Comprobantes Foliados en este Libro Diario
-              </h3>
+            <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/30">
+                <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <FileCheck className="size-4 text-primary" />
+                  Comprobantes Foliados en este Libro Diario
+                </h3>
+                {partidasFolio.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={handleColapsarTodas}
+                    className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    <ChevronsUpDown className="size-3.5" />
+                    {partidasColapsadas.size === partidasFolio.length ? "Expandir todas" : "Colapsar todas"}
+                  </button>
+                )}
+              </div>
 
-              <div className="space-y-4">
+              <div className="max-h-[calc(100vh-24rem)] overflow-y-auto divide-y divide-border">
                 {partidasFolio.map((partida) => {
                   let pDebe = 0
                   let pHaber = 0
@@ -2041,62 +2121,85 @@ export default function LibroDiarioPage() {
                     pDebe += Number(l.debe) || 0
                     pHaber += Number(l.haber) || 0
                   })
+                  const estaColapsada = partidasColapsadas.has(partida.id)
 
                   return (
-                    <div
-                      key={partida.id}
-                      className="border border-border rounded-lg p-4 bg-muted/20 space-y-2 text-xs"
-                    >
-                      <div className="flex items-center justify-between font-semibold text-foreground">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono bg-background border border-border px-2 py-0.5 rounded text-[11px]">
-                            Partida #{partida.numero}
-                          </span>
-                          <span>{partida.concepto}</span>
+                    <div key={partida.id} className="hover:bg-muted/10 transition-colors">
+                      <div
+                        className="flex items-center gap-3 px-5 py-3 cursor-pointer select-none"
+                        onClick={() => toggleColapsarPartida(partida.id)}
+                      >
+                        <button
+                          type="button"
+                          className="text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
+                        >
+                          {estaColapsada ? (
+                            <ChevronDown className="size-4" />
+                          ) : (
+                            <ChevronUp className="size-4" />
+                          )}
+                        </button>
+
+                        <span className="font-mono text-xs font-bold text-foreground bg-muted px-2 py-0.5 rounded shrink-0">
+                          #{partida.numero}
+                        </span>
+
+                        <p className="text-xs font-medium text-foreground flex-1 min-w-0 truncate">
+                          {partida.concepto}
+                        </p>
+
+                        <div className="flex items-center gap-2 shrink-0">
                           {partida.documento_soporte && (
-                            <span className="text-[10px] text-muted-foreground font-mono">
-                              (Doc: {partida.documento_soporte})
+                            <span className="text-[10px] text-muted-foreground font-mono hidden sm:inline">
+                              ({partida.documento_soporte})
                             </span>
                           )}
-                        </div>
-                        <div className="font-mono tabular-nums text-xs text-foreground">
-                          {formatoMoneda(pDebe)}
+                          <span className="font-mono text-xs tabular-nums font-bold text-foreground w-24 text-right">
+                            {formatoMoneda(pDebe)}
+                          </span>
+                          <span className="font-mono text-xs tabular-nums font-bold text-foreground w-24 text-right">
+                            {formatoMoneda(pHaber)}
+                          </span>
                         </div>
                       </div>
 
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs">
-                          <thead>
-                            <tr className="text-muted-foreground border-b border-border text-[11px]">
-                              <th className="py-1 text-left w-24">Código</th>
-                              <th className="py-1 text-left">Cuenta</th>
-                              <th className="py-1 text-right w-24">Debe</th>
-                              <th className="py-1 text-right w-24">Haber</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border font-mono tabular-nums">
-                            {partida.lineas.map((l, idx) => (
-                              <tr key={idx}>
-                                <td className="py-1 text-primary">{l.codigo}</td>
-                                <td className="py-1 text-foreground font-sans">{getNombreCuenta(l.codigo)}</td>
-                                <td className="py-1 text-right text-foreground font-medium">
-                                  {l.debe > 0 ? formatoMoneda(l.debe) : "—"}
-                                </td>
-                                <td className="py-1 text-right text-foreground font-medium">
-                                  {l.haber > 0 ? formatoMoneda(l.haber) : "—"}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                      {!estaColapsada && (
+                        <div className="px-5 pb-3">
+                          <div className="ml-9 rounded-lg border border-border overflow-hidden">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="text-muted-foreground font-medium bg-muted/40 text-[11px]">
+                                  <th className="py-1.5 px-3 text-left w-24">Código</th>
+                                  <th className="py-1.5 px-3 text-left">Cuenta</th>
+                                  <th className="py-1.5 px-3 text-right w-28">Debe</th>
+                                  <th className="py-1.5 px-3 text-right w-28">Haber</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-border font-mono tabular-nums">
+                                {partida.lineas.map((l, idx) => (
+                                  <tr key={idx}>
+                                    <td className="py-1.5 px-3 text-primary">{l.codigo}</td>
+                                    <td className="py-1.5 px-3 text-foreground font-sans">{getNombreCuenta(l.codigo)}</td>
+                                    <td className="py-1.5 px-3 text-right text-foreground font-medium">
+                                      {l.debe > 0 ? formatoMoneda(l.debe) : "—"}
+                                    </td>
+                                    <td className="py-1.5 px-3 text-right text-foreground font-medium">
+                                      {l.haber > 0 ? formatoMoneda(l.haber) : "—"}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )
                 })}
               </div>
 
               {/* Pie de Sumas Iguales Oficiales */}
-              <div className="pt-4 border-t-2 border-foreground flex justify-between items-center text-xs font-mono tabular-nums font-bold text-foreground border-b-4 border-double pb-2">
+              <div className="sticky bottom-0 bg-card border-t-2 border-foreground px-5 py-3 flex justify-between items-center text-xs font-mono tabular-nums font-bold text-foreground border-b-4 border-double">
                 <span>SUMAS IGUALES DEL FOLIO N° {String(folioActual?.numero_folio).padStart(3, "0")}</span>
                 <div className="flex gap-8">
                   <span>DEBE: {formatoMoneda(totalesFolio.totalDebe)}</span>
@@ -2200,6 +2303,47 @@ export default function LibroDiarioPage() {
           setIsHistorialOpen(false)
         }}
       />
+
+      {/* ========================================================================= */}
+      {/* MODAL: Registro de Comprobante (Agregar / Editar partida)                 */}
+      {/* ========================================================================= */}
+      {modalCapturaOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-start justify-center p-4 pt-[5vh] overflow-y-auto">
+          <div className="bg-card text-card-foreground rounded-xl max-w-2xl w-full shadow-2xl border border-border animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+              <div className="flex items-center gap-3">
+                <div className="size-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center shadow-xs">
+                  {partidaEnEdicion ? <Pencil className="size-4" /> : <Plus className="size-4" />}
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-foreground">
+                    {partidaEnEdicion ? `Editando Partida #${partidaEnEdicion.numero}` : "Registro de comprobante"}
+                  </h2>
+                  <p className="text-[11px] text-muted-foreground">
+                    Folio #{String(folioActual?.numero_folio || 1).padStart(3, "0")} · {fechaLegible}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setModalCapturaOpen(false)
+                  if (partidaEnEdicion) handleLimpiarFormulario()
+                }}
+                className="text-muted-foreground hover:text-foreground p-1.5 rounded-md hover:bg-muted transition-colors cursor-pointer"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="px-6 py-5">
+              {renderFormularioCaptura()}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Cierre */}
       {modalCierreOpen && (
