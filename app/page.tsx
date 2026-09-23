@@ -144,8 +144,7 @@ export default function DashboardPage() {
           icon={Landmark}
           label="Proveedores por pagar"
           valor={cxp}
-          sub={cxp > 0 ? "Saldo pendiente 2101" : "Al día"}
-          negative={cxp > 0}
+          sub={cxp > 0 ? "Saldo acumulado 2101" : "Al día"}
         />
 
         {/* IVA */}
@@ -155,7 +154,6 @@ export default function DashboardPage() {
           label={ivaAlDia ? "IVA al día" : ivaPorPagar ? "IVA por pagar" : "IVA a favor"}
           valor={Math.abs(ivaNeto)}
           sub={ivaAlDia ? "Sin movimientos en ciclo" : `DF ${formatoMoneda(ivaDF)} · CF ${formatoMoneda(ivaCF)}`}
-          negative={ivaPorPagar}
         />
       </div>
 

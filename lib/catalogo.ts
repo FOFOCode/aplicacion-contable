@@ -1,4 +1,4 @@
-import type { Cuenta } from "./types"
+import type { Cuenta, TipoCuenta } from "./types"
 
 /**
  * Catálogo de Cuentas completo (equivale al futuro data.sql).
@@ -74,3 +74,50 @@ export const CATALOGO_CUENTAS: Cuenta[] = [
   { codigo: "5202", nombre: "Intereses cobrados", tipo: "ingreso", naturaleza: "acreedora", activa: true },
   { codigo: "5203", nombre: "Utilidad en venta de activos", tipo: "ingreso", naturaleza: "acreedora", activa: true },
 ]
+
+export interface RubroContable {
+  codigo: string
+  nombre: string
+  grupo: TipoCuenta
+  descripcion: string
+}
+
+export const RUBROS_CONTABLES: RubroContable[] = [
+  { codigo: "11", nombre: "Activo Corriente", grupo: "activo", descripcion: "Efectivo, equivalentes, realizables y exigibles a corto plazo" },
+  { codigo: "12", nombre: "Activo No Corriente", grupo: "activo", descripcion: "Propiedad, planta y equipo, intangibles y depreciaciones" },
+  { codigo: "21", nombre: "Pasivo Corriente", grupo: "pasivo", descripcion: "Obligaciones comerciales, fiscales y laborales a corto plazo" },
+  { codigo: "22", nombre: "Pasivo No Corriente", grupo: "pasivo", descripcion: "Obligaciones bancarias e hipotecarias a largo plazo" },
+  { codigo: "31", nombre: "Capital Contable", grupo: "capital", descripcion: "Capital social, reservas y resultados acumulados" },
+  { codigo: "41", nombre: "Costo de Ventas (Analítico)", grupo: "gasto", descripcion: "Compras y cuentas analíticas de adquisición" },
+  { codigo: "42", nombre: "Gastos de Operación", grupo: "gasto", descripcion: "Gastos administrativos y comerciales del período" },
+  { codigo: "43", nombre: "Gastos Financieros", grupo: "gasto", descripcion: "Intereses y comisiones bancarias" },
+  { codigo: "51", nombre: "Ingresos de Operación", grupo: "ingreso", descripcion: "Ventas y complementarias analíticas" },
+  { codigo: "52", nombre: "Ingresos Financieros", grupo: "ingreso", descripcion: "Productos financieros y rendimientos" },
+]
+
+/**
+ * Calcula el siguiente código disponible dentro de un rubro (ej. rubro '11' -> '1109').
+ */
+export function sugerirSiguienteCodigo(rubroPrefijo: string, cuentasExistentes: { codigo: string }[]): string {
+  const existentes = cuentasExistentes
+    .map((c) => c.codigo.trim())
+    .filter((cod) => cod.startsWith(rubroPrefijo) && cod.length === 4 && /^\d+$/.test(cod))
+    .map((cod) => parseInt(cod, 10))
+    .sort((a, b) => a - b)
+
+  if (existentes.length === 0) {
+    return `${rubroPrefijo}01`
+  }
+
+  // Buscar primer hueco libre o el siguiente correlativo
+  let candidato = parseInt(`${rubroPrefijo}01`, 10)
+  for (const ocupado of existentes) {
+    if (ocupado === candidato) {
+      candidato++
+    } else if (ocupado > candidato) {
+      return String(candidato).padStart(4, "0")
+    }
+  }
+  return String(candidato).padStart(4, "0")
+}
+
