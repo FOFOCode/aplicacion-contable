@@ -41,6 +41,7 @@ export interface AsientoLinea {
   codigo: string
   debe: number
   haber: number
+  parcial?: number
 }
 
 export interface Asiento {
@@ -50,11 +51,47 @@ export interface Asiento {
   numero: number
   fecha: string
   concepto: string
-  tipo?: "APERTURA" | "OPERACION" | "AJUSTE" | "CIERRE"
-  estado?: "APLICADO" | "ANULADO"
+  tipo?: "APERTURA" | "OPERACION" | "AJUSTE" | "CIERRE" | "REVERSION"
+  estado?: "BORRADOR" | "APLICADO" | "ANULADO"
+  asiento_reversion_id?: string | null
+  documento_soporte?: string | null
   anulado_en?: string | null
   motivo_anulacion?: string | null
+  lote_id?: string | null
+  lote_numero?: number | null
+  folio_diario_id?: string | null
+  numero_folio?: number | null
   lineas: AsientoLinea[]
+}
+
+export interface FolioDiario {
+  id: string
+  ejercicio: number
+  numero_folio: number
+  fecha: string
+  estado: "ABIERTO" | "CERRADO"
+  total_debe: number
+  total_haber: number
+  cerrado_en?: string | null
+  cerrado_por?: string | null
+  creado_en?: string
+  cantidad_partidas?: number
+}
+
+export interface LoteContable {
+  id: string
+  numero: number
+  ejercicio: number
+  mes: string
+  estado: "EN_PROCESO" | "CERRADO" | "FOLIADO"
+  fecha_apertura: string
+  fecha_cierre?: string | null
+  usuario?: string
+  observaciones?: string
+  total_debe: number
+  total_haber: number
+  cantidad_partidas: number
+  partidas_ids?: string[]
 }
 
 export interface AsientoHistorial {

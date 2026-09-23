@@ -10,8 +10,10 @@ import {
   LayoutDashboard,
   Menu,
   Home,
+  Sun,
+  Moon,
 } from "lucide-react"
-import { useState, type ReactNode } from "react"
+import { useState, useEffect, type ReactNode } from "react"
 import { cn } from "@/lib/utils"
 import { useContabilidad } from "@/components/contabilidad-provider"
 
@@ -27,6 +29,32 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const { dbConnected } = useContabilidad()
+  const [isDark, setIsDark] = useState<boolean>(true)
+
+  useEffect(() => {
+    const saved = localStorage.getItem("theme")
+    if (saved === "light") {
+      setIsDark(false)
+      document.documentElement.classList.remove("dark")
+    } else {
+      setIsDark(true)
+      document.documentElement.classList.add("dark")
+    }
+  }, [])
+
+  const toggleTheme = () => {
+    setIsDark((prev) => {
+      const next = !prev
+      if (next) {
+        document.documentElement.classList.add("dark")
+        localStorage.setItem("theme", "dark")
+      } else {
+        document.documentElement.classList.remove("dark")
+        localStorage.setItem("theme", "light")
+      }
+      return next
+    })
+  }
 
   return (
     <div className="flex min-h-svh bg-background">
@@ -94,7 +122,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </button>
           <span className="text-sm font-semibold">Módulo Contable</span>
         </header>
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8 md:py-8">
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-5 md:px-6 md:py-6">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3 print:hidden">
             <div className="flex items-center gap-2">
               {dbConnected ? (
@@ -109,10 +137,21 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </span>
               )}
             </div>
-            <Link href="/" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground" aria-label="Ir al panel principal">
-              <Home className="size-4" />
-              Panel principal
-            </Link>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-2 text-xs font-medium text-foreground transition-colors hover:bg-accent cursor-pointer"
+                title={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+              >
+                {isDark ? <Sun className="size-4 text-amber-400" /> : <Moon className="size-4 text-slate-400" />}
+                <span>{isDark ? "Claro" : "Oscuro"}</span>
+              </button>
+              <Link href="/" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground" aria-label="Ir al panel principal">
+                <Home className="size-4" />
+                Panel principal
+              </Link>
+            </div>
           </div>
           {children}
         </main>

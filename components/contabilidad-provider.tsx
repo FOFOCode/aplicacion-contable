@@ -119,6 +119,10 @@ interface ContabilidadContextValue {
   limpiarTodo: () => void
   cerrarCicloContable: () => void
   recargarCierres: () => Promise<void>
+  recargarAsientos: () => Promise<void>
+  recargarTodo: () => Promise<void>
+  inventarioFinal: number
+  setInventarioFinal: (v: number) => void
   mayor: ReturnType<typeof calcularMayor>
   estadoResultados: ReturnType<typeof calcularEstadoResultados>
   balanceGeneral: ReturnType<typeof calcularBalanceGeneral>
@@ -130,6 +134,7 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
   const [cuentas, setCuentas] = useState<Cuenta[]>(CATALOGO_CUENTAS)
   const [asientos, setAsientos] = useState<Asiento[]>(ASIENTOS_EJEMPLO)
   const [cierres, setCierres] = useState<CierreContable[]>([])
+  const [inventarioFinal, setInventarioFinal] = useState<number>(6500)
   const [hidratado, setHidratado] = useState(false)
   const [dbConnected, setDbConnected] = useState(false)
   const [cargando, setCargando] = useState(true)
@@ -146,6 +151,23 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const recargarAsientos = async () => {
+    if (!dbConnected) return
+    try {
+      const res = await fetch("/api/asientos")
+      if (res.ok) {
+        const data = await res.json()
+        if (Array.isArray(data)) setAsientos(data)
+      }
+    } catch (e) {
+      console.error("Error al recargar asientos:", e)
+    }
+  }
+
+  const recargarTodo = async () => {
+    await Promise.all([recargarAsientos(), recargarCierres()])
+  }
+
   useEffect(() => {
     async function inicializar() {
       try {
@@ -154,10 +176,11 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
 
         if (statusData?.connected) {
           setDbConnected(true)
-          const [cRes, aRes, cierresRes] = await Promise.all([
+          const [cRes, aRes, cierresRes, invRes] = await Promise.all([
             fetch("/api/cuentas"),
             fetch("/api/asientos"),
             fetch("/api/cierres").catch(() => null),
+            fetch("/api/inventario").catch(() => null),
           ])
           if (cRes.ok && aRes.ok) {
             const dbCuentas = await cRes.json()
@@ -173,6 +196,12 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
             const dbCierres = await cierresRes.json()
             if (Array.isArray(dbCierres)) {
               setCierres(dbCierres)
+            }
+          }
+          if (invRes && invRes.ok) {
+            const dbInv = await invRes.json()
+            if (dbInv?.valor_inventario_final !== undefined) {
+              setInventarioFinal(Number(dbInv.valor_inventario_final))
             }
           }
         } else {
@@ -427,16 +456,21 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
   }
 
   const mayor = useMemo(() => calcularMayor(cuentas, asientos), [cuentas, asientos])
-  const estadoResultados = useMemo(() => calcularEstadoResultados(mayor), [mayor])
+  const estadoResultados = useMemo(
+    () => calcularEstadoResultados(mayor, inventarioFinal),
+    [mayor, inventarioFinal]
+  )
   const balanceGeneral = useMemo(
-    () => calcularBalanceGeneral(mayor, estadoResultados.utilidad),
-    [mayor, estadoResultados.utilidad],
+    () => calcularBalanceGeneral(mayor, estadoResultados.utilidad, inventarioFinal),
+    [mayor, estadoResultados.utilidad, inventarioFinal]
   )
 
   const value: ContabilidadContextValue = {
     cuentas,
     asientos,
     cierres,
+    inventarioFinal,
+    setInventarioFinal,
     dbConnected,
     cargando,
     agregarAsiento,
@@ -451,6 +485,8 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
     limpiarTodo,
     cerrarCicloContable,
     recargarCierres,
+    recargarAsientos,
+    recargarTodo,
     mayor,
     estadoResultados,
     balanceGeneral,
