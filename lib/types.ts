@@ -49,6 +49,21 @@ export interface Asiento {
   lineas: AsientoLinea[]
 }
 
+export interface CierreContable {
+  id: string
+  ejercicio: number
+  fecha_cierre: string
+  concepto: string
+  total_ingresos: number
+  total_gastos: number
+  utilidad: number
+  cuenta_capital_codigo: string
+  cuenta_capital_nombre?: string
+  asiento_cierre_id: string
+  asiento_numero?: number
+  creado_en?: string
+}
+
 export interface SaldoCuenta {
   cuenta: Cuenta
   debe: number

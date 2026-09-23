@@ -7,10 +7,11 @@ import {
   calcularEstadoResultados,
   calcularMayor,
 } from "@/lib/contabilidad"
-import type { Asiento, Cuenta } from "@/lib/types"
+import type { Asiento, CierreContable, Cuenta } from "@/lib/types"
 
 const STORAGE_ASIENTOS = "modulo-contable:asientos"
 const STORAGE_CUENTAS = "modulo-contable:cuentas"
+const STORAGE_CIERRES = "modulo-contable:cierres"
 
 const ASIENTOS_EJEMPLO: Asiento[] = [
   {
@@ -71,6 +72,7 @@ const ASIENTOS_EJEMPLO: Asiento[] = [
 interface ContabilidadContextValue {
   cuentas: Cuenta[]
   asientos: Asiento[]
+  cierres: CierreContable[]
   dbConnected: boolean
   cargando: boolean
   agregarAsiento: (a: Omit<Asiento, "id" | "numero">) => void
@@ -84,6 +86,7 @@ interface ContabilidadContextValue {
   reiniciarEjemplo: () => void
   limpiarTodo: () => void
   cerrarCicloContable: () => void
+  recargarCierres: () => Promise<void>
   mayor: ReturnType<typeof calcularMayor>
   estadoResultados: ReturnType<typeof calcularEstadoResultados>
   balanceGeneral: ReturnType<typeof calcularBalanceGeneral>
@@ -94,9 +97,22 @@ const ContabilidadContext = createContext<ContabilidadContextValue | null>(null)
 export function ContabilidadProvider({ children }: { children: ReactNode }) {
   const [cuentas, setCuentas] = useState<Cuenta[]>(CATALOGO_CUENTAS)
   const [asientos, setAsientos] = useState<Asiento[]>(ASIENTOS_EJEMPLO)
+  const [cierres, setCierres] = useState<CierreContable[]>([])
   const [hidratado, setHidratado] = useState(false)
   const [dbConnected, setDbConnected] = useState(false)
   const [cargando, setCargando] = useState(true)
+
+  const recargarCierres = async () => {
+    try {
+      const res = await fetch("/api/cierres")
+      if (res.ok) {
+        const data = await res.json()
+        if (Array.isArray(data)) setCierres(data)
+      }
+    } catch (e) {
+      console.error("Error al cargar cierres:", e)
+    }
+  }
 
   useEffect(() => {
     async function inicializar() {
@@ -106,9 +122,10 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
 
         if (statusData?.connected) {
           setDbConnected(true)
-          const [cRes, aRes] = await Promise.all([
+          const [cRes, aRes, cierresRes] = await Promise.all([
             fetch("/api/cuentas"),
             fetch("/api/asientos"),
+            fetch("/api/cierres").catch(() => null),
           ])
           if (cRes.ok && aRes.ok) {
             const dbCuentas = await cRes.json()
@@ -120,21 +137,31 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
               setAsientos(dbAsientos)
             }
           }
+          if (cierresRes && cierresRes.ok) {
+            const dbCierres = await cierresRes.json()
+            if (Array.isArray(dbCierres)) {
+              setCierres(dbCierres)
+            }
+          }
         } else {
           // Fallback a localStorage si la base de datos no está disponible
           setDbConnected(false)
           const rawA = localStorage.getItem(STORAGE_ASIENTOS)
           const rawC = localStorage.getItem(STORAGE_CUENTAS)
+          const rawCierres = localStorage.getItem(STORAGE_CIERRES)
           if (rawA) setAsientos(JSON.parse(rawA))
           if (rawC) setCuentas(JSON.parse(rawC))
+          if (rawCierres) setCierres(JSON.parse(rawCierres))
         }
       } catch {
         // En caso de error de red o timeout, usar fallback local
         setDbConnected(false)
         const rawA = localStorage.getItem(STORAGE_ASIENTOS)
         const rawC = localStorage.getItem(STORAGE_CUENTAS)
+        const rawCierres = localStorage.getItem(STORAGE_CIERRES)
         if (rawA) setAsientos(JSON.parse(rawA))
         if (rawC) setCuentas(JSON.parse(rawC))
+        if (rawCierres) setCierres(JSON.parse(rawCierres))
       } finally {
         setHidratado(true)
         setCargando(false)
@@ -148,7 +175,8 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
     if (!hidratado || dbConnected) return
     localStorage.setItem(STORAGE_ASIENTOS, JSON.stringify(asientos))
     localStorage.setItem(STORAGE_CUENTAS, JSON.stringify(cuentas))
-  }, [asientos, cuentas, hidratado, dbConnected])
+    localStorage.setItem(STORAGE_CIERRES, JSON.stringify(cierres))
+  }, [asientos, cuentas, cierres, hidratado, dbConnected])
 
   const agregarAsiento: ContabilidadContextValue["agregarAsiento"] = async (a) => {
     if (dbConnected) {
@@ -248,56 +276,77 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
       try {
         const res = await fetch("/api/cierre", { method: "POST" })
         if (res.ok) {
-          const fresh = await fetch("/api/asientos")
-          if (fresh.ok) {
-            setAsientos(await fresh.json())
-            return
-          }
+          const [freshA, freshC] = await Promise.all([
+            fetch("/api/asientos"),
+            fetch("/api/cierres"),
+          ])
+          if (freshA.ok) setAsientos(await freshA.json())
+          if (freshC.ok) setCierres(await freshC.json())
+          return
         }
       } catch (e) {
         console.error("Error al invocar cierre contable en base de datos:", e)
       }
     }
 
-    const saldos = calcularMayor(cuentas, asientos).filter(
-      (s) => s.cuenta.tipo !== "ingreso" && s.cuenta.tipo !== "gasto"
-    )
-    const utilidad = calcularEstadoResultados(calcularMayor(cuentas, asientos)).utilidad
-    const cuentaCapital = cuentas.find((cuenta) => cuenta.tipo === "capital" && cuenta.activa)
-    const lineas = saldos
-      .map((saldo) => {
-        const importe = Math.abs(saldo.saldo)
-        if (!importe) return null
-        const esDeudora = saldo.cuenta.naturaleza === "deudora"
-        return {
-          codigo: saldo.cuenta.codigo,
-          debe: esDeudora ? importe : 0,
-          haber: esDeudora ? 0 : importe,
-        }
-      })
-      .filter((linea): linea is { codigo: string; debe: number; haber: number } => Boolean(linea))
+    const m = calcularMayor(cuentas, asientos)
+    const er = calcularEstadoResultados(m)
+    const cuentaCapital =
+      cuentas.find((cuenta) => cuenta.tipo === "capital" && cuenta.activa && cuenta.codigo === "3102") ||
+      cuentas.find((cuenta) => cuenta.tipo === "capital" && cuenta.activa)
 
-    if (utilidad !== 0 && cuentaCapital) {
-      lineas.push({
-        codigo: cuentaCapital.codigo,
-        debe: utilidad < 0 ? Math.abs(utilidad) : 0,
-        haber: utilidad > 0 ? utilidad : 0,
-      })
+    if (!cuentaCapital) return
+
+    const lineasCierre: Asiento["lineas"] = []
+    // 1. Cancelar ingresos (cargos al Debe)
+    for (const item of m.filter((s) => s.cuenta.tipo === "ingreso")) {
+      const saldo = item.haber - item.debe
+      if (saldo > 0) {
+        lineasCierre.push({ codigo: item.cuenta.codigo, debe: saldo, haber: 0 })
+      }
+    }
+    // 2. Cancelar gastos (abonos al Haber)
+    for (const item of m.filter((s) => s.cuenta.tipo === "gasto")) {
+      const saldo = item.debe - item.haber
+      if (saldo > 0) {
+        lineasCierre.push({ codigo: item.cuenta.codigo, debe: 0, haber: saldo })
+      }
+    }
+    // 3. Imputar utilidad o pérdida a Capital
+    if (er.utilidad > 0) {
+      lineasCierre.push({ codigo: cuentaCapital.codigo, debe: 0, haber: er.utilidad })
+    } else if (er.utilidad < 0) {
+      lineasCierre.push({ codigo: cuentaCapital.codigo, debe: Math.abs(er.utilidad), haber: 0 })
     }
 
-    const debe = lineas.reduce((total, linea) => total + linea.debe, 0)
-    const haber = lineas.reduce((total, linea) => total + linea.haber, 0)
-    if (!lineas.length || Math.abs(debe - haber) >= 0.01) return
+    if (lineasCierre.length === 0) return
 
-    setAsientos([
-      {
-        id: crypto.randomUUID(),
-        numero: 1,
-        fecha: new Date().toISOString().slice(0, 10),
-        concepto: "Asiento de apertura del nuevo ejercicio contable",
-        lineas,
-      },
-    ])
+    const nextNum = asientos.reduce((max, a) => Math.max(max, a.numero), 0) + 1
+    const nuevoAsiento: Asiento = {
+      id: crypto.randomUUID(),
+      numero: nextNum,
+      fecha: new Date().toISOString().slice(0, 10),
+      concepto: "Asiento de liquidación y cierre del ejercicio contable",
+      lineas: lineasCierre,
+    }
+
+    const nuevoCierre: CierreContable = {
+      id: crypto.randomUUID(),
+      ejercicio: new Date().getFullYear(),
+      fecha_cierre: nuevoAsiento.fecha,
+      concepto: nuevoAsiento.concepto,
+      total_ingresos: er.totalIngresos,
+      total_gastos: er.totalGastos,
+      utilidad: er.utilidad,
+      cuenta_capital_codigo: cuentaCapital.codigo,
+      cuenta_capital_nombre: cuentaCapital.nombre,
+      asiento_cierre_id: nuevoAsiento.id,
+      asiento_numero: nuevoAsiento.numero,
+      creado_en: new Date().toISOString(),
+    }
+
+    setAsientos((prev) => [...prev, nuevoAsiento])
+    setCierres((prev) => [nuevoCierre, ...prev])
   }
 
   const mayor = useMemo(() => calcularMayor(cuentas, asientos), [cuentas, asientos])
@@ -310,6 +359,7 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
   const value: ContabilidadContextValue = {
     cuentas,
     asientos,
+    cierres,
     dbConnected,
     cargando,
     agregarAsiento,
@@ -322,6 +372,7 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
     reiniciarEjemplo,
     limpiarTodo,
     cerrarCicloContable,
+    recargarCierres,
     mayor,
     estadoResultados,
     balanceGeneral,

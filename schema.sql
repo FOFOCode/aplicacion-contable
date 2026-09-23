@@ -15,6 +15,7 @@ DROP VIEW IF EXISTS vista_balance_comprobacion CASCADE;
 DROP VIEW IF EXISTS vista_libro_mayor CASCADE;
 DROP VIEW IF EXISTS vista_libro_diario CASCADE;
 
+DROP TABLE IF EXISTS cierre_contable CASCADE;
 DROP TABLE IF EXISTS asiento_linea CASCADE;
 DROP TABLE IF EXISTS asiento CASCADE;
 DROP TABLE IF EXISTS catalogo_cuentas CASCADE;
@@ -78,7 +79,26 @@ CREATE INDEX idx_linea_asiento ON asiento_linea(asiento_id);
 CREATE INDEX idx_linea_cuenta ON asiento_linea(cuenta_codigo);
 
 -- -----------------------------------------------------------------------------
--- 5. VISTAS DEL CICLO CONTABLE
+-- 5. TABLA: HISTORIAL DE CIERRES CONTABLES (lib/types.ts -> interface CierreContable)
+-- -----------------------------------------------------------------------------
+CREATE TABLE cierre_contable (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ejercicio INT NOT NULL,
+    fecha_cierre DATE NOT NULL DEFAULT CURRENT_DATE,
+    concepto TEXT NOT NULL DEFAULT 'Cierre del ejercicio fiscal',
+    total_ingresos NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    total_gastos NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    utilidad NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    cuenta_capital_codigo VARCHAR(20) NOT NULL REFERENCES catalogo_cuentas(codigo),
+    asiento_cierre_id UUID NOT NULL REFERENCES asiento(id),
+    creado_en TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_cierre_ejercicio ON cierre_contable(ejercicio);
+CREATE INDEX idx_cierre_fecha ON cierre_contable(fecha_cierre);
+
+-- -----------------------------------------------------------------------------
+-- 6. VISTAS DEL CICLO CONTABLE
 -- -----------------------------------------------------------------------------
 
 -- 5.1. Libro Diario consolidado (mantiene el orden cronológico y de renglones)
@@ -230,12 +250,19 @@ RETURNS UUID AS $$
 DECLARE
     v_asiento_cierre_id UUID;
     v_utilidad NUMERIC(14, 2);
+    v_total_ingresos NUMERIC(14, 2);
+    v_total_gastos NUMERIC(14, 2);
     v_cuenta_capital VARCHAR(20);
     v_linea_idx INT := 1;
     r RECORD;
 BEGIN
-    -- 1. Obtener la utilidad del ejercicio
-    SELECT COALESCE(utilidad, 0.00) INTO v_utilidad FROM vista_estado_resultados;
+    -- 1. Obtener totales del estado de resultados
+    SELECT 
+        COALESCE(total_ingresos, 0.00),
+        COALESCE(total_gastos, 0.00),
+        COALESCE(utilidad, 0.00)
+    INTO v_total_ingresos, v_total_gastos, v_utilidad
+    FROM vista_estado_resultados;
 
     -- 2. Cuenta de capital disponible para absorber la utilidad (3102 o primera activa de capital)
     SELECT codigo INTO v_cuenta_capital 
@@ -286,6 +313,17 @@ BEGIN
         VALUES (v_asiento_cierre_id, v_linea_idx, v_cuenta_capital, ABS(v_utilidad), 0.00);
     END IF;
 
+    -- 7. Registrar en el Historial de Cierres Contables
+    INSERT INTO cierre_contable (
+        ejercicio, fecha_cierre, concepto,
+        total_ingresos, total_gastos, utilidad,
+        cuenta_capital_codigo, asiento_cierre_id
+    ) VALUES (
+        p_ejercicio, p_fecha_cierre, p_concepto,
+        v_total_ingresos, v_total_gastos, v_utilidad,
+        v_cuenta_capital, v_asiento_cierre_id
+    );
+
     RETURN v_asiento_cierre_id;
 END;
 $$ LANGUAGE plpgsql;
@@ -294,29 +332,74 @@ $$ LANGUAGE plpgsql;
 -- 7. DATOS INICIALES (lib/catalogo.ts y ASIENTOS_EJEMPLO de contabilidad-provider)
 -- -----------------------------------------------------------------------------
 
--- 7.1. Cuentas oficiales (21 cuentas de la app)
+-- 7.1. Catálogo completo de cuentas (48 cuentas oficiales de la app)
 INSERT INTO catalogo_cuentas (codigo, nombre, tipo, naturaleza, activa) VALUES
+-- 1. Activo (Naturaleza deudora)
+-- 11. Activo corriente
 ('1101', 'Caja general', 'activo', 'deudora', TRUE),
 ('1102', 'Bancos', 'activo', 'deudora', TRUE),
 ('1103', 'Cuentas por cobrar', 'activo', 'deudora', TRUE),
 ('1104', 'Inventario de mercadería', 'activo', 'deudora', TRUE),
 ('1105', 'IVA crédito fiscal', 'activo', 'deudora', TRUE),
+('1106', 'Deudores diversos', 'activo', 'deudora', TRUE),
+('1107', 'Papelería y útiles', 'activo', 'deudora', TRUE),
+('1108', 'Pagos anticipados', 'activo', 'deudora', TRUE),
+-- 12. Activo no corriente
 ('1201', 'Mobiliario y equipo', 'activo', 'deudora', TRUE),
 ('1202', 'Equipo de transporte', 'activo', 'deudora', TRUE),
+('1203', 'Equipo de cómputo', 'activo', 'deudora', TRUE),
+('1204', 'Edificios', 'activo', 'deudora', TRUE),
+('1205', 'Terrenos', 'activo', 'deudora', TRUE),
+('1206', 'Depreciación acumulada', 'activo', 'deudora', TRUE),
+
+-- 2. Pasivo (Naturaleza acreedora)
+-- 21. Pasivo corriente
 ('2101', 'Cuentas por pagar', 'pasivo', 'acreedora', TRUE),
 ('2102', 'Préstamos bancarios por pagar', 'pasivo', 'acreedora', TRUE),
 ('2103', 'IVA débito fiscal', 'pasivo', 'acreedora', TRUE),
 ('2104', 'Impuestos por pagar', 'pasivo', 'acreedora', TRUE),
+('2105', 'Acreedores diversos', 'pasivo', 'acreedora', TRUE),
+('2106', 'Sueldos y salarios por pagar', 'pasivo', 'acreedora', TRUE),
+('2107', 'Retenciones por pagar', 'pasivo', 'acreedora', TRUE),
+-- 22. Pasivo no corriente
+('2201', 'Préstamos bancarios a largo plazo', 'pasivo', 'acreedora', TRUE),
+('2202', 'Hipotecas por pagar', 'pasivo', 'acreedora', TRUE),
+
+-- 3. Capital contable (Naturaleza acreedora)
 ('3101', 'Capital social', 'capital', 'acreedora', TRUE),
 ('3102', 'Utilidades acumuladas', 'capital', 'acreedora', TRUE),
 ('3103', 'Reserva legal', 'capital', 'acreedora', TRUE),
+('3104', 'Pérdidas acumuladas', 'capital', 'acreedora', TRUE),
+('3105', 'Donaciones', 'capital', 'acreedora', TRUE),
+
+-- 4. Costos y gastos (Naturaleza deudora)
+-- 41. Costo de venta
 ('4101', 'Costo de venta', 'gasto', 'deudora', TRUE),
+('4102', 'Costo de servicios', 'gasto', 'deudora', TRUE),
+-- 42. Gastos de operación
 ('4201', 'Gastos de administración', 'gasto', 'deudora', TRUE),
 ('4202', 'Gastos de venta', 'gasto', 'deudora', TRUE),
+('4203', 'Gastos de depreciación', 'gasto', 'deudora', TRUE),
+('4204', 'Gastos de alquiler', 'gasto', 'deudora', TRUE),
+('4205', 'Gastos de servicios básicos', 'gasto', 'deudora', TRUE),
+('4206', 'Gastos de sueldos y salarios', 'gasto', 'deudora', TRUE),
+('4207', 'Gastos de papelería y útiles', 'gasto', 'deudora', TRUE),
+('4208', 'Gastos de publicidad', 'gasto', 'deudora', TRUE),
+-- 43. Gastos financieros
 ('4301', 'Gastos financieros', 'gasto', 'deudora', TRUE),
+('4302', 'Intereses pagados', 'gasto', 'deudora', TRUE),
+('4303', 'Comisiones bancarias', 'gasto', 'deudora', TRUE),
+
+-- 5. Ingresos (Naturaleza acreedora)
+-- 51. Ventas y operativos
 ('5101', 'Ventas', 'ingreso', 'acreedora', TRUE),
 ('5102', 'Otros ingresos operativos', 'ingreso', 'acreedora', TRUE),
-('5201', 'Productos financieros', 'ingreso', 'acreedora', TRUE)
+('5103', 'Ingresos por servicios', 'ingreso', 'acreedora', TRUE),
+('5104', 'Devoluciones y descuentos sobre ventas', 'ingreso', 'acreedora', TRUE),
+-- 52. Financieros
+('5201', 'Productos financieros', 'ingreso', 'acreedora', TRUE),
+('5202', 'Intereses cobrados', 'ingreso', 'acreedora', TRUE),
+('5203', 'Utilidad en venta de activos', 'ingreso', 'acreedora', TRUE)
 ON CONFLICT (codigo) DO NOTHING;
 
 -- 7.2. Asientos iniciales de ejemplo

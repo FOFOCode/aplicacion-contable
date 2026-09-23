@@ -17,8 +17,9 @@ export function getDbPool(): Pool | null {
       connectionString.includes("supabase.co") ||
       connectionString.includes("supabase.com") ||
       connectionString.includes("sslmode=require")
+    const cleanConnectionString = connectionString.replace(/[\?&]sslmode=[^&]+/, "")
     global.__pgPool = new Pool({
-      connectionString,
+      connectionString: cleanConnectionString,
       ssl: isCloud ? { rejectUnauthorized: false } : false,
       max: 10,
       idleTimeoutMillis: 30000,

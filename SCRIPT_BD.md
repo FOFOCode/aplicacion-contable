@@ -30,9 +30,11 @@ Para que la base de datos sea fiel al frontend de Next.js ([`lib/types.ts`](file
 erDiagram
     CATALOGO_CUENTAS ||--o{ ASIENTO_LINEA : "se imputa en"
     ASIENTO ||--|{ ASIENTO_LINEA : "se compone de"
+    CATALOGO_CUENTAS ||--o{ CIERRE_CONTABLE : "absorbe utilidad en"
+    ASIENTO ||--|| CIERRE_CONTABLE : "registra asiento de"
 
     CATALOGO_CUENTAS {
-        varchar codigo PK "Ej: 1101, 2101, 3101"
+        varchar codigo PK "48 cuentas oficiales (1101, 2101, etc.)"
         varchar nombre
         varchar tipo "activo, pasivo, capital, gasto, ingreso"
         varchar naturaleza "deudora, acreedora"
@@ -57,6 +59,19 @@ erDiagram
         varchar cuenta_codigo FK
         numeric debe ">= 0"
         numeric haber ">= 0"
+    }
+
+    CIERRE_CONTABLE {
+        uuid id PK
+        int ejercicio "Año fiscal cerrado"
+        date fecha_cierre
+        text concepto
+        numeric total_ingresos
+        numeric total_gastos
+        numeric utilidad "Resultado final"
+        varchar cuenta_capital_codigo FK
+        uuid asiento_cierre_id FK
+        timestamp creado_en
     }
 ```
 
@@ -136,8 +151,25 @@ CREATE TABLE asiento_linea (
 CREATE INDEX idx_linea_asiento ON asiento_linea(asiento_id);
 CREATE INDEX idx_linea_cuenta ON asiento_linea(cuenta_codigo);
 
+-- 5. TABLA: HISTORIAL DE CIERRES CONTABLES (Auditoría de cierres fiscales)
+CREATE TABLE cierre_contable (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ejercicio INT NOT NULL,
+    fecha_cierre DATE NOT NULL DEFAULT CURRENT_DATE,
+    concepto TEXT NOT NULL DEFAULT 'Cierre del ejercicio fiscal',
+    total_ingresos NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    total_gastos NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    utilidad NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    cuenta_capital_codigo VARCHAR(20) NOT NULL REFERENCES catalogo_cuentas(codigo),
+    asiento_cierre_id UUID NOT NULL REFERENCES asiento(id),
+    creado_en TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_cierre_ejercicio ON cierre_contable(ejercicio);
+CREATE INDEX idx_cierre_fecha ON cierre_contable(fecha_cierre);
+
 -- -----------------------------------------------------------------------------
--- 5. VISTAS DEL CICLO CONTABLE
+-- 6. VISTAS DEL CICLO CONTABLE
 -- -----------------------------------------------------------------------------
 
 -- 5.1. Libro Diario consolidado (orden cronológico y de renglones garantizado)

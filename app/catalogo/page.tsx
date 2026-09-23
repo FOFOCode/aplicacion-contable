@@ -24,16 +24,23 @@ export default function CatalogoPage() {
   const [codigo, setCodigo] = useState("")
   const [nombre, setNombre] = useState("")
   const [error, setError] = useState("")
+  const [busqueda, setBusqueda] = useState("")
   const [editando, setEditando] = useState<string | null>(null)
 
   const tipo = grupoPorDigito(codigo)
 
+  const cuentasFiltradas = useMemo(() => {
+    const q = busqueda.trim().toLowerCase()
+    if (!q) return cuentas
+    return cuentas.filter((c) => c.codigo.includes(q) || c.nombre.toLowerCase().includes(q))
+  }, [cuentas, busqueda])
+
   const grupos = useMemo(() => {
     return ORDEN.map((t) => ({
       tipo: t,
-      cuentas: cuentas.filter((c) => c.tipo === t).sort((a, b) => a.codigo.localeCompare(b.codigo)),
+      cuentas: cuentasFiltradas.filter((c) => c.tipo === t).sort((a, b) => a.codigo.localeCompare(b.codigo)),
     })).filter((g) => g.cuentas.length > 0)
-  }, [cuentas])
+  }, [cuentasFiltradas])
 
   function guardarCuenta() {
     setError("")
@@ -134,6 +141,22 @@ export default function CatalogoPage() {
           {error && <p className="text-sm text-red-600">{error}</p>}
         </CardContent>
       </Card>
+
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <Badge variant="muted" className="px-3 py-1 text-sm font-medium">
+            {cuentas.length} cuentas en catálogo
+          </Badge>
+          <span className="text-xs text-muted-foreground">Estructurado jerárquicamente por grupo y subgrupo</span>
+        </div>
+        <div className="w-full sm:w-72">
+          <Input
+            placeholder="Buscar por código o nombre..."
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+          />
+        </div>
+      </div>
 
       <section className="grid gap-4 md:grid-cols-2">
         {grupos.map((g) => (
