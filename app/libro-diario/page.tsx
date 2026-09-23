@@ -151,6 +151,10 @@ export default function LibroDiarioPage() {
   // Modal de captura
   const [modalCapturaOpen, setModalCapturaOpen] = useState(false)
 
+  // Menú de exportación desplegable
+  const [menuExportarOpen, setMenuExportarOpen] = useState(false)
+  const exportMenuRef = useRef<HTMLDivElement>(null)
+
   // Modales
   const [modalCierreOpen, setModalCierreOpen] = useState(false)
   const [cerrandoFolio, setCerrandoFolio] = useState(false)
@@ -161,11 +165,32 @@ export default function LibroDiarioPage() {
   // Partidas colapsadas
   const [partidasColapsadas, setPartidasColapsadas] = useState<Set<string>>(new Set())
 
-  // Notificaciones
+  // Notificaciones flotantes con auto-dismiss
   const [notificacion, setNotificacion] = useState<{
     tipo: "exito" | "error"
+    titulo?: string
     mensaje: string
   } | null>(null)
+
+  // Auto-cerrar menú exportar al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setMenuExportarOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
+
+  // Auto-dismiss para notificaciones flotantes (4 segundos)
+  useEffect(() => {
+    if (!notificacion) return
+    const timer = setTimeout(() => {
+      setNotificacion(null)
+    }, 4000)
+    return () => clearTimeout(timer)
+  }, [notificacion])
 
   // Carga del Folio según la fecha seleccionada
   const cargarFolioFecha = useCallback(async (fecha: string) => {
@@ -179,6 +204,7 @@ export default function LibroDiarioPage() {
       console.error(err)
       setNotificacion({
         tipo: "error",
+        titulo: "Error de Conexión",
         mensaje: "Error de conexión al cargar el folio diario.",
       })
     } finally {
@@ -206,6 +232,7 @@ export default function LibroDiarioPage() {
       }
       setNotificacion({
         tipo: "exito",
+        titulo: "Folio Aperturado",
         mensaje: `Folio diario para el día ${fechaSeleccionada} aperturado exitosamente.`,
       })
       await cargarFolioFecha(fechaSeleccionada)
@@ -213,6 +240,7 @@ export default function LibroDiarioPage() {
     } catch (e: unknown) {
       setNotificacion({
         tipo: "error",
+        titulo: "Error al Iniciar",
         mensaje: e instanceof Error ? e.message : "Error al iniciar folio",
       })
     } finally {
@@ -241,7 +269,8 @@ export default function LibroDiarioPage() {
       const data = await res.json()
       setNotificacion({
         tipo: "exito",
-        mensaje: `¡Jornada cerrada exitosamente! Folio N° ${data.folio?.numero_folio} sellado e inmutable.`,
+        titulo: "Jornada Cerrada",
+        mensaje: `Folio N° ${data.folio?.numero_folio} sellado e inmutable legalmente.`,
       })
       setModalCierreOpen(false)
       await cargarFolioFecha(fechaSeleccionada)
@@ -249,6 +278,7 @@ export default function LibroDiarioPage() {
     } catch (e: unknown) {
       setNotificacion({
         tipo: "error",
+        titulo: "Error de Cierre",
         mensaje: e instanceof Error ? e.message : "Error al cerrar folio",
       })
     } finally {
@@ -262,6 +292,7 @@ export default function LibroDiarioPage() {
     if (!motivoReapertura.trim()) {
       setNotificacion({
         tipo: "error",
+        titulo: "Justificación Requerida",
         mensaje: "Debe ingresar una justificación obligatoria para la reapertura.",
       })
       return
@@ -284,7 +315,8 @@ export default function LibroDiarioPage() {
       }
       setNotificacion({
         tipo: "exito",
-        mensaje: "Folio reabierto exitosamente para modificaciones autorizadas.",
+        titulo: "Folio Reabierto",
+        mensaje: "Folio habilitado para modificaciones autorizadas de auditoría.",
       })
       setModalReabrirOpen(false)
       setMotivoReapertura("")
@@ -293,6 +325,7 @@ export default function LibroDiarioPage() {
     } catch (e: unknown) {
       setNotificacion({
         tipo: "error",
+        titulo: "Error al Reabrir",
         mensaje: e instanceof Error ? e.message : "Error al reabrir folio",
       })
     } finally {
@@ -447,7 +480,11 @@ export default function LibroDiarioPage() {
     const diff = redondear(sumaDebeOtros - sumaHaberOtros)
 
     if (diff === 0 && sumaDebeOtros > 0) {
-      setNotificacion({ tipo: "exito", mensaje: "La partida ya se encuentra perfectamente cuadrada." })
+      setNotificacion({
+        tipo: "exito",
+        titulo: "Partida Cuadrada",
+        mensaje: "La partida ya se encuentra perfectamente balanceada.",
+      })
       return
     }
 
@@ -510,7 +547,8 @@ export default function LibroDiarioPage() {
 
     setNotificacion({
       tipo: "exito",
-      mensaje: `Renglón #${targetIndex + 1} auto-balanceado con ${formatoMoneda(faltante)}. Partida cuadrada.`,
+      titulo: "Partida Cuadrada",
+      mensaje: `Renglón #${targetIndex + 1} auto-balanceado con ${formatoMoneda(faltante)}.`,
     })
   }, [lineas, lineasProcesadas, modoCaptura, cuentasMap])
 
@@ -634,7 +672,8 @@ export default function LibroDiarioPage() {
         setTimeout(() => {
           setNotificacion({
             tipo: "exito",
-            mensaje: `⚡ IVA 13% calculado automáticamente: Total ${formatoMoneda(total)} desglosado en Base ${formatoMoneda(base)} + ${infoIva.cuentaIvaNombre} ${formatoMoneda(iva)}.`,
+            titulo: "IVA 13% Aplicado",
+            mensaje: `Base imponible: ${formatoMoneda(base)} · ${infoIva.impuestoNombre}: ${formatoMoneda(iva)} (Total: ${formatoMoneda(total)})`,
           })
         }, 50)
 
@@ -735,7 +774,8 @@ export default function LibroDiarioPage() {
     setModalCapturaOpen(true)
     setNotificacion({
       tipo: "exito",
-      mensaje: `Cargada Partida #${partida.numero} para edición.`,
+      titulo: "Partida en Edición",
+      mensaje: `Cargada Partida #${partida.numero} para modificar.`,
     })
   }
 
@@ -759,12 +799,14 @@ export default function LibroDiarioPage() {
       }
       setNotificacion({
         tipo: "exito",
+        titulo: "Partida Anulada",
         mensaje: `Partida #${partida.numero} anulada correctamente en el folio.`,
       })
       await Promise.all([cargarFolioFecha(fechaSeleccionada), recargarAsientos()])
     } catch (e: unknown) {
       setNotificacion({
         tipo: "error",
+        titulo: "Error al Anular",
         mensaje: e instanceof Error ? e.message : "Error al anular partida",
       })
     }
@@ -779,14 +821,19 @@ export default function LibroDiarioPage() {
       setNotificacion(null)
 
       if (!concepto.trim()) {
-        setNotificacion({ tipo: "error", mensaje: "Ingrese el concepto o glosa de la partida." })
+        setNotificacion({
+          tipo: "error",
+          titulo: "Campo Requerido",
+          mensaje: "Ingrese el concepto o glosa de la partida.",
+        })
         return
       }
 
       if (!totalesPartidaEnCurso.cuadrado) {
         setNotificacion({
           tipo: "error",
-          mensaje: `La partida no cumple la partida doble. Diferencia: ${formatoMoneda(totalesPartidaEnCurso.diferencia)}`,
+          titulo: "Diferencia Contable",
+          mensaje: `La partida no cuadra. Diferencia: ${formatoMoneda(totalesPartidaEnCurso.diferencia)}`,
         })
         return
       }
@@ -797,6 +844,7 @@ export default function LibroDiarioPage() {
       if (lineasValidas.length < 2) {
         setNotificacion({
           tipo: "error",
+          titulo: "Renglones Insuficientes",
           mensaje: "La partida requiere al menos 2 cuentas con montos válidos.",
         })
         return
@@ -834,9 +882,10 @@ export default function LibroDiarioPage() {
 
         setNotificacion({
           tipo: "exito",
+          titulo: isEditing ? "Partida Actualizada" : "Partida Guardada",
           mensaje: isEditing
-            ? `¡Partida #${partidaEnEdicion.numero} actualizada con éxito!`
-            : "¡Partida guardada exitosamente en el folio de hoy!",
+            ? `Partida #${partidaEnEdicion.numero} actualizada con éxito.`
+            : "Partida guardada exitosamente en el folio de hoy.",
         })
 
         handleLimpiarFormulario()
@@ -845,6 +894,7 @@ export default function LibroDiarioPage() {
       } catch (e: unknown) {
         setNotificacion({
           tipo: "error",
+          titulo: "Error al Procesar",
           mensaje: e instanceof Error ? e.message : "Error al procesar partida",
         })
       } finally {
@@ -1201,20 +1251,28 @@ export default function LibroDiarioPage() {
                     const totalEstimado = redondear(montoActual + ivaMonto)
 
                     return (
-                      <div className="mt-1.5 flex flex-wrap items-center justify-between gap-1.5 text-[10px] font-mono bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/25 rounded px-2.5 py-1.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className="inline-flex items-center gap-1 font-bold text-amber-700 dark:text-amber-400">
-                            <Zap className="size-3 text-amber-500" />
-                            {info.impuestoNombre}
-                          </span>
+                      <div className="mt-1.5 flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-muted/60 border border-border text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Zap className="size-3.5 text-amber-500 shrink-0" />
                           {yaDesglosado ? (
-                            <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
-                              ✓ Base: {formatoMoneda(montoActual)} + IVA: {formatoMoneda(ivaMonto)} = Total: {formatoMoneda(totalEstimado)}
-                            </span>
+                            <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-mono">
+                              <span className="text-emerald-500 font-semibold flex items-center gap-1">
+                                <CheckCircle2 className="size-3" /> IVA 13% Desglosado:
+                              </span>
+                              <span className="text-foreground">Base {formatoMoneda(montoActual)}</span>
+                              <span className="text-muted-foreground">+</span>
+                              <span className="text-primary font-semibold">IVA {formatoMoneda(ivaMonto)}</span>
+                              <span className="text-muted-foreground text-[10px]">({formatoMoneda(totalEstimado)})</span>
+                            </div>
                           ) : (
-                            <span className="text-muted-foreground">
-                              (Auto-desglose: Base = $X / 1.13 · IVA = Base × 0.13)
-                            </span>
+                            <div className="flex items-center gap-1.5 text-[11px]">
+                              <span className="font-semibold text-foreground">
+                                {info.impuestoNombre}
+                              </span>
+                              <span className="text-muted-foreground text-[10px]">
+                                (Sujeta al 13%)
+                              </span>
+                            </div>
                           )}
                         </div>
 
@@ -1222,10 +1280,15 @@ export default function LibroDiarioPage() {
                           type="button"
                           onClick={() => handleDesglosarIVA(linea.key, true)}
                           disabled={montoActual <= 0}
-                          className="text-[10px] font-semibold text-amber-800 dark:text-amber-200 hover:text-amber-950 dark:hover:text-white bg-amber-500/25 hover:bg-amber-500/35 disabled:opacity-40 px-2 py-0.5 rounded transition-colors cursor-pointer shrink-0"
-                          title="Calcular o forzar desglose de IVA (13%)"
+                          className={cn(
+                            "text-[10px] font-semibold px-2.5 py-1 rounded-md transition-all cursor-pointer shrink-0 disabled:opacity-40",
+                            yaDesglosado
+                              ? "text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80"
+                              : "text-amber-500 hover:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20"
+                          )}
+                          title={yaDesglosado ? "Volver a calcular desglose de IVA (13%)" : "Calcular y desglosar IVA (13%) automáticamente"}
                         >
-                          ⚡ Desglosar IVA 13%
+                          {yaDesglosado ? "Recalcular" : "⚡ Desglosar IVA 13%"}
                         </button>
                       </div>
                     )
@@ -1489,69 +1552,65 @@ export default function LibroDiarioPage() {
         {/* ========================================================================= */}
         {/* 1. PANEL DE CONTROL SUPERIOR                                               */}
         {/* ========================================================================= */}
-        <div className="rounded-xl border border-border bg-card p-4 shadow-xs transition-all">
-          {/* Row 1: Date and Folio info */}
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-              {/* Left: Fecha legible + Folio */}
-              <div className="space-y-0.5">
-                <h1 className="text-lg font-bold tracking-tight text-foreground">
-                  {fechaLegible}
-                </h1>
-                <div className="flex flex-wrap items-center gap-2">
-                  {folioActual ? (
-                    <span className="text-sm font-semibold text-foreground">
-                      Folio Diario N° {String(folioActual.numero_folio).padStart(3, "0")}
-                    </span>
-                  ) : (
-                    <span className="text-sm font-semibold text-foreground">
-                      Libro Diario General
-                    </span>
-                  )}
-                  {estadoFolio === "ABIERTO" && (
-                    <Badge variant="success" className="gap-1.5 py-0.5 px-2.5 font-medium shadow-xs">
-                      <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      EN PROCESO
-                    </Badge>
-                  )}
-                  {estadoFolio === "CERRADO" && (
-                    <Badge variant="muted" className="gap-1 py-0.5 px-2.5 font-medium shadow-xs">
-                      <Lock className="size-3" />
-                      FOLIADO Y CERRADO
-                    </Badge>
-                  )}
-                  {estadoFolio === "NO_INICIADO" && (
-                    <Badge variant="warning" className="py-0.5 px-2.5 font-medium shadow-xs">
-                      NO INICIADO
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                  <span>Altura jerárquica: A1-R (Dial) · A1-R (Guardia) · A1-A (Guardia)</span>
-                </div>
+        <div className="rounded-xl border border-border bg-card p-4 sm:p-5 shadow-xs transition-all">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            {/* Izquierda: Fecha, Folio y Altura Jerárquica */}
+            <div className="space-y-1">
+              <h1 className="text-lg sm:text-xl font-bold tracking-tight text-foreground capitalize">
+                {fechaLegible}
+              </h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-semibold text-foreground">
+                  {folioActual
+                    ? `Folio Diario N° ${String(folioActual.numero_folio).padStart(3, "0")}`
+                    : "Libro Diario General"}
+                </span>
+                {estadoFolio === "ABIERTO" && (
+                  <Badge variant="success" className="gap-1.5 py-0.5 px-2.5 font-medium shadow-xs">
+                    <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    EN PROCESO
+                  </Badge>
+                )}
+                {estadoFolio === "CERRADO" && (
+                  <Badge variant="muted" className="gap-1 py-0.5 px-2.5 font-medium shadow-xs">
+                    <Lock className="size-3 text-muted-foreground" />
+                    FOLIADO Y CERRADO
+                  </Badge>
+                )}
+                {estadoFolio === "NO_INICIADO" && (
+                  <Badge variant="warning" className="py-0.5 px-2.5 font-medium shadow-xs">
+                    NO INICIADO
+                  </Badge>
+                )}
               </div>
+              <p className="text-[11px] text-muted-foreground font-medium">
+                Altura jerárquica: A1-R (Día) · A1-R (Guardia) · A1-A (Guardia)
+              </p>
+            </div>
 
-              {/* Right: Actions */}
+            {/* Derecha: 2 Niveles Ordenados (Navegación / Exportar y Acciones Principales) */}
+            <div className="flex flex-col sm:items-end gap-2.5">
+              {/* Nivel 1: Selector de Fecha + Folios Anteriores + Menú Desplegable Exportar */}
               <div className="flex flex-wrap items-center gap-2">
                 {/* Selector de fecha con atajos Hoy/Ayer */}
                 <div className="flex items-center rounded-lg border border-border bg-muted/40 p-1 text-xs shadow-xs">
                   <button
                     type="button"
                     onClick={handleSetHoy}
-                    className="rounded px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-card transition-colors cursor-pointer"
+                    className="rounded px-2 py-0.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-card transition-colors cursor-pointer"
                   >
                     Hoy
                   </button>
                   <button
                     type="button"
                     onClick={handleSetAyer}
-                    className="rounded px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-card transition-colors cursor-pointer"
+                    className="rounded px-2 py-0.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-card transition-colors cursor-pointer"
                   >
                     Ayer
                   </button>
                   <div className="mx-1 h-3.5 w-px bg-border" />
-                  <div className="flex items-center gap-1.5 px-2">
-                    <Calendar className="size-3.5 text-muted-foreground" />
+                  <div className="flex items-center gap-1.5 px-1.5">
+                    <Calendar className="size-3.5 text-muted-foreground shrink-0" />
                     <input
                       type="date"
                       value={fechaSeleccionada}
@@ -1566,120 +1625,138 @@ export default function LibroDiarioPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => setIsHistorialOpen(true)}
-                  className="text-xs h-9 gap-1.5 cursor-pointer"
+                  className="text-xs h-8 gap-1.5 cursor-pointer bg-card/60 hover:bg-muted"
                   title="Ver folios anteriores (Alt + H)"
                 >
                   <FolderOpen className="size-3.5 text-muted-foreground" />
                   <span className="hidden sm:inline">Folios Anteriores</span>
                 </Button>
 
-                {/* Acciones de Exportación */}
+                {/* Menú Desplegable Exportar / Imprimir */}
                 {folioActual && (
-                  <div className="flex items-center gap-1">
+                  <div ref={exportMenuRef} className="relative">
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={handleExportPDF}
-                      className="text-xs h-9 px-2.5 cursor-pointer"
-                      title="Descargar Comprobante Oficial en PDF con firmas"
+                      onClick={() => setMenuExportarOpen((prev) => !prev)}
+                      className="text-xs h-8 px-2.5 gap-1.5 cursor-pointer bg-card/60 hover:bg-muted"
+                      title="Opciones de exportación e impresión"
                     >
                       <FileDown className="size-3.5 text-primary" />
-                      <span className="hidden md:inline">PDF</span>
+                      <span>Exportar</span>
+                      <ChevronDown
+                        className={cn(
+                          "size-3 text-muted-foreground transition-transform duration-150",
+                          menuExportarOpen && "rotate-180",
+                        )}
+                      />
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleExportCSV}
-                      className="text-xs h-9 px-2.5 cursor-pointer"
-                      title="Exportar comprobantes a formato CSV para Excel"
-                    >
-                      <Table className="size-3.5 text-emerald-600" />
-                      <span className="hidden md:inline">CSV</span>
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => window.print()}
-                      className="text-xs h-9 px-2.5 cursor-pointer"
-                      title="Imprimir Libro Diario foliado"
-                    >
-                      <Printer className="size-3.5 text-muted-foreground" />
-                    </Button>
+
+                    {menuExportarOpen && (
+                      <div className="absolute right-0 top-full mt-1.5 w-52 rounded-xl border border-border bg-popover/95 p-1 text-popover-foreground shadow-2xl backdrop-blur-md z-50 animate-in fade-in zoom-in-95 duration-100">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMenuExportarOpen(false)
+                            handleExportPDF()
+                          }}
+                          className="w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs hover:bg-muted transition-colors cursor-pointer text-left"
+                        >
+                          <FileDown className="size-4 text-primary" />
+                          <div>
+                            <p className="font-semibold text-foreground">Descargar PDF</p>
+                            <p className="text-[10px] text-muted-foreground">Comprobante legal con firmas</p>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMenuExportarOpen(false)
+                            handleExportCSV()
+                          }}
+                          className="w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs hover:bg-muted transition-colors cursor-pointer text-left"
+                        >
+                          <Table className="size-4 text-emerald-500" />
+                          <div>
+                            <p className="font-semibold text-foreground">Exportar CSV</p>
+                            <p className="text-[10px] text-muted-foreground">Compatible con Excel</p>
+                          </div>
+                        </button>
+
+                        <div className="my-1 h-px bg-border" />
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMenuExportarOpen(false)
+                            window.print()
+                          }}
+                          className="w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs hover:bg-muted transition-colors cursor-pointer text-left"
+                        >
+                          <Printer className="size-4 text-muted-foreground" />
+                          <div>
+                            <p className="font-semibold text-foreground">Imprimir Folio</p>
+                            <p className="text-[10px] text-muted-foreground">Vista oficial de imprenta</p>
+                          </div>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
+              </div>
 
-                {/* Agregar partida (abre modal) */}
+              {/* Nivel 2: Acciones Principales (Agregar Partida + Cerrar Folio / Reapertura) */}
+              <div className="flex items-center gap-2 justify-end w-full sm:w-auto">
                 {estadoFolio === "ABIERTO" && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      handleLimpiarFormulario()
-                      setModalCapturaOpen(true)
-                    }}
-                    className="text-xs h-9 px-4 gap-2 font-semibold cursor-pointer"
-                  >
-                    <Plus className="size-3.5" />
-                    Agregar partida
-                  </Button>
+                  <>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        handleLimpiarFormulario()
+                        setModalCapturaOpen(true)
+                      }}
+                      className="text-xs h-9 px-4 gap-2 font-semibold cursor-pointer shadow-xs"
+                    >
+                      <Plus className="size-3.5" />
+                      <span>Agregar partida</span>
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setModalCierreOpen(true)}
+                      disabled={totalesFolio.totalPartidas === 0 || !totalesFolio.cuadrado}
+                      className="text-xs h-9 px-3.5 gap-2 font-medium cursor-pointer border-border bg-card/60 hover:bg-muted text-foreground disabled:opacity-40"
+                      title={
+                        totalesFolio.totalPartidas === 0
+                          ? "Requiere al menos una partida para cerrar"
+                          : !totalesFolio.cuadrado
+                          ? "El folio debe estar cuadrado para cerrar"
+                          : "Cerrar y sellar jornada del día"
+                      }
+                    >
+                      <Lock className="size-3.5 text-emerald-500" />
+                      <span>Cerrar Folio del Día</span>
+                    </Button>
+                  </>
                 )}
 
-                {/* Botón de Cierre de Folio */}
-                {estadoFolio === "ABIERTO" && (
-                  <Button
-                    size="sm"
-                    onClick={() => setModalCierreOpen(true)}
-                    disabled={totalesFolio.totalPartidas === 0 || !totalesFolio.cuadrado}
-                    className="text-xs h-9 px-4 gap-2 font-medium cursor-pointer shadow-xs"
-                  >
-                    <Lock className="size-3.5 text-emerald-400" />
-                    <span>Cerrar Folio del Día</span>
-                  </Button>
-                )}
-
-                {/* Botón de Reapertura */}
                 {estadoFolio === "CERRADO" && (
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setModalReabrirOpen(true)}
-                    className="text-xs h-9 gap-1.5 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/10 cursor-pointer"
+                    className="text-xs h-9 px-3.5 gap-1.5 text-amber-500 hover:text-amber-400 border-amber-500/30 hover:bg-amber-500/10 cursor-pointer"
                   >
                     <Unlock className="size-3.5" />
-                    <span>Reapertura</span>
+                    <span>Reapertura de Auditoría</span>
                   </Button>
                 )}
               </div>
             </div>
           </div>
         </div>
-
-        {/* Notificaciones */}
-        {notificacion && (
-          <div
-            className={cn(
-              "rounded-xl border px-4 py-3 flex items-center justify-between text-sm transition-all",
-              notificacion.tipo === "exito"
-                ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
-                : "border-red-500/20 bg-red-500/10 text-red-800 dark:text-red-300",
-            )}
-          >
-            <div className="flex items-center gap-2.5">
-              {notificacion.tipo === "exito" ? (
-                <CheckCircle2 className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-              ) : (
-                <AlertCircle className="size-4 shrink-0 text-red-600 dark:text-red-400" />
-              )}
-              <span className="font-semibold text-xs">{notificacion.mensaje}</span>
-            </div>
-            <button
-              onClick={() => setNotificacion(null)}
-              className="text-muted-foreground hover:text-foreground p-1 cursor-pointer"
-            >
-              <X className="size-4" />
-            </button>
-          </div>
-        )}
 
         {/* ========================================================================= */}
         {/* 2. CONTENIDO PRINCIPAL SEGÚN EL ESTADO DEL FOLIO                          */}
@@ -2463,6 +2540,55 @@ export default function LibroDiarioPage() {
                 {reabriendoFolio ? "Reabriendo..." : "Autorizar Reapertura"}
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* NOTIFICACIÓN EMERGENTE FLOTANTE (TOAST PROFESIONAL)                        */}
+      {/* ========================================================================= */}
+      {notificacion && (
+        <div className="fixed bottom-6 right-6 z-[200] max-w-sm w-full animate-in fade-in slide-in-from-bottom-5 duration-200 pointer-events-auto">
+          <div
+            className={cn(
+              "rounded-xl border p-3.5 shadow-2xl backdrop-blur-md flex items-start gap-3 bg-card/95 text-card-foreground",
+              notificacion.tipo === "exito"
+                ? "border-emerald-500/30"
+                : "border-red-500/30",
+            )}
+          >
+            <div
+              className={cn(
+                "size-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5",
+                notificacion.tipo === "exito"
+                  ? "bg-emerald-500/15 text-emerald-400"
+                  : "bg-red-500/15 text-red-400",
+              )}
+            >
+              {notificacion.tipo === "exito" ? (
+                <CheckCircle2 className="size-4" />
+              ) : (
+                <AlertCircle className="size-4" />
+              )}
+            </div>
+
+            <div className="flex-1 min-w-0 pr-1">
+              <p className="text-xs font-bold text-foreground">
+                {notificacion.titulo || (notificacion.tipo === "exito" ? "Operación Exitosa" : "Atención Requerida")}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed break-words">
+                {notificacion.mensaje}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setNotificacion(null)}
+              className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors cursor-pointer shrink-0"
+              title="Cerrar notificación"
+            >
+              <X className="size-3.5" />
+            </button>
           </div>
         </div>
       )}
