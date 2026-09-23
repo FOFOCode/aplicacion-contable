@@ -8,6 +8,7 @@ import {
   BookOpenText,
   Boxes,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
@@ -657,6 +658,28 @@ function KardexContent() {
     }
     return { debe: redondear(debe), haber: redondear(haber) }
   }, [libroContinuoData])
+
+  // Estado y helpers para plegar/desplegar cuentas en Libro Continuo (modo acordeón)
+  const [cuentasColapsadas, setCuentasColapsadas] = useState<Record<string, boolean>>({})
+
+  const plegarTodas = useCallback(() => {
+    const map: Record<string, boolean> = {}
+    for (const item of libroContinuoData) {
+      map[item.cuenta.codigo] = true
+    }
+    setCuentasColapsadas(map)
+  }, [libroContinuoData])
+
+  const expandirTodas = useCallback(() => {
+    setCuentasColapsadas({})
+  }, [])
+
+  const toggleCuenta = useCallback((codigo: string) => {
+    setCuentasColapsadas((prev) => ({
+      ...prev,
+      [codigo]: !prev[codigo],
+    }))
+  }, [])
 
   // Movimientos del período seleccionado con arrastre exacto de saldo anterior
   const { movimientos, saldoInicialPeriodo } = useMemo(() => {
@@ -1808,13 +1831,35 @@ function KardexContent() {
           {/* Tarjeta resumen consolidado del libro */}
           <Card className="border-border bg-card shadow-xs print:hidden">
             <CardHeader className="py-2.5 px-4 bg-muted/20 border-b border-border">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Libro Auxiliar General Consolidado · Ejercicio {ejercicioSeleccionado}
                 </CardTitle>
-                <Badge variant="outline" className="text-xs font-mono">
-                  {libroContinuoData.length} cuentas con saldo o movimientos
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-xs font-mono">
+                    {libroContinuoData.length} cuentas con saldo o movimientos
+                  </Badge>
+                  {libroContinuoData.length > 0 && (
+                    <div className="flex items-center rounded-md border border-border bg-background p-0.5 text-[11px] font-medium shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={plegarTodas}
+                        className="px-2 py-0.5 rounded text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                        title="Plegar todas las cuentas para ver solo resumen"
+                      >
+                        Plegar todas
+                      </button>
+                      <button
+                        type="button"
+                        onClick={expandirTodas}
+                        className="px-2 py-0.5 rounded text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                        title="Desplegar todas las tablas de movimientos"
+                      >
+                        Expandir todas
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </CardHeader>
             <CardContent className="p-3 grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs text-center">
@@ -1857,37 +1902,74 @@ function KardexContent() {
             libroContinuoData.map(({ cuenta, movimientos: movs, saldoInicial, totalDebe: tDebe, totalHaber: tHaber, saldoFinal: sFinal }) => {
               const esAnomalo = sFinal < 0
               const tagNat = sFinal >= 0 ? (cuenta.naturaleza === "deudora" ? "D" : "A") : (cuenta.naturaleza === "deudora" ? "A" : "D")
+              const estaPlegada = !!cuentasColapsadas[cuenta.codigo]
 
               return (
                 <div
                   key={cuenta.codigo}
                   className="rounded-xl border border-border bg-card shadow-xs overflow-hidden print:border print:border-foreground/30 print:shadow-none print:break-inside-avoid"
                 >
-                  {/* Cabecera de la cuenta */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 bg-muted/40 px-4 py-2 border-b border-border">
+                  {/* Cabecera de la cuenta (clickeable para alternar colapso) */}
+                  <div
+                    onClick={() => toggleCuenta(cuenta.codigo)}
+                    className="flex flex-wrap items-center justify-between gap-2 bg-muted/40 hover:bg-muted/60 transition-colors px-4 py-2 border-b border-border cursor-pointer select-none"
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault()
+                        toggleCuenta(cuenta.codigo)
+                      }
+                    }}
+                    title={estaPlegada ? "Clic para ver movimientos" : "Clic para plegar cuenta"}
+                  >
                     <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          toggleCuenta(cuenta.codigo)
+                        }}
+                        className="text-muted-foreground hover:text-foreground print:hidden p-0.5 rounded cursor-pointer"
+                        aria-label={estaPlegada ? "Desplegar movimientos" : "Plegar movimientos"}
+                      >
+                        {estaPlegada ? (
+                          <ChevronRight className="size-4" />
+                        ) : (
+                          <ChevronDown className="size-4" />
+                        )}
+                      </button>
                       <span className="font-mono font-bold text-xs bg-background px-2 py-0.5 rounded border border-border">
                         {cuenta.codigo}
                       </span>
                       <h3 className="text-sm font-semibold text-foreground">
                         {cuenta.nombre}
                       </h3>
-                      <span className="text-xs text-muted-foreground capitalize">
+                      <span className="text-xs text-muted-foreground capitalize hidden sm:inline">
                         · {cuenta.tipo} ({cuenta.naturaleza})
+                      </span>
+                      <span className="text-[11px] font-mono text-muted-foreground">
+                        ({movs.length} {movs.length === 1 ? "mov" : "movs"})
                       </span>
                     </div>
 
                     <div className="flex items-center gap-3 text-xs font-mono">
+                      {estaPlegada && (
+                        <span className="text-muted-foreground hidden md:inline text-[11px]">
+                          Cargos: <strong className="text-foreground">+{formatoMoneda(tDebe)}</strong> · Abonos: <strong className="text-foreground">−{formatoMoneda(tHaber)}</strong> ·
+                        </span>
+                      )}
                       <span className="text-muted-foreground">
                         Saldo Final: <strong className={esAnomalo ? "text-red-600" : "text-foreground"}>{formatoMoneda(Math.abs(sFinal))} ({tagNat})</strong>
                       </span>
                       <button
                         type="button"
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation()
                           setCodigoSeleccionado(cuenta.codigo)
                           setModoVista("ficha")
                         }}
-                        className="inline-flex items-center gap-1 text-[11px] font-sans text-primary hover:underline print:hidden"
+                        className="inline-flex items-center gap-1 text-[11px] font-sans text-primary hover:underline print:hidden ml-1 cursor-pointer"
                         title="Abrir en ficha individual"
                       >
                         <span>Ver Ficha</span>
@@ -1897,7 +1979,7 @@ function KardexContent() {
                   </div>
 
                   {/* Tabla de movimientos */}
-                  <div className="overflow-x-auto print:overflow-visible">
+                  <div className={`overflow-x-auto print:overflow-visible ${estaPlegada ? "hidden print:block" : "block"}`}>
                     <table className="w-full text-left text-xs border-collapse print-accounting-table">
                       <thead className="border-b border-border bg-muted/20 text-muted-foreground uppercase font-semibold text-[10px]">
                         <tr>
@@ -1983,9 +2065,9 @@ function KardexContent() {
             })
           )}
 
-          {/* Gran Total del Libro Auxiliar al Final */}
+          {/* Gran Total del Libro Auxiliar al Final (Visible únicamente en impresión / PDF) */}
           {libroContinuoData.length > 0 && (
-            <div className="rounded-xl border-2 border-border bg-muted/40 p-4 font-mono shadow-xs text-xs flex flex-wrap items-center justify-between gap-4 print:border-black print:bg-transparent print:rounded-none">
+            <div className="hidden print:flex rounded-xl border-2 border-border bg-muted/40 p-4 font-mono shadow-xs text-xs flex-wrap items-center justify-between gap-4 print:border-black print:bg-transparent print:rounded-none">
               <div className="font-sans">
                 <span className="font-bold text-sm text-foreground block print:text-black">
                   GRAN TOTAL DEL LIBRO AUXILIAR DE MAYOR
