@@ -6,7 +6,7 @@ export async function GET() {
   if (!pool) return NextResponse.json({ error: "No database configured" }, { status: 503 })
   try {
     const res = await pool.query(
-      "SELECT codigo, nombre, tipo, naturaleza, activa FROM catalogo_cuentas ORDER BY codigo ASC"
+      "SELECT codigo, nombre, tipo, naturaleza, permite_movimiento, activa FROM catalogo_cuentas ORDER BY codigo ASC"
     )
     return NextResponse.json(res.rows)
   } catch (e: unknown) {

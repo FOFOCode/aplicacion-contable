@@ -7,6 +7,8 @@ export interface Cuenta {
   nombre: string
   tipo: TipoCuenta
   naturaleza: Naturaleza
+  /** Indica si la cuenta permite asientos directos o es de título/acumulación. */
+  permite_movimiento?: boolean
   /** Cuenta activa. Una cuenta usada en asientos no se borra: se marca como eliminada (activa=false). */
   activa: boolean
 }
