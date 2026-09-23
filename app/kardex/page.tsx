@@ -47,22 +47,21 @@ interface MovimientoKardex {
   asientoOriginal?: Asiento
 }
 
-// Cuentas rápidas esenciales para el régimen contable y fiscal salvadoreño (Hacienda / F-07)
+// Cuentas de consulta frecuente
 const CUENTAS_RAPIDAS_SV = [
-  { codigo: "1101", nombre: "Caja general", categoria: "Disponibilidades" },
-  { codigo: "1102", nombre: "Bancos", categoria: "Disponibilidades" },
-  { codigo: "1105", nombre: "IVA Crédito Fiscal", categoria: "Tributario" },
-  { codigo: "2103", nombre: "IVA Débito Fiscal", categoria: "Tributario" },
-  { codigo: "2107", nombre: "Retenciones por pagar", categoria: "Tributario" },
-  { codigo: "1103", nombre: "Cuentas por cobrar", categoria: "Operación" },
-  { codigo: "2101", nombre: "Cuentas por pagar", categoria: "Operación" },
-  { codigo: "4101", nombre: "Compras", categoria: "Operación" },
-  { codigo: "5101", nombre: "Ventas", categoria: "Operación" },
-  { codigo: "1104", nombre: "Inventario (Analítico)", categoria: "Inventario" },
+  { codigo: "1101", nombre: "Caja" },
+  { codigo: "1102", nombre: "Bancos" },
+  { codigo: "1103", nombre: "Clientes" },
+  { codigo: "1105", nombre: "IVA Crédito" },
+  { codigo: "2101", nombre: "Proveedores" },
+  { codigo: "2103", nombre: "IVA Débito" },
+  { codigo: "4101", nombre: "Compras" },
+  { codigo: "5101", nombre: "Ventas" },
+  { codigo: "1104", nombre: "Inventario" },
 ]
 
 const MESES = [
-  { valor: "todos", label: "Todo el año fiscal" },
+  { valor: "todos", label: "Todo el año" },
   { valor: "1", label: "01 - Enero" },
   { valor: "2", label: "02 - Febrero" },
   { valor: "3", label: "03 - Marzo" },
@@ -352,171 +351,134 @@ function KardexContent() {
   return (
     <div className="space-y-6">
       {/* HEADER DE MÓDULO */}
-      <header className="space-y-2">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-primary">
-                Libros Auxiliares
-              </span>
-              <Badge variant="default" className="text-xs font-mono">
-                Extracto Detallado · {ejercicioSeleccionado}
-              </Badge>
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight md:text-3xl text-foreground">
-              Kardex / Libro Auxiliar de Cuentas
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground max-w-3xl">
-              Auditoría cronológica y trazabilidad de débitos, créditos y saldos acumulados progresivos en dólares (USD). Cumple con los requerimientos de auditoría fiscal salvadoreña.
-            </p>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border/80 pb-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-primary">Libros Contables</span>
+            <span className="text-xs text-muted-foreground">·</span>
+            <span className="text-xs text-muted-foreground">Ciclo {ejercicioSeleccionado}</span>
           </div>
-          <div className="flex flex-wrap gap-2 print:hidden">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={exportarPdf}
-              className="border-border text-foreground hover:bg-muted"
-            >
-              <FileDown className="size-4 mr-1.5" />
-              Imprimir / PDF
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={exportarExcel}
-              className="border-emerald-600/40 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/20"
-            >
-              <FileSpreadsheet className="size-4 text-emerald-600 mr-1.5" />
-              Exportar Excel
-            </Button>
-          </div>
+          <h1 className="text-2xl font-bold tracking-tight md:text-3xl text-foreground mt-0.5">
+            Libro Auxiliar / Kardex
+          </h1>
+          <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
+            Consulta cronológica de cargos, abonos y saldo progresivo por cuenta contable.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 print:hidden shrink-0">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={exportarPdf}
+            className="h-8 gap-1.5 text-xs"
+          >
+            <FileDown className="size-3.5" />
+            Imprimir / PDF
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={exportarExcel}
+            className="h-8 gap-1.5 text-xs border-emerald-600/30 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/20"
+          >
+            <FileSpreadsheet className="size-3.5 text-emerald-600" />
+            Exportar Excel
+          </Button>
         </div>
       </header>
 
-      {/* SELECTOR ERGONÓMICO Y NAVEGACIÓN PROFESIONAL */}
-      <Card className="print:hidden border-border/80 shadow-sm">
-        <CardHeader className="pb-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Layers className="size-4 text-primary" />
-              Selector de Cuenta y Auditoría
-            </CardTitle>
-            <div className="flex items-center gap-2">
-              <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none bg-muted/40 px-2 py-1 rounded border border-border/60">
-                <input
-                  type="checkbox"
-                  checked={soloConMovimientos}
-                  onChange={(e) => setSoloConMovimientos(e.target.checked)}
-                  className="rounded text-primary focus:ring-primary size-3.5"
-                />
-                Solo cuentas con movimientos
-              </label>
-              <div className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={cuentaAnterior}
-                  disabled={indiceActual <= 0}
-                  className="h-8 px-2 text-xs"
-                  title="Cuenta anterior (Atajo: Alt + Flecha Izquierda)"
-                >
-                  <ChevronLeft className="size-4 mr-0.5" />
-                  Anterior
-                </Button>
-                <span className="text-xs text-muted-foreground font-mono px-1.5">
-                  {indiceActual >= 0 ? indiceActual + 1 : 0} de {cuentasNavegables.length}
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={cuentaSiguiente}
-                  disabled={indiceActual < 0 || indiceActual >= cuentasNavegables.length - 1}
-                  className="h-8 px-2 text-xs"
-                  title="Siguiente cuenta (Atajo: Alt + Flecha Derecha)"
-                >
-                  Siguiente
-                  <ChevronRight className="size-4 ml-0.5" />
-                </Button>
-              </div>
-            </div>
-          </div>
-          <CardDescription>
-            Accede a las cuentas de uso frecuente en El Salvador o filtra en el catálogo general.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Accesos rápidos de alta utilidad contable en El Salvador */}
-          <div className="space-y-1.5">
-            <p className="text-xs font-medium text-muted-foreground">
-              Cuentas frecuentes (Disponibilidades, IVA y Operaciones clave):
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {CUENTAS_RAPIDAS_SV.map((c) => {
-                const activa = codigoSeleccionado === c.codigo
-                const numMovs = actividadCuentas.get(c.codigo) || 0
+      {/* SELECCIÓN SOBRIA DE CUENTA */}
+      <div className="space-y-2.5 print:hidden">
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-border bg-card p-3 shadow-xs">
+          {/* Selector principal de cuenta */}
+          <div className="flex flex-1 items-center gap-2">
+            <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Cuenta:</span>
+            <select
+              className="flex h-9 w-full max-w-lg rounded-md border border-input bg-background px-3 py-1 text-sm font-mono font-medium shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              value={codigoSeleccionado}
+              onChange={(e) => setCodigoSeleccionado(e.target.value)}
+              aria-label="Seleccionar cuenta del catálogo"
+            >
+              {cuentasFiltradas.map((c) => {
+                const movs = actividadCuentas.get(c.codigo) || 0
                 return (
-                  <Button
-                    key={c.codigo}
-                    type="button"
-                    size="sm"
-                    variant={activa ? "default" : "outline"}
-                    onClick={() => setCodigoSeleccionado(c.codigo)}
-                    className="h-7 text-xs px-2.5 transition-all"
-                  >
-                    <span className="font-mono mr-1.5 font-bold opacity-80">{c.codigo}</span>
-                    <span>{c.nombre}</span>
-                    {numMovs > 0 && (
-                      <span className={`ml-1.5 text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                        activa ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground"
-                      }`}>
-                        {numMovs}
-                      </span>
-                    )}
-                  </Button>
+                  <option key={c.codigo} value={c.codigo}>
+                    {c.codigo} — {c.nombre} ({c.naturaleza}){movs > 0 ? ` · ${movs} movs` : ""}
+                  </option>
                 )
               })}
-            </div>
-          </div>
+            </select>
 
-          {/* Barra de Búsqueda Reactiva y Selector de Cuenta */}
-          <div className="grid gap-3 sm:grid-cols-[1fr_260px]">
-            <div className="relative">
-              <select
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono font-medium shadow-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                value={codigoSeleccionado}
-                onChange={(e) => setCodigoSeleccionado(e.target.value)}
-                aria-label="Seleccionar cuenta del catálogo"
+            {/* Flechas de navegación rápida */}
+            <div className="flex items-center gap-0.5 shrink-0">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                onClick={cuentaAnterior}
+                disabled={indiceActual <= 0}
+                title="Cuenta anterior"
+                className="size-7"
               >
-                {cuentasFiltradas.map((c) => {
-                  const movs = actividadCuentas.get(c.codigo) || 0
-                  return (
-                    <option key={c.codigo} value={c.codigo}>
-                      {c.codigo} — {c.nombre} [{c.tipo.toUpperCase()}, {c.naturaleza}] {movs > 0 ? `(${movs} movs)` : "(Sin movs)"}
-                    </option>
-                  )
-                })}
-              </select>
-            </div>
-
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Buscar código o nombre..."
-                value={busqueda}
-                onChange={(e) => {
-                  const val = e.target.value
-                  setBusqueda(val)
-                  const match = cuentasActivas.find((c) => c.codigo === val.trim())
-                  if (match) setCodigoSeleccionado(match.codigo)
-                }}
-                className="pl-9 h-10"
-              />
+                <ChevronLeft className="size-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                onClick={cuentaSiguiente}
+                disabled={indiceActual < 0 || indiceActual >= cuentasNavegables.length - 1}
+                title="Siguiente cuenta"
+                className="size-7"
+              >
+                <ChevronRight className="size-4" />
+              </Button>
             </div>
           </div>
-        </CardContent>
-      </Card>
+
+          {/* Búsqueda rápida */}
+          <div className="relative w-full sm:w-56 shrink-0">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Filtrar por código o nombre..."
+              value={busqueda}
+              onChange={(e) => {
+                const val = e.target.value
+                setBusqueda(val)
+                const match = cuentasActivas.find((c) => c.codigo === val.trim())
+                if (match) setCodigoSeleccionado(match.codigo)
+              }}
+              className="pl-8 h-8 text-xs"
+            />
+          </div>
+        </div>
+
+        {/* Cuentas frecuentes en una sola línea discreta */}
+        <div className="flex flex-wrap items-center gap-1.5 px-1">
+          <span className="text-[11px] text-muted-foreground font-medium mr-1">Frecuentes:</span>
+          {CUENTAS_RAPIDAS_SV.map((c) => {
+            const activa = codigoSeleccionado === c.codigo
+            return (
+              <button
+                key={c.codigo}
+                type="button"
+                onClick={() => setCodigoSeleccionado(c.codigo)}
+                className={`rounded-md px-2 py-0.5 text-xs font-mono transition-colors ${
+                  activa
+                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                <span className="opacity-70 mr-1">{c.codigo}</span>
+                <span>{c.nombre}</span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
 
       {/* AVISO METODOLÓGICO PARA INVENTARIO (CUENTA 1104) */}
       {codigoSeleccionado === "1104" && (
@@ -657,10 +619,10 @@ function KardexContent() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <CardTitle className="text-base font-semibold">
-                Extracto Cronológico y Partidas Registradas
+                Movimientos de la Cuenta
               </CardTitle>
               <CardDescription>
-                Auditoría progresiva de cargos, abonos y saldos. Clic en cualquier partida para inspeccionar el asiento contable balanceado.
+                Registro cronológico de cargos, abonos y saldo progresivo. Clic en una partida para ver su asiento completo.
               </CardDescription>
             </div>
 
