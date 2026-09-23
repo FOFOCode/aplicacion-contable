@@ -1073,13 +1073,18 @@ function KardexContent() {
         <div className="space-y-4">
           {/* Header Web del Kardex */}
           <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-3 print:hidden">
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold tracking-tight text-foreground">
-                Tarjeta de Kardex
-              </h1>
-              <Badge variant="outline" className="text-xs font-mono">
-                Ciclo {ejercicioSeleccionado}
-              </Badge>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold tracking-tight text-foreground">
+                  Tarjeta de Kardex
+                </h1>
+                <Badge variant="outline" className="text-xs font-mono">
+                  Ciclo {ejercicioSeleccionado}
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Control permanente de existencias físicas y valuación de inventario en bodega por artículo.
+              </p>
             </div>
 
             <div className="flex items-center gap-2 print:hidden shrink-0">
@@ -1116,7 +1121,7 @@ function KardexContent() {
                 type="button"
                 onClick={restablecerKardex}
                 title="Restablecer datos de demostración"
-                className="p-1.5 text-muted-foreground hover:text-foreground rounded-md transition-colors"
+                className="p-1.5 text-muted-foreground hover:text-foreground rounded-md transition-colors cursor-pointer"
                 aria-label="Restablecer movimientos de demostración"
               >
                 <RotateCcw className="size-3.5" />
@@ -1127,13 +1132,13 @@ function KardexContent() {
           {/* Selector de Artículo en Bodega */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 rounded-xl border border-border bg-card p-3 shadow-xs print:hidden">
             <div className="flex items-center gap-2.5 flex-1 min-w-0">
-              <span className="text-xs font-medium text-muted-foreground shrink-0">
+              <span className="text-xs font-semibold text-muted-foreground shrink-0">
                 Artículo:
               </span>
               <select
                 value={articuloId}
                 onChange={(e) => setArticuloId(e.target.value)}
-                className="h-8 rounded-lg border border-border bg-background px-3 py-1 text-xs font-medium focus:ring-1 focus:ring-primary focus:outline-hidden max-w-md w-full"
+                className="h-8 rounded-lg border border-border bg-background px-3 py-1 text-xs font-medium focus:ring-1 focus:ring-primary focus:outline-hidden max-w-md w-full cursor-pointer"
               >
                 {ARTICULOS_KARDEX.map((art) => (
                   <option key={art.codigo} value={art.codigo}>
@@ -1152,50 +1157,50 @@ function KardexContent() {
             </div>
           </div>
 
-          {/* Resumen de Existencias y Valores */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 print:hidden">
-            <div className="rounded-xl border border-border bg-card p-3 shadow-xs">
-              <span className="text-[11px] text-muted-foreground block uppercase font-medium">Existencia Física</span>
-              <div className="text-xl font-bold font-mono text-foreground mt-0.5">
-                {totalesKardex.saldoUnidades.toLocaleString()} <span className="text-xs font-normal font-sans text-muted-foreground">{articuloActual.unidad.toLowerCase()}</span>
+          {/* Resumen Compacto de Existencias y Valores */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border rounded-xl border border-border bg-card text-center text-xs font-mono py-2 shadow-2xs print:hidden">
+            <div className="py-1 px-3">
+              <span className="text-[10px] uppercase font-sans text-muted-foreground block font-medium">Existencia Física</span>
+              <div className="text-sm font-bold text-foreground mt-0.5">
+                {totalesKardex.saldoUnidades.toLocaleString()} <span className="text-[10px] font-normal font-sans text-muted-foreground">{articuloActual.unidad.toLowerCase()}</span>
               </div>
-              <span className="text-[10px] text-muted-foreground block mt-0.5">
-                +{totalesKardex.totalEntradas} entradas · -{totalesKardex.totalSalidas} salidas
+              <span className="text-[10px] text-muted-foreground block">
+                +{totalesKardex.totalEntradas} / −{totalesKardex.totalSalidas}
               </span>
             </div>
 
-            <div className="rounded-xl border border-border bg-card p-3 shadow-xs">
-              <span className="text-[11px] text-muted-foreground block uppercase font-medium">Costo Promedio</span>
-              <div className="text-xl font-bold font-mono text-foreground mt-0.5">
+            <div className="py-1 px-3">
+              <span className="text-[10px] uppercase font-sans text-muted-foreground block font-medium">Costo Promedio</span>
+              <div className="text-sm font-bold text-foreground mt-0.5">
                 {formatoMoneda(totalesKardex.costoPromedioActual)}
               </div>
-              <span className="text-[10px] text-muted-foreground block mt-0.5">
-                Por unidad física
+              <span className="text-[10px] text-muted-foreground block">
+                Por unidad
               </span>
             </div>
 
-            <div className="rounded-xl border border-border bg-card p-3 shadow-xs">
-              <span className="text-[11px] text-muted-foreground block uppercase font-medium">Saldo Valorado</span>
-              <div className="text-xl font-bold font-mono text-foreground mt-0.5">
+            <div className="py-1 px-3">
+              <span className="text-[10px] uppercase font-sans text-muted-foreground block font-medium">Saldo Valorado</span>
+              <div className="text-sm font-extrabold text-foreground mt-0.5">
                 {formatoMoneda(totalesKardex.saldoValor)}
               </div>
-              <span className="text-[10px] text-muted-foreground block mt-0.5">
-                Valor contable en inventarios
+              <span className="text-[10px] text-muted-foreground block">
+                Total en bodega
               </span>
             </div>
 
-            <div className="rounded-xl border border-border bg-card p-3 shadow-xs">
-              <span className="text-[11px] text-muted-foreground block uppercase font-medium">Cuenta 1104 (Mayor)</span>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="text-xl font-bold font-mono text-foreground">
+            <div className="py-1 px-3">
+              <span className="text-[10px] uppercase font-sans text-muted-foreground block font-medium">Cuenta Mayor 1104</span>
+              <div className="flex items-center justify-center gap-1 mt-0.5">
+                <span className="text-sm font-bold text-foreground">
                   {formatoMoneda(totalesKardex.saldoValor)}
                 </span>
-                <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400" title="Conciliado con el saldo contable de Inventarios">
                   (Cuadrado)
                 </span>
               </div>
-              <span className="text-[10px] text-muted-foreground block mt-0.5">
-                Conciliado con inventario
+              <span className="text-[10px] text-muted-foreground block">
+                {articuloActual.cuentaNombre}
               </span>
             </div>
           </div>
@@ -1220,12 +1225,12 @@ function KardexContent() {
                   </tr>
                   {/* Fila 2 de sub-encabezados */}
                   <tr className="bg-muted/60 border-b border-border text-[10px] uppercase font-semibold text-muted-foreground">
-                    <th className="py-1.5 px-3 text-right border-r border-border/40 text-emerald-700 dark:text-emerald-400">Entrada</th>
-                    <th className="py-1.5 px-3 text-right border-r border-border/40 text-rose-700 dark:text-rose-400">Salida</th>
-                    <th className="py-1.5 px-3 text-right border-r border-border/60 font-bold text-foreground">Existencia</th>
-                    <th className="py-1.5 px-3 text-right border-r border-border/40 text-emerald-700 dark:text-emerald-400">Debe (+)</th>
-                    <th className="py-1.5 px-3 text-right border-r border-border/40 text-rose-700 dark:text-rose-400">Haber (-)</th>
-                    <th className="py-1.5 px-3 text-right font-bold text-foreground">Saldo ($)</th>
+                    <th className="py-1.5 px-3 text-right border-r border-border/40 text-emerald-700 dark:text-emerald-400" title="Unidades que ingresaron a bodega">Entrada (+)</th>
+                    <th className="py-1.5 px-3 text-right border-r border-border/40 text-rose-700 dark:text-rose-400" title="Unidades que salieron de bodega por venta o merma">Salida (−)</th>
+                    <th className="py-1.5 px-3 text-right border-r border-border/60 font-bold text-foreground" title="Existencia física actual en bodega">Existencia</th>
+                    <th className="py-1.5 px-3 text-right border-r border-border/40 text-emerald-700 dark:text-emerald-400" title="Cargos valorados por compras (+)">Debe (+)</th>
+                    <th className="py-1.5 px-3 text-right border-r border-border/40 text-rose-700 dark:text-rose-400" title="Abonos valorados por costo de ventas (−)">Haber (−)</th>
+                    <th className="py-1.5 px-3 text-right font-bold text-foreground bg-muted/10" title="Saldo monetario valorado acumulado en inventarios">Saldo ($)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60 font-mono">
@@ -1247,7 +1252,7 @@ function KardexContent() {
                             {m.comprobante}
                           </span>
                         </td>
-                        <td className="py-2.5 px-3 font-sans text-xs text-foreground min-w-[220px]">
+                        <td className="py-2.5 px-3 font-sans text-xs text-foreground min-w-[240px]">
                           <div className="flex items-center gap-1.5">
                             <span>{m.concepto}</span>
                             {esDevolucion && (
@@ -1270,7 +1275,7 @@ function KardexContent() {
                         <td className="py-2.5 px-3 text-right tabular-nums border-r border-border/40">
                           {m.unidadesSalida > 0 ? (
                             <span className="text-rose-600 dark:text-rose-400 font-semibold">
-                              -{m.unidadesSalida.toLocaleString()}
+                              −{m.unidadesSalida.toLocaleString()}
                             </span>
                           ) : (
                             <span className="text-muted-foreground/40">—</span>
@@ -1286,8 +1291,8 @@ function KardexContent() {
                         {/* Valores Monetarios */}
                         <td className="py-2.5 px-3 text-right tabular-nums border-r border-border/40">
                           {m.debe > 0 ? (
-                            <span className="text-emerald-600 dark:text-emerald-400">
-                              {formatoMoneda(m.debe)}
+                            <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                              +{formatoMoneda(m.debe)}
                             </span>
                           ) : (
                             <span className="text-muted-foreground/40">—</span>
@@ -1295,15 +1300,15 @@ function KardexContent() {
                         </td>
                         <td className="py-2.5 px-3 text-right tabular-nums border-r border-border/40">
                           {m.haber > 0 ? (
-                            <span className="text-rose-600 dark:text-rose-400">
-                              {formatoMoneda(m.haber)}
+                            <span className="text-rose-600 dark:text-rose-400 font-medium">
+                              −{formatoMoneda(m.haber)}
                             </span>
                           ) : (
                             <span className="text-muted-foreground/40">—</span>
                           )}
                         </td>
-                        <td className="py-2.5 px-3 text-right tabular-nums font-bold text-foreground bg-muted/10">
-                          {formatoMoneda(m.saldo)}
+                        <td className="py-2.5 px-3 text-right tabular-nums font-bold text-foreground bg-muted/15 border-l border-border/40">
+                          <strong className="text-foreground">{formatoMoneda(m.saldo)}</strong>
                         </td>
                       </tr>
                     )
@@ -1318,7 +1323,7 @@ function KardexContent() {
                       +{totalesKardex.totalEntradas.toLocaleString()}
                     </td>
                     <td className="py-3 px-3 text-right tabular-nums text-rose-600 dark:text-rose-400 border-r border-border/40">
-                      -{totalesKardex.totalSalidas.toLocaleString()}
+                      −{totalesKardex.totalSalidas.toLocaleString()}
                     </td>
                     <td className="py-3 px-3 text-right tabular-nums text-foreground border-r border-border/60">
                       {totalesKardex.saldoUnidades.toLocaleString()} {articuloActual.unidad.toLowerCase()}
@@ -1327,12 +1332,12 @@ function KardexContent() {
                       {formatoMoneda(totalesKardex.costoPromedioActual)}
                     </td>
                     <td className="py-3 px-3 text-right tabular-nums text-emerald-600 dark:text-emerald-400 border-r border-border/40">
-                      {formatoMoneda(totalesKardex.totalDebe)}
+                      +{formatoMoneda(totalesKardex.totalDebe)}
                     </td>
                     <td className="py-3 px-3 text-right tabular-nums text-rose-600 dark:text-rose-400 border-r border-border/40">
-                      {formatoMoneda(totalesKardex.totalHaber)}
+                      −{formatoMoneda(totalesKardex.totalHaber)}
                     </td>
-                    <td className="py-3 px-3 text-right tabular-nums text-primary border-b-4 border-double border-primary text-sm font-extrabold saldo-doble-linea">
+                    <td className="py-3 px-3 text-right tabular-nums text-foreground border-b-4 border-double border-foreground/60 text-sm font-extrabold saldo-doble-linea bg-muted/20">
                       {formatoMoneda(totalesKardex.saldoValor)}
                     </td>
                   </tr>
@@ -1345,554 +1350,478 @@ function KardexContent() {
         <div className="space-y-5">
           {/* 1. CABECERA WEB */}
           <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-3 print:hidden">
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="text-xl font-bold tracking-tight md:text-2xl text-foreground">
-                Libro Auxiliar
-              </h1>
-          <Badge variant="outline" className="text-xs font-mono font-medium">
-            Ciclo {ejercicioSeleccionado}
-          </Badge>
-
-          {/* Selector de Modo de Visualización */}
-          <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5 text-xs font-medium ml-1">
-            <button
-              type="button"
-              onClick={() => setModoVista("ficha")}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-all ${
-                modoVista === "ficha"
-                  ? "bg-background text-foreground font-semibold shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <FileSpreadsheet className="size-3.5" />
-              <span>Ficha Individual</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setModoVista("continuo")}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-all ${
-                modoVista === "continuo"
-                  ? "bg-background text-foreground font-semibold shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <ClipboardList className="size-3.5" />
-              <span>Libro Continuo (Todas)</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 print:hidden shrink-0">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={exportarPdf}
-            className="h-8 gap-1.5 text-xs shadow-xs"
-          >
-            <FileDown className="size-3.5" />
-            Imprimir {modoVista === "continuo" ? "Libro Completo" : "Ficha"}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={exportarExcel}
-            className="h-8 gap-1.5 text-xs border-emerald-600/30 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/20 shadow-xs"
-          >
-            <FileSpreadsheet className="size-3.5 text-emerald-600" />
-            Exportar Excel
-          </Button>
-        </div>
-      </header>
-
-      {/* 2. BARRA DE CONTROL */}
-      <div className="space-y-2.5 print:hidden">
-        <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between rounded-xl border border-border bg-card p-3 shadow-xs">
-          {/* Selector principal de cuenta (solo en modo ficha) */}
-          {modoVista === "ficha" ? (
-            <div className="flex flex-1 items-center gap-2">
-              <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Cuenta:</span>
-              <select
-                className="flex h-9 w-full max-w-xl rounded-md border border-input bg-background px-3 py-1 text-sm font-medium shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                value={codigoSeleccionado}
-                onChange={(e) => setCodigoSeleccionado(e.target.value)}
-                aria-label="Seleccionar cuenta contable"
-              >
-                {!cuentasFiltradas.some((c) => c.codigo === codigoSeleccionado) && cuentaActual && (
-                  <optgroup label="Cuenta actualmente abierta">
-                    <option value={cuentaActual.codigo}>
-                      {cuentaActual.codigo} — {cuentaActual.nombre} (Actual)
-                    </option>
-                  </optgroup>
-                )}
-                {cuentasPorGrupo.map((g) => (
-                  <optgroup key={g.id} label={g.nombre}>
-                    {g.cuentas.map((c) => {
-                      const sm = saldoMayorMap.get(c.codigo)
-                      const tieneMovs = sm !== undefined && sm.movs > 0
-                      const saldoVal = sm ? (c.naturaleza === "deudora" ? sm.debe - sm.haber : sm.haber - sm.debe) : 0
-
-                      return (
-                        <option key={c.codigo} value={c.codigo}>
-                          {c.codigo} — {c.nombre} {tieneMovs ? `(${formatoMoneda(Math.abs(saldoVal))})` : ""}
-                        </option>
-                      )
-                    })}
-                  </optgroup>
-                ))}
-              </select>
-
-              {/* Navegación anterior / siguiente entre cuentas */}
-              <div className="flex items-center gap-0.5 shrink-0">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={cuentaAnterior}
-                  disabled={indiceActual <= 0}
-                  title="Cuenta anterior (Alt + Flecha Izquierda)"
-                  className="size-7"
-                >
-                  <ChevronLeft className="size-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={cuentaSiguiente}
-                  disabled={indiceActual < 0 || indiceActual >= cuentasNavegables.length - 1}
-                  title="Siguiente cuenta (Alt + Flecha Derecha)"
-                  className="size-7"
-                >
-                  <ChevronRight className="size-4" />
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <ClipboardList className="size-4 text-primary" />
-              <span>Mostrando el Libro Auxiliar Continuo con todas las cuentas del ejercicio</span>
-            </div>
-          )}
-
-          {/* Filtros: Búsqueda rápida, Filtro por Mes y Toggle de movimientos */}
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Buscador de texto */}
-            <div className="relative w-full sm:w-56 shrink-0">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-              <Input
-                placeholder="Buscar cuenta... (Enter)"
-                value={busqueda}
-                onChange={(e) => {
-                  const val = e.target.value
-                  setBusqueda(val)
-                  const q = normalizar(val)
-                  if (!q) return
-                  const match = cuentasActivas.find(
-                    (c) => normalizar(c.codigo) === q || normalizar(c.nombre) === q
-                  )
-                  if (match) {
-                    setCodigoSeleccionado(match.codigo)
-                  }
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault()
-                    if (cuentasFiltradas.length > 0) {
-                      setCodigoSeleccionado(cuentasFiltradas[0].codigo)
-                    }
-                  }
-                }}
-                className="pl-8 pr-7 h-8 text-xs"
-              />
-              {busqueda && (
-                <button
-                  type="button"
-                  onClick={() => setBusqueda("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  title="Limpiar búsqueda"
-                >
-                  <X className="size-3.5" />
-                </button>
-              )}
-            </div>
-
-            {/* Selector de Mes / Período */}
-            <select
-              value={mesFiltro}
-              onChange={(e) => setMesFiltro(e.target.value)}
-              className="h-8 rounded-md border border-input bg-background px-2 text-xs font-medium focus-visible:ring-1 focus-visible:ring-ring"
-              aria-label="Filtrar por período"
-            >
-              {MESES.map((m) => (
-                <option key={m.valor} value={m.valor}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-
-            {/* Toggle: Solo cuentas con movimientos */}
-            <button
-              type="button"
-              onClick={() => setSoloConMovimientos(!soloConMovimientos)}
-              className={`flex items-center gap-1.5 h-8 px-2.5 rounded-md border text-xs font-medium transition-colors ${
-                soloConMovimientos
-                  ? "border-primary/40 bg-primary/10 text-primary"
-                  : "border-border bg-background text-muted-foreground hover:bg-muted"
-              }`}
-              title="Oculta cuentas que no tienen registros en este ejercicio"
-            >
-              <Filter className="size-3" />
-              <span>Con movimientos ({totalCuentasConMovs})</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Accesos rápidos frecuentes (solo en modo ficha) */}
-        {modoVista === "ficha" && (
-          <div className="flex flex-wrap items-center gap-1.5 px-1">
-            <span className="text-xs text-muted-foreground font-medium mr-1">Frecuentes:</span>
-            {CUENTAS_RAPIDAS_SV.map((c) => {
-              const activa = codigoSeleccionado === c.codigo
-              return (
-                <button
-                  key={c.codigo}
-                  type="button"
-                  onClick={() => setCodigoSeleccionado(c.codigo)}
-                  className={`rounded-md px-2.5 py-1 text-xs transition-colors ${
-                    activa
-                      ? "bg-primary text-primary-foreground font-medium shadow-xs"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
-                  }`}
-                >
-                  {c.nombre}
-                </button>
-              )
-            })}
-          </div>
-        )}
-
-        {/* Chips de coincidencia de búsqueda rápida al tipear */}
-        {busqueda.trim() && cuentasFiltradas.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground px-1 pt-1">
-            <span className="text-[11px] font-medium">Coincidencias ({cuentasFiltradas.length}):</span>
-            {cuentasFiltradas.slice(0, 4).map((c) => (
-              <button
-                key={c.codigo}
-                type="button"
-                onClick={() => {
-                  setCodigoSeleccionado(c.codigo)
-                  if (modoVista !== "ficha") setModoVista("ficha")
-                }}
-                className={`px-2 py-0.5 rounded text-xs font-mono transition-colors ${
-                  codigoSeleccionado === c.codigo
-                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
-                    : "bg-muted hover:bg-muted/80 text-foreground"
-                }`}
-                title="Clic para seleccionar cuenta"
-              >
-                {c.codigo} {c.nombre}
-              </button>
-            ))}
-            {cuentasFiltradas.length > 4 && (
-              <span className="text-[10px] text-muted-foreground">+{cuentasFiltradas.length - 4} más</span>
-            )}
-            <span className="text-[11px] text-primary font-medium ml-1">· Pulsa Enter para abrir la primera</span>
-          </div>
-        )}
-      </div>
-
-      {modoVista === "ficha" ? (
-        <>
-          {/* ======================================================== */}
-          {/* 3. FICHA TÉCNICA DEL FOLIO CONTABLE (ENCABEZADO DE MAYOR) */}
-          {/* ======================================================== */}
-          {/* 3. RESUMEN DE LA CUENTA */}
-          {cuentaActual && (
-        <Card className="border-border shadow-xs overflow-hidden print:hidden">
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/30 px-4 py-2.5 border-b border-border">
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <span className="font-mono font-bold text-sm text-foreground bg-muted px-2 py-0.5 rounded border border-border">
-                {cuentaActual.codigo}
-              </span>
-              <h2 className="text-base font-semibold text-foreground">
-                {cuentaActual.nombre}
-              </h2>
-              <span className="text-xs text-muted-foreground">·</span>
-              <span className="text-xs text-muted-foreground capitalize">
-                {cuentaActual.tipo} ({cuentaActual.naturaleza})
-              </span>
-              {esSaldoAnomalo && (
-                <Badge variant="warning" className="text-[10px]">
-                  Sobregiro
+            <div>
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h1 className="text-xl font-bold tracking-tight md:text-2xl text-foreground">
+                  Libro Auxiliar
+                </h1>
+                <Badge variant="outline" className="text-xs font-mono font-medium">
+                  Ciclo {ejercicioSeleccionado}
                 </Badge>
-              )}
-            </div>
 
-            <Link
-              href={`/libro-mayor?cuenta=${cuentaActual.codigo}`}
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors print:hidden"
-            >
-              <span>Ver en Libro Mayor</span>
-              <ArrowRight className="size-3" />
-            </Link>
-          </div>
-
-          <div className="grid grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-border bg-card text-center sm:grid-cols-4 p-2 sm:p-0">
-            <div className="p-3">
-              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground block">
-                Saldo Anterior
-              </span>
-              <span className="mt-1 text-base font-semibold font-mono tabular-nums text-foreground block">
-                {formatoMoneda(Math.abs(saldoInicialPeriodo))}
-              </span>
-            </div>
-
-            <div className="p-3">
-              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground block">
-                Cargos (Debe)
-              </span>
-              <span className="mt-1 text-base font-semibold font-mono tabular-nums text-foreground block">
-                {formatoMoneda(totalDebe)}
-              </span>
-            </div>
-
-            <div className="p-3">
-              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground block">
-                Abonos (Haber)
-              </span>
-              <span className="mt-1 text-base font-semibold font-mono tabular-nums text-foreground block">
-                {formatoMoneda(totalHaber)}
-              </span>
-            </div>
-
-            <div className="p-3">
-              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground block">
-                Saldo Actual
-              </span>
-              <span className={`mt-1 text-base font-bold font-mono tabular-nums block ${
-                esSaldoAnomalo ? "text-red-600 dark:text-red-400" : "text-foreground"
-              }`}>
-                {formatoMoneda(Math.abs(saldoFinalPeriodo))}
-              </span>
-              <span className="text-[10px] text-muted-foreground">
-                {condicionSaldoTexto}
-              </span>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* RESUMEN DE LIQUIDACIÓN DE IVA */}
-      {(codigoSeleccionado === "1105" || codigoSeleccionado === "2103") && (
-        <Card className="border-border bg-card shadow-xs print:hidden">
-          <CardHeader className="py-2.5 px-4 bg-muted/20 border-b border-border">
-            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Liquidación de IVA
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
-            <div className="rounded-lg border border-border/60 p-2.5 bg-background">
-              <span className="text-muted-foreground text-[11px] block">Débito Fiscal (Ventas)</span>
-              <span className="text-base font-semibold font-mono text-foreground">{formatoMoneda(totalDF)}</span>
-            </div>
-            <div className="rounded-lg border border-border/60 p-2.5 bg-background">
-              <span className="text-muted-foreground text-[11px] block">Crédito Fiscal (Compras)</span>
-              <span className="text-base font-semibold font-mono text-foreground">{formatoMoneda(totalCF)}</span>
-            </div>
-            <div className="rounded-lg border border-border/60 p-2.5 bg-background">
-              <span className="text-muted-foreground text-[11px] block">
-                {diferenciaIVA > 0 ? "Impuesto por Pagar" : diferenciaIVA < 0 ? "Remanente a Favor" : "Saldo Neto"}
-              </span>
-              <span className="text-base font-bold font-mono text-foreground">
-                {formatoMoneda(Math.abs(diferenciaIVA))}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 4. TABLA DE MOVIMIENTOS */}
-      <Card className="border-border shadow-xs overflow-hidden print:border-0 print:shadow-none print:bg-transparent print:rounded-none">
-        <CardHeader className="py-2.5 px-4 sm:px-5 bg-muted/20 border-b border-border print:hidden">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-semibold text-foreground">
-              Movimientos Registrados
-            </CardTitle>
-            <span className="text-xs font-mono text-muted-foreground">
-              {movimientos.length} {movimientos.length === 1 ? "movimiento" : "movimientos"}
-            </span>
-          </div>
-        </CardHeader>
-
-        <CardContent className="p-0">
-          {movimientos.length === 0 && saldoInicialPeriodo === 0 ? (
-            <div className="py-12 text-center p-4">
-              <ClipboardList className="mx-auto size-9 text-muted-foreground/40 mb-2" />
-              <p className="text-sm font-semibold text-muted-foreground">
-                Sin movimientos registrados para la cuenta {cuentaActual?.codigo} - {cuentaActual?.nombre} {mesFiltro !== "todos" ? `en ${MESES.find((m) => m.valor === mesFiltro)?.label}` : `en el ejercicio ${ejercicioSeleccionado}`}.
-              </p>
-              <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-                Selecciona otra cuenta en la barra superior o cambia el filtro de período.
+                {/* Selector de Modo de Visualización */}
+                <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5 text-xs font-medium ml-1">
+                  <button
+                    type="button"
+                    onClick={() => setModoVista("ficha")}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                      modoVista === "ficha"
+                        ? "bg-background text-foreground font-semibold shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <FileSpreadsheet className="size-3.5" />
+                    <span>Ficha Individual</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModoVista("continuo")}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                      modoVista === "continuo"
+                        ? "bg-background text-foreground font-semibold shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <ClipboardList className="size-3.5" />
+                    <span>Libro Continuo (Todas)</span>
+                  </button>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {modoVista === "ficha"
+                  ? "Consulta y auditoría detallada de una cuenta contable específica."
+                  : "Movimientos cronológicos y saldos de todas las cuentas del ejercicio."}
               </p>
             </div>
-          ) : (
-            <div className="overflow-x-auto print:overflow-visible">
-              <table className="w-full text-left text-xs border-collapse print-accounting-table">
-                <thead className="border-b border-border bg-muted/40 text-muted-foreground uppercase font-semibold text-[11px]">
-                  <tr>
-                    <th className="py-2.5 px-3 whitespace-nowrap">Fecha</th>
-                    <th className="py-2.5 px-2 text-center whitespace-nowrap">Partida</th>
-                    <th className="py-2.5 px-2 text-center whitespace-nowrap">Tipo</th>
-                    <th className="py-2.5 px-2 whitespace-nowrap">Referencia</th>
-                    <th className="py-2.5 px-3">Concepto</th>
-                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Debe</th>
-                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Haber</th>
-                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Saldo</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/60">
-                  {/* RENGLÓN 1: SALDO ANTERIOR TRASLADADO (SIEMPRE EN FILTRO DE MES) */}
-                  {mesFiltro !== "todos" && (
-                    <tr className="bg-muted/30 font-medium italic text-muted-foreground">
-                      <td className="py-2 px-3 font-mono whitespace-nowrap">
-                        {`${ejercicioSeleccionado}-${mesFiltro.padStart(2, "0")}-01`}
-                      </td>
-                      <td className="py-2 px-2 text-center font-mono text-muted-foreground">-</td>
-                      <td className="py-2 px-2 text-center">
-                        <span className="px-1.5 py-0.5 rounded text-[10px] bg-muted font-sans font-semibold">
-                          INICIAL
-                        </span>
-                      </td>
-                      <td className="py-2 px-2 font-mono text-[11px] font-semibold text-primary">
-                        TRASLADO
-                      </td>
-                      <td className="py-2 px-3">
-                        Saldo anterior acumulado trasladado al inicio del período
-                      </td>
-                      <td className="py-2 px-3 text-right font-mono text-muted-foreground/50">-</td>
-                      <td className="py-2 px-3 text-right font-mono text-muted-foreground/50">-</td>
-                      <td className="py-2 px-3 text-right font-mono font-bold text-foreground">
-                        {formatoMoneda(Math.abs(saldoInicialPeriodo))}
-                        <span className="ml-1 text-[10px] text-muted-foreground font-normal">
-                          ({saldoInicialPeriodo >= 0 ? (cuentaActual?.naturaleza === "deudora" ? "D" : "A") : (cuentaActual?.naturaleza === "deudora" ? "A" : "D")})
-                        </span>
-                      </td>
-                    </tr>
+
+            <div className="flex items-center gap-2 print:hidden shrink-0">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={exportarPdf}
+                className="h-8 gap-1.5 text-xs shadow-xs"
+              >
+                <FileDown className="size-3.5" />
+                Imprimir {modoVista === "continuo" ? "Libro Completo" : "Ficha"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={exportarExcel}
+                className="h-8 gap-1.5 text-xs border-emerald-600/30 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/20 shadow-xs"
+              >
+                <FileSpreadsheet className="size-3.5 text-emerald-600" />
+                Exportar Excel
+              </Button>
+            </div>
+          </header>
+
+          {/* 2. BARRA DE CONTROL */}
+          <div className="space-y-2.5 print:hidden">
+            {modoVista === "ficha" ? (
+              /* BARRA DE CONTROL EN FICHA INDIVIDUAL */
+              <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between rounded-xl border border-border bg-card p-3 shadow-xs">
+                {/* Control Principal Único de Cuenta con Flechas integradas */}
+                <div className="flex flex-1 items-center gap-2 max-w-2xl">
+                  <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap">
+                    Cuenta:
+                  </span>
+                  <div className="relative flex-1">
+                    <select
+                      className="h-8.5 w-full rounded-md border border-input bg-background pl-2.5 pr-8 text-xs font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer"
+                      value={codigoSeleccionado}
+                      onChange={(e) => setCodigoSeleccionado(e.target.value)}
+                      aria-label="Seleccionar cuenta contable"
+                    >
+                      {!cuentasFiltradas.some((c) => c.codigo === codigoSeleccionado) && cuentaActual && (
+                        <optgroup label="Cuenta actualmente abierta">
+                          <option value={cuentaActual.codigo}>
+                            {cuentaActual.codigo} — {cuentaActual.nombre} (Actual)
+                          </option>
+                        </optgroup>
+                      )}
+                      {cuentasPorGrupo.map((g) => (
+                        <optgroup key={g.id} label={g.nombre}>
+                          {g.cuentas.map((c) => {
+                            const sm = saldoMayorMap.get(c.codigo)
+                            const tieneMovs = sm !== undefined && sm.movs > 0
+                            const saldoVal = sm ? (c.naturaleza === "deudora" ? sm.debe - sm.haber : sm.haber - sm.debe) : 0
+
+                            return (
+                              <option key={c.codigo} value={c.codigo}>
+                                {c.codigo} — {c.nombre} {tieneMovs ? `(${formatoMoneda(Math.abs(saldoVal))})` : ""}
+                              </option>
+                            )
+                          })}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Flechas anterior / siguiente pegadas */}
+                  <div className="flex items-center rounded-md border border-border bg-background p-0.5 shadow-2xs shrink-0">
+                    <button
+                      type="button"
+                      onClick={cuentaAnterior}
+                      disabled={indiceActual <= 0}
+                      className="p-1 rounded text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                      title="Cuenta anterior (Alt + Flecha Izquierda)"
+                      aria-label="Cuenta anterior"
+                    >
+                      <ChevronLeft className="size-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cuentaSiguiente}
+                      disabled={indiceActual < 0 || indiceActual >= cuentasNavegables.length - 1}
+                      className="p-1 rounded text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                      title="Siguiente cuenta (Alt + Flecha Derecha)"
+                      aria-label="Siguiente cuenta"
+                    >
+                      <ChevronRight className="size-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Selector compacto de Cuentas Frecuentes */}
+                  <select
+                    value={CUENTAS_RAPIDAS_SV.some((c) => c.codigo === codigoSeleccionado) ? codigoSeleccionado : ""}
+                    onChange={(e) => {
+                      if (e.target.value) setCodigoSeleccionado(e.target.value)
+                    }}
+                    className="h-8.5 rounded-md border border-input bg-background px-2 text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring shrink-0 cursor-pointer hidden sm:block"
+                    aria-label="Cuentas frecuentes"
+                  >
+                    <option value="" disabled>★ Frecuentes...</option>
+                    {CUENTAS_RAPIDAS_SV.map((c) => (
+                      <option key={c.codigo} value={c.codigo}>
+                        {c.nombre} ({c.codigo})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Filtros secundarios livianos: Período y Solo con movimientos */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <select
+                    value={mesFiltro}
+                    onChange={(e) => setMesFiltro(e.target.value)}
+                    className="h-8.5 rounded-md border border-input bg-background px-2.5 text-xs font-medium focus-visible:ring-1 focus-visible:ring-ring cursor-pointer"
+                    aria-label="Filtrar por período"
+                  >
+                    {MESES.map((m) => (
+                      <option key={m.valor} value={m.valor}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  <button
+                    type="button"
+                    onClick={() => setSoloConMovimientos(!soloConMovimientos)}
+                    className={`flex items-center gap-1.5 h-8.5 px-2.5 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                      soloConMovimientos
+                        ? "border-primary/40 bg-primary/10 text-primary"
+                        : "border-border bg-background text-muted-foreground hover:bg-muted"
+                    }`}
+                    title="Mostrar solo cuentas que registran operaciones en este ejercicio"
+                  >
+                    <Filter className="size-3" />
+                    <span>Con movimientos ({totalCuentasConMovs})</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* BARRA DE CONTROL EN LIBRO CONTINUO (TODAS LAS CUENTAS) */
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-border bg-card p-3 shadow-xs">
+                {/* Buscador global en libro continuo */}
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar en cuentas o conceptos del mayor..."
+                    value={busqueda}
+                    onChange={(e) => setBusqueda(e.target.value)}
+                    className="pl-8 pr-7 h-8.5 text-xs"
+                  />
+                  {busqueda && (
+                    <button
+                      type="button"
+                      onClick={() => setBusqueda("")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                      title="Limpiar búsqueda"
+                    >
+                      <X className="size-3.5" />
+                    </button>
                   )}
+                </div>
 
-                  {/* RENGLONES DE OPERACIONES CONTABLES */}
-                  {movimientos.map((m, idx) => {
-                    const rowAnomalo = m.saldo < 0
-                    const tagNat = m.saldo >= 0 ? (cuentaActual?.naturaleza === "deudora" ? "D" : "A") : (cuentaActual?.naturaleza === "deudora" ? "A" : "D")
+                {/* Filtros secundarios: Período y Solo con movimientos */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <select
+                    value={mesFiltro}
+                    onChange={(e) => setMesFiltro(e.target.value)}
+                    className="h-8.5 rounded-md border border-input bg-background px-2.5 text-xs font-medium focus-visible:ring-1 focus-visible:ring-ring cursor-pointer"
+                    aria-label="Filtrar por período"
+                  >
+                    {MESES.map((m) => (
+                      <option key={m.valor} value={m.valor}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
 
-                    return (
-                      <tr
-                        key={idx}
-                        className={`transition-colors hover:bg-muted/30 ${
-                          rowAnomalo ? "bg-red-500/[0.03]" : ""
-                        }`}
-                      >
-                        {/* Fecha */}
-                        <td className="py-2.5 px-3 font-mono whitespace-nowrap text-muted-foreground">
-                          {m.fecha}
-                        </td>
+                  <button
+                    type="button"
+                    onClick={() => setSoloConMovimientos(!soloConMovimientos)}
+                    className={`flex items-center gap-1.5 h-8.5 px-2.5 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                      soloConMovimientos
+                        ? "border-primary/40 bg-primary/10 text-primary"
+                        : "border-border bg-background text-muted-foreground hover:bg-muted"
+                    }`}
+                    title="Mostrar solo cuentas que registran operaciones en este ejercicio"
+                  >
+                    <Filter className="size-3" />
+                    <span>Con movimientos ({totalCuentasConMovs})</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
-                        {/* Partida N° con botón de inspección */}
-                        <td className="py-2.5 px-2 text-center whitespace-nowrap">
-                          {m.asientoOriginal ? (
-                            <button
-                              type="button"
-                              onClick={() => setPartidaDetalle(m.asientoOriginal!)}
-                              className="inline-flex items-center gap-1 font-mono font-semibold text-primary hover:underline bg-primary/10 hover:bg-primary/20 px-1.5 py-0.5 rounded transition-colors"
-                              title="Inspeccionar asiento contable balanceado"
-                            >
-                              <Eye className="size-3" />
-                              #{m.partidaNumero}
-                            </button>
-                          ) : (
-                            <span className="font-mono text-muted-foreground">#{m.partidaNumero}</span>
-                          )}
-                        </td>
-
-                        {/* Tipo de Asiento */}
-                        <td className="py-2.5 px-2 text-center whitespace-nowrap">
-                          <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded ${
-                            m.tipoPartida === "APERTURA"
-                              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20"
-                              : m.tipoPartida === "CIERRE"
-                              ? "bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20"
-                              : "bg-muted text-foreground"
-                          }`}>
-                            {m.tipoPartida === "OPERACION" ? "DIARIO" : m.tipoPartida}
-                          </span>
-                        </td>
-
-                        {/* Referencia Operativa / Documental */}
-                        <td className="py-2.5 px-2 font-mono whitespace-nowrap text-[11px] text-muted-foreground font-medium">
-                          {m.referenciaDoc}
-                        </td>
-
-                        {/* Concepto / Glosa */}
-                        <td className="py-2.5 px-3 text-foreground/90 max-w-md leading-relaxed">
-                          {m.concepto}
-                        </td>
-
-                        {/* Debe (Cargos) */}
-                        <td className="py-2.5 px-3 text-right font-mono tabular-nums whitespace-nowrap">
-                          {m.debe > 0 ? (
-                            <span className="text-foreground font-semibold">{formatoMoneda(m.debe)}</span>
-                          ) : (
-                            <span className="text-muted-foreground/30">-</span>
-                          )}
-                        </td>
-
-                        {/* Haber (Abonos) */}
-                        <td className="py-2.5 px-3 text-right font-mono tabular-nums whitespace-nowrap">
-                          {m.haber > 0 ? (
-                            <span className="text-foreground font-semibold">{formatoMoneda(m.haber)}</span>
-                          ) : (
-                            <span className="text-muted-foreground/30">-</span>
-                          )}
-                        </td>
-
-                        {/* Saldo Progresivo con Naturaleza */}
-                        <td className="py-2.5 px-3 text-right font-mono tabular-nums font-bold whitespace-nowrap">
-                          <span className={rowAnomalo ? "text-red-600 dark:text-red-400" : "text-foreground"}>
-                            {formatoMoneda(Math.abs(m.saldo))}
-                          </span>
-                          <span className={`ml-1 text-[10px] font-normal ${rowAnomalo ? "text-red-600 font-bold" : "text-muted-foreground"}`}>
-                            ({tagNat})
-                          </span>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-
-                {/* PIE DE TABLA: SUMAS Y SALDO FINAL CON DOBLE RAYA CONTABLE */}
-                <tfoot className="border-t-2 border-border bg-muted/40 font-semibold text-xs border-b-4 border-double border-foreground/30 print:bg-transparent print:border-black">
-                  <tr>
-                    <td colSpan={5} className="py-2.5 px-3 uppercase text-muted-foreground print:text-black">
-                      Sumas del Período
-                    </td>
-                    <td className="py-2.5 px-3 text-right font-mono tabular-nums text-foreground print:text-black whitespace-nowrap">
-                      {formatoMoneda(totalDebe)}
-                    </td>
-                    <td className="py-2.5 px-3 text-right font-mono tabular-nums text-foreground print:text-black whitespace-nowrap">
-                      {formatoMoneda(totalHaber)}
-                    </td>
-                    <td className="py-2.5 px-3 text-right font-mono tabular-nums font-bold whitespace-nowrap">
-                      <span className="text-foreground saldo-doble-linea print:text-black">
-                        {formatoMoneda(Math.abs(saldoFinalPeriodo))}
+          {modoVista === "ficha" ? (
+            <>
+              {/* 3. RESUMEN COMPACTO DE LA CUENTA */}
+              {cuentaActual && (
+                <div className="rounded-xl border border-border bg-card shadow-2xs overflow-hidden print:hidden">
+                  <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2 border-b sm:border-b-0 border-border bg-muted/20">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono font-bold text-xs bg-background px-2 py-0.5 rounded border border-border text-foreground">
+                        {cuentaActual.codigo}
                       </span>
-                      <span className="ml-1 text-[10px] font-normal text-muted-foreground print:text-black">
+                      <h2 className="text-sm font-semibold text-foreground">
+                        {cuentaActual.nombre}
+                      </h2>
+                      <span className="text-[11px] text-muted-foreground capitalize hidden sm:inline">
+                        · {cuentaActual.tipo} ({cuentaActual.naturaleza})
+                      </span>
+                      {esSaldoAnomalo && (
+                        <span className="rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] font-bold text-red-600 border border-red-500/20">
+                          Sobregiro
+                        </span>
+                      )}
+                    </div>
+
+                    <Link
+                      href={`/libro-mayor?cuenta=${cuentaActual.codigo}`}
+                      className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      <span>Ver en Libro Mayor</span>
+                      <ArrowRight className="size-3" />
+                    </Link>
+                  </div>
+
+                  {/* Franja compacta de saldos: Saldo Anterior | Debe | Haber | Saldo Actual */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border bg-card border-t border-border text-center text-xs font-mono py-1.5">
+                    <div className="py-1 px-3">
+                      <span className="text-[10px] uppercase font-sans text-muted-foreground block">Saldo Anterior</span>
+                      <span className="text-muted-foreground font-medium tabular-nums text-xs">
+                        {formatoMoneda(Math.abs(saldoInicialPeriodo))}
+                      </span>
+                    </div>
+                    <div className="py-1 px-3">
+                      <span className="text-[10px] uppercase font-sans text-muted-foreground block">Debe (Cargos)</span>
+                      <span className="font-semibold tabular-nums text-foreground text-xs">
+                        +{formatoMoneda(totalDebe)}
+                      </span>
+                    </div>
+                    <div className="py-1 px-3">
+                      <span className="text-[10px] uppercase font-sans text-muted-foreground block">Haber (Abonos)</span>
+                      <span className="font-semibold tabular-nums text-foreground text-xs">
+                        −{formatoMoneda(totalHaber)}
+                      </span>
+                    </div>
+                    <div className="py-1 px-3 bg-muted/10 sm:bg-transparent">
+                      <span className="text-[10px] uppercase font-sans font-bold text-foreground block">Saldo Actual</span>
+                      <strong className={`text-sm tabular-nums font-bold ${
+                        esSaldoAnomalo ? "text-red-600 dark:text-red-400" : "text-foreground"
+                      }`}>
+                        {formatoMoneda(Math.abs(saldoFinalPeriodo))}
+                      </strong>
+                      <span className="ml-1 text-[10px] font-sans font-normal text-muted-foreground">
                         ({condicionSaldoTexto})
                       </span>
-                    </td>
-                  </tr>
-                </tfoot>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 4. TABLA DE MOVIMIENTOS: 6 COLUMNAS CONSOLIDADAS */}
+              <Card className="border-border shadow-xs overflow-hidden print:border-0 print:shadow-none print:bg-transparent print:rounded-none">
+                <CardHeader className="py-2.5 px-4 sm:px-5 bg-muted/20 border-b border-border print:hidden">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm font-semibold text-foreground">
+                      Movimientos Registrados
+                    </CardTitle>
+                    <span className="text-xs font-mono text-muted-foreground">
+                      {movimientos.length} {movimientos.length === 1 ? "movimiento" : "movimientos"}
+                    </span>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="p-0">
+                  {movimientos.length === 0 && saldoInicialPeriodo === 0 ? (
+                    <div className="py-12 px-4 text-center">
+                      <ClipboardList className="mx-auto size-9 text-muted-foreground/40 mb-2.5" />
+                      <p className="text-sm font-semibold text-foreground">
+                        No hay movimientos en este período para la cuenta {cuentaActual?.codigo} — {cuentaActual?.nombre}.
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
+                        {mesFiltro !== "todos"
+                          ? `No se registran operaciones en ${MESES.find((m) => m.valor === mesFiltro)?.label}. Prueba cambiando el filtro de período a "Todo el año".`
+                          : "Esta cuenta no presenta cargos ni abonos en el ejercicio actual. Selecciona otra cuenta en el control superior."}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto print:overflow-visible">
+                      <table className="w-full text-left text-xs border-collapse print-accounting-table">
+                        <thead className="border-b border-border bg-muted/40 text-muted-foreground uppercase font-semibold text-[11px]">
+                          <tr>
+                            <th className="py-2.5 px-3 whitespace-nowrap">Fecha</th>
+                            <th className="py-2.5 px-3 whitespace-nowrap">Partida / Ref</th>
+                            <th className="py-2.5 px-4 min-w-[280px]">Concepto / Glosa</th>
+                            <th className="py-2.5 px-3 text-right whitespace-nowrap" title="Cargos registrados en la cuenta">Debe (+)</th>
+                            <th className="py-2.5 px-3 text-right whitespace-nowrap" title="Abonos registrados en la cuenta">Haber (−)</th>
+                            <th className="py-2.5 px-3 text-right whitespace-nowrap font-bold" title="Saldo progresivo según la naturaleza contable">Saldo</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/60">
+                          {/* RENGLÓN 1: SALDO ANTERIOR TRASLADADO (SIEMPRE EN FILTRO DE MES) */}
+                          {mesFiltro !== "todos" && (
+                            <tr className="bg-muted/30 font-medium italic text-muted-foreground">
+                              <td className="py-2 px-3 font-mono whitespace-nowrap">
+                                {`${ejercicioSeleccionado}-${mesFiltro.padStart(2, "0")}-01`}
+                              </td>
+                              <td className="py-2 px-3 font-mono text-[11px] font-semibold text-primary whitespace-nowrap">
+                                TRASLADO INICIAL
+                              </td>
+                              <td className="py-2 px-4">
+                                Saldo anterior acumulado trasladado al inicio del período
+                              </td>
+                              <td className="py-2 px-3 text-right font-mono text-muted-foreground/50">-</td>
+                              <td className="py-2 px-3 text-right font-mono text-muted-foreground/50">-</td>
+                              <td className="py-2 px-3 text-right font-mono font-bold text-foreground">
+                                {formatoMoneda(Math.abs(saldoInicialPeriodo))}
+                                <span className="ml-1 text-[10px] text-muted-foreground font-normal">
+                                  ({saldoInicialPeriodo >= 0 ? (cuentaActual?.naturaleza === "deudora" ? "D" : "A") : (cuentaActual?.naturaleza === "deudora" ? "A" : "D")})
+                                </span>
+                              </td>
+                            </tr>
+                          )}
+
+                          {/* RENGLONES DE OPERACIONES CONTABLES */}
+                          {movimientos.map((m, idx) => {
+                            const rowAnomalo = m.saldo < 0
+                            const tagNat = m.saldo >= 0 ? (cuentaActual?.naturaleza === "deudora" ? "D" : "A") : (cuentaActual?.naturaleza === "deudora" ? "A" : "D")
+
+                            return (
+                              <tr
+                                key={idx}
+                                className={`transition-colors hover:bg-muted/30 ${
+                                  rowAnomalo ? "bg-red-500/[0.03]" : ""
+                                }`}
+                              >
+                                {/* Fecha */}
+                                <td className="py-2.5 px-3 font-mono whitespace-nowrap text-muted-foreground">
+                                  {m.fecha}
+                                </td>
+
+                                {/* Partida + Tipo + Referencia Documental consolidada */}
+                                <td className="py-2.5 px-3 whitespace-nowrap">
+                                  <div className="flex items-center gap-1.5">
+                                    {m.asientoOriginal ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => setPartidaDetalle(m.asientoOriginal!)}
+                                        className="inline-flex items-center gap-1 font-mono font-bold text-xs text-primary hover:underline bg-primary/10 hover:bg-primary/20 px-1.5 py-0.5 rounded transition-colors"
+                                        title="Inspeccionar asiento contable"
+                                      >
+                                        <Eye className="size-3" />
+                                        #{m.partidaNumero}
+                                      </button>
+                                    ) : (
+                                      <span className="font-mono font-bold text-xs text-muted-foreground">#{m.partidaNumero}</span>
+                                    )}
+                                    <span className="text-[10px] text-muted-foreground font-mono">
+                                      · {m.tipoPartida === "OPERACION" ? "Diario" : m.tipoPartida}
+                                    </span>
+                                  </div>
+                                  {m.referenciaDoc && m.referenciaDoc !== "-" && (
+                                    <span className="text-[10px] text-muted-foreground/80 font-mono block mt-0.5">
+                                      Ref: {m.referenciaDoc}
+                                    </span>
+                                  )}
+                                </td>
+
+                                {/* Concepto / Glosa amplio */}
+                                <td className="py-2.5 px-4 text-foreground leading-relaxed">
+                                  {m.concepto}
+                                </td>
+
+                                {/* Debe (Cargos) */}
+                                <td className="py-2.5 px-3 text-right font-mono tabular-nums whitespace-nowrap">
+                                  {m.debe > 0 ? (
+                                    <span className="text-foreground font-semibold">+{formatoMoneda(m.debe)}</span>
+                                  ) : (
+                                    <span className="text-muted-foreground/30">-</span>
+                                  )}
+                                </td>
+
+                                {/* Haber (Abonos) */}
+                                <td className="py-2.5 px-3 text-right font-mono tabular-nums whitespace-nowrap">
+                                  {m.haber > 0 ? (
+                                    <span className="text-foreground font-semibold">−{formatoMoneda(m.haber)}</span>
+                                  ) : (
+                                    <span className="text-muted-foreground/30">-</span>
+                                  )}
+                                </td>
+
+                                {/* Saldo Progresivo con Naturaleza */}
+                                <td className="py-2.5 px-3 text-right font-mono tabular-nums font-bold whitespace-nowrap">
+                                  <span className={rowAnomalo ? "text-red-600 dark:text-red-400 font-bold" : "text-foreground"}>
+                                    {formatoMoneda(Math.abs(m.saldo))}
+                                  </span>
+                                  <span className={`ml-1 text-[10px] font-normal ${rowAnomalo ? "text-red-600 font-bold" : "text-muted-foreground"}`}>
+                                    ({tagNat})
+                                  </span>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+
+                        {/* PIE DE TABLA: SUMAS Y SALDO FINAL CON DOBLE RAYA CONTABLE */}
+                        <tfoot className="border-t-2 border-border bg-muted/40 font-semibold text-xs border-b-4 border-double border-foreground/30 print:bg-transparent print:border-black">
+                          <tr>
+                            <td colSpan={3} className="py-2.5 px-3 uppercase text-muted-foreground print:text-black">
+                              Sumas del Período
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono tabular-nums text-foreground print:text-black whitespace-nowrap">
+                              +{formatoMoneda(totalDebe)}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono tabular-nums text-foreground print:text-black whitespace-nowrap">
+                              −{formatoMoneda(totalHaber)}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono tabular-nums font-bold whitespace-nowrap">
+                              <span className="text-foreground saldo-doble-linea print:text-black">
+                                {formatoMoneda(Math.abs(saldoFinalPeriodo))}
+                              </span>
+                              <span className="ml-1 text-[10px] font-normal text-muted-foreground print:text-black">
+                                ({condicionSaldoTexto})
+                              </span>
+                            </td>
+                          </tr>
+                        </tfoot>
               </table>
             </div>
           )}
@@ -2001,20 +1930,18 @@ function KardexContent() {
                       <thead className="border-b border-border bg-muted/20 text-muted-foreground uppercase font-semibold text-[10px]">
                         <tr>
                           <th className="py-2 px-3 whitespace-nowrap">Fecha</th>
-                          <th className="py-2 px-2 text-center whitespace-nowrap">Partida</th>
-                          <th className="py-2 px-2 whitespace-nowrap">Doc / Ref</th>
+                          <th className="py-2 px-3 whitespace-nowrap">Partida / Ref</th>
                           <th className="py-2 px-3">Concepto</th>
-                          <th className="py-2 px-3 text-right whitespace-nowrap">Debe</th>
-                          <th className="py-2 px-3 text-right whitespace-nowrap">Haber</th>
-                          <th className="py-2 px-3 text-right whitespace-nowrap">Saldo</th>
+                          <th className="py-2 px-3 text-right whitespace-nowrap">Debe (+)</th>
+                          <th className="py-2 px-3 text-right whitespace-nowrap">Haber (−)</th>
+                          <th className="py-2 px-3 text-right whitespace-nowrap font-bold">Saldo</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border/60">
                         {mesFiltro !== "todos" && saldoInicial !== 0 && (
                           <tr className="bg-muted/20 italic text-muted-foreground">
                             <td className="py-1.5 px-3 font-mono">{`${ejercicioSeleccionado}-${mesFiltro.padStart(2, "0")}-01`}</td>
-                            <td className="py-1.5 px-2 text-center font-mono">-</td>
-                            <td className="py-1.5 px-2 font-mono text-[10px]">TRASLADO</td>
+                            <td className="py-1.5 px-3 font-mono text-[10px] text-primary font-semibold">TRASLADO INICIAL</td>
                             <td className="py-1.5 px-3">Saldo anterior acumulado trasladado</td>
                             <td className="py-1.5 px-3 text-right font-mono">-</td>
                             <td className="py-1.5 px-3 text-right font-mono">-</td>
@@ -2026,26 +1953,32 @@ function KardexContent() {
                         {movs.map((m, mIdx) => (
                           <tr key={mIdx} className="hover:bg-muted/20">
                             <td className="py-1.5 px-3 font-mono text-muted-foreground whitespace-nowrap">{m.fecha}</td>
-                            <td className="py-1.5 px-2 text-center whitespace-nowrap">
-                              {m.asientoOriginal ? (
-                                <button
-                                  type="button"
-                                  onClick={() => setPartidaDetalle(m.asientoOriginal!)}
-                                  className="font-mono text-primary hover:underline"
-                                >
-                                  #{m.partidaNumero}
-                                </button>
-                              ) : (
-                                <span className="font-mono text-muted-foreground">#{m.partidaNumero}</span>
-                              )}
+                            <td className="py-1.5 px-3 whitespace-nowrap">
+                              <div className="flex items-center gap-1.5">
+                                {m.asientoOriginal ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setPartidaDetalle(m.asientoOriginal!)}
+                                    className="font-mono font-bold text-primary hover:underline"
+                                  >
+                                    #{m.partidaNumero}
+                                  </button>
+                                ) : (
+                                  <span className="font-mono font-bold text-muted-foreground">#{m.partidaNumero}</span>
+                                )}
+                                {m.referenciaDoc && m.referenciaDoc !== "-" && (
+                                  <span className="text-[10px] text-muted-foreground font-mono">
+                                    · {m.referenciaDoc}
+                                  </span>
+                                )}
+                              </div>
                             </td>
-                            <td className="py-1.5 px-2 font-mono text-[10px] text-muted-foreground whitespace-nowrap">{m.referenciaDoc}</td>
-                            <td className="py-1.5 px-3 text-foreground/90 max-w-sm truncate">{m.concepto}</td>
+                            <td className="py-1.5 px-3 text-foreground/90 max-w-md leading-relaxed">{m.concepto}</td>
                             <td className="py-1.5 px-3 text-right font-mono tabular-nums whitespace-nowrap">
-                              {m.debe > 0 ? formatoMoneda(m.debe) : "-"}
+                              {m.debe > 0 ? `+${formatoMoneda(m.debe)}` : "-"}
                             </td>
                             <td className="py-1.5 px-3 text-right font-mono tabular-nums whitespace-nowrap">
-                              {m.haber > 0 ? formatoMoneda(m.haber) : "-"}
+                              {m.haber > 0 ? `−${formatoMoneda(m.haber)}` : "-"}
                             </td>
                             <td className="py-1.5 px-3 text-right font-mono tabular-nums font-semibold whitespace-nowrap">
                               {formatoMoneda(Math.abs(m.saldo))}
@@ -2055,14 +1988,14 @@ function KardexContent() {
                       </tbody>
                       <tfoot className="border-t border-border bg-muted/30 font-semibold text-[11px] print:bg-transparent print:border-black">
                         <tr>
-                          <td colSpan={4} className="py-2 px-3 uppercase text-muted-foreground print:text-black">
+                          <td colSpan={3} className="py-2 px-3 uppercase text-muted-foreground print:text-black">
                             Subtotal Cuenta {cuenta.codigo}
                           </td>
                           <td className="py-2 px-3 text-right font-mono tabular-nums whitespace-nowrap print:text-black">
-                            {formatoMoneda(tDebe)}
+                            +{formatoMoneda(tDebe)}
                           </td>
                           <td className="py-2 px-3 text-right font-mono tabular-nums whitespace-nowrap print:text-black">
-                            {formatoMoneda(tHaber)}
+                            −{formatoMoneda(tHaber)}
                           </td>
                           <td className="py-2 px-3 text-right font-mono tabular-nums font-bold whitespace-nowrap">
                             <span className="saldo-doble-linea print:text-black">

@@ -180,10 +180,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </span>
               )}
 
-              {/* Selector Global de Ciclo */}
-              <div className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1 text-xs shadow-sm">
+              {/* Selector Global Unificado de Ciclo */}
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-1 text-xs shadow-2xs">
                 <Calendar className="size-3.5 text-muted-foreground" />
-                <span className="font-medium text-muted-foreground">Ciclo:</span>
+                <span className="font-semibold text-foreground">Ciclo</span>
                 <select
                   value={ejercicioSeleccionado}
                   onChange={(e) => setEjercicioSeleccionado(parseInt(e.target.value, 10))}
@@ -197,43 +197,50 @@ export function AppShell({ children }: { children: ReactNode }) {
                   ))}
                 </select>
 
+                <span className="text-muted-foreground/40">·</span>
+
                 {esEjercicioCerrado ? (
-                  <span className="inline-flex items-center gap-1 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
+                  <span className="inline-flex items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
                     <Lock className="size-2.5" />
-                    Solo Lectura
+                    Cerrado
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
+                  <span className="inline-flex items-center gap-1 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
                     Abierto
                   </span>
                 )}
+
+                {/* Acciones discretas de ciclo */}
+                <div className="flex items-center border-l border-border pl-1.5 ml-1 gap-1">
+                  <button
+                    type="button"
+                    onClick={abrirModalCrear}
+                    className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-muted transition-colors cursor-pointer"
+                    title="Registrar nuevo ciclo contable"
+                    aria-label="Nuevo ciclo"
+                  >
+                    <CalendarPlus className="size-3.5" />
+                  </button>
+                  <Link
+                    href="/ciclos"
+                    className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                    title="Ver historial de ciclos contables"
+                    aria-label="Historial de ciclos"
+                  >
+                    <History className="size-3.5" />
+                  </Link>
+                </div>
               </div>
-
-              {/* Botón para crear un nuevo ciclo */}
-              <button
-                type="button"
-                onClick={abrirModalCrear}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary/20"
-                title="Registrar nuevo ciclo contable"
-              >
-                <CalendarPlus className="size-3.5" />
-                <span>+ Ciclo</span>
-              </button>
-
-              <Link
-                href="/ciclos"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground shadow-xs"
-                title="Ver ciclos contables"
-              >
-                <History className="size-3.5 text-primary" />
-                <span>Ciclos</span>
-              </Link>
             </div>
 
             {pathname !== "/" && (
-              <Link href="/" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground" aria-label="Ir al inicio">
-                <Home className="size-4" />
-                Inicio
+              <Link
+                href="/"
+                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2.5 py-1.5 rounded-lg border border-border bg-card shadow-2xs hover:bg-accent"
+                aria-label="Ir al inicio"
+              >
+                <Home className="size-3.5" />
+                <span>Inicio</span>
               </Link>
             )}
           </div>
