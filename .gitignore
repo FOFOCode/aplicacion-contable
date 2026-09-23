@@ -23,3 +23,8 @@ project.zip
 *.tsbuildinfo
 .agents/
 skills-lock.json
+
+# Repomix
+repomix*
+repomix-output.*
+*.repomix

@@ -73,13 +73,23 @@ export function validarPartidaDoble(
  * Mayorización automática: consolida débitos y créditos de cada cuenta
  * del catálogo y determina el saldo (Deudor / Acreedor).
  */
-export function calcularMayor(cuentas: Cuenta[], asientos: Asiento[]): SaldoCuenta[] {
+export function calcularMayor(
+  cuentas: Cuenta[],
+  asientos: Asiento[],
+  ejercicioFiltro?: number,
+  incluirCierre: boolean = false
+): SaldoCuenta[] {
   return cuentas
     .map((cuenta) => {
       let debe = 0
       let haber = 0
       for (const asiento of asientos) {
         if (asiento.estado === "ANULADO") continue
+        if (!incluirCierre && asiento.tipo === "CIERRE") continue
+        if (ejercicioFiltro !== undefined) {
+          const ej = asiento.ejercicio || (asiento.fecha ? new Date(asiento.fecha).getFullYear() : undefined)
+          if (ej !== undefined && ej !== ejercicioFiltro) continue
+        }
         for (const linea of asiento.lineas) {
           if (linea.codigo === cuenta.codigo) {
             debe += Number(linea.debe) || 0
@@ -123,6 +133,9 @@ export interface MetodoAnaliticoDetalle {
   comprasNetas: number
   totalMercancias: number
   inventarioFinalEstimado: number
+  valorInventarioFinal: number
+  fechaInventarioFinal?: string | null
+  responsableInventarioFinal?: string | null
   costoVentas: number
 
   // Resultados
@@ -157,13 +170,19 @@ export interface EstadoResultados {
   utilidad: number
   // Detalle del Método Analítico o Pormenorizado
   analitico: MetodoAnaliticoDetalle
+  /** Indica si los valores fueron extraídos directamente de la vista SQL vista_estado_resultados_analitico */
+  calculadoPorSql?: boolean
 }
 
 /**
  * Estado de Resultados: código 5 (ingresos) - código 4 (costos y gastos) = utilidad.
  * Además arma el reporte en cascada y calcula las fórmulas oficiales del Método Analítico o Pormenorizado.
  */
-export function calcularEstadoResultados(mayor: SaldoCuenta[]): EstadoResultados {
+export function calcularEstadoResultados(
+  mayor: SaldoCuenta[],
+  inventarioFinal?: number,
+  metaInventario?: { fecha?: string | null; responsable?: string | null }
+): EstadoResultados {
   const ingresos: LineaReporte[] = []
   const gastos: LineaReporte[] = []
   const ventas: LineaReporte[] = []
@@ -223,8 +242,13 @@ export function calcularEstadoResultados(mayor: SaldoCuenta[]): EstadoResultados
   const rebajasSobreCompras = Math.max(0, buscarSaldo("5103"))
   const comprasNetas = redondear(comprasTotales - devolucionesSobreCompras - rebajasSobreCompras)
   const totalMercancias = redondear(inventarioInicial + comprasNetas)
-  const inventarioFinalEstimado = inventarioInicial
-  const costoVentasAnalitico = redondear(totalMercancias - inventarioFinalEstimado)
+
+  // Desacoplamiento resuelto: Usar el valor real de la Toma Física de Inventarios cuando esté disponible
+  const inventarioFinalReal =
+    typeof inventarioFinal === "number" && !isNaN(inventarioFinal)
+      ? inventarioFinal
+      : inventarioInicial
+  const costoVentasAnalitico = redondear(totalMercancias - inventarioFinalReal)
   const utilidadBrutaAnalitica = redondear(ventasNetas - costoVentasAnalitico)
   const otrosIngresos = Math.max(0, buscarSaldo("5104"))
 
@@ -260,7 +284,10 @@ export function calcularEstadoResultados(mayor: SaldoCuenta[]): EstadoResultados
       rebajasSobreCompras,
       comprasNetas,
       totalMercancias,
-      inventarioFinalEstimado,
+      inventarioFinalEstimado: inventarioFinalReal,
+      valorInventarioFinal: inventarioFinalReal,
+      fechaInventarioFinal: metaInventario?.fecha || null,
+      responsableInventarioFinal: metaInventario?.responsable || null,
       costoVentas: costoVentasAnalitico,
       utilidadBruta: utilidadBrutaAnalitica,
       gastosOperacion: totalGastosOperacion,
@@ -286,19 +313,45 @@ export interface BalanceGeneral {
 }
 
 /** Balance General: código 1 (activo) = código 2 (pasivo) + código 3 (capital contable) */
-export function calcularBalanceGeneral(mayor: SaldoCuenta[], utilidadEjercicio: number): BalanceGeneral {
+export function calcularBalanceGeneral(
+  mayor: SaldoCuenta[],
+  utilidadEjercicio: number,
+  inventarioFinal?: number
+): BalanceGeneral {
   const activos: LineaReporte[] = []
   const pasivos: LineaReporte[] = []
   const capital: LineaReporte[] = []
 
+  let tiene1104 = false
   for (const s of mayor) {
     if (s.cuenta.tipo === "activo") {
-      activos.push({ cuenta: s.cuenta, monto: redondear(s.debe - s.haber) })
+      let monto = redondear(s.debe - s.haber)
+      if (s.cuenta.codigo === "1104") {
+        tiene1104 = true
+        if (typeof inventarioFinal === "number" && !isNaN(inventarioFinal)) {
+          monto = redondear(inventarioFinal)
+        }
+      }
+      activos.push({ cuenta: s.cuenta, monto })
     } else if (s.cuenta.tipo === "pasivo") {
       pasivos.push({ cuenta: s.cuenta, monto: redondear(s.haber - s.debe) })
     } else if (s.cuenta.tipo === "capital") {
       capital.push({ cuenta: s.cuenta, monto: redondear(s.haber - s.debe) })
     }
+  }
+
+  // Si la cuenta 1104 no tuvo movimientos en el mayor pero hay inventario final definido
+  if (!tiene1104 && typeof inventarioFinal === "number" && inventarioFinal > 0) {
+    activos.push({
+      cuenta: {
+        codigo: "1104",
+        nombre: "Inventario de mercadería",
+        tipo: "activo",
+        naturaleza: "deudora",
+        activa: true,
+      },
+      monto: redondear(inventarioFinal),
+    })
   }
 
   const totalActivo = redondear(activos.reduce((a, b) => a + b.monto, 0))

@@ -67,7 +67,29 @@ export interface AsientoHistorial {
   total_debe: number
   total_haber: number
   motivo?: string
+  usuario_email?: string
   creado_en?: string
+}
+
+export interface EjercicioFiscal {
+  ejercicio: number
+  fecha_inicio: string
+  fecha_fin: string
+  ultimo_numero: number
+  estado: "ABIERTO" | "CERRADO" | "BLOQUEADO"
+  cerrado_en?: string | null
+  creado_en?: string
+}
+
+export interface InventarioTomaFisica {
+  id?: string
+  ejercicio: number
+  fecha_toma: string
+  valor_inventario_final: number
+  responsable?: string
+  observaciones?: string
+  creado_en?: string
+  actualizado_en?: string
 }
 
 export interface CierreContable {

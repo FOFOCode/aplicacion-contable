@@ -1,15 +1,17 @@
 "use client"
 
-import { Ban, ShieldCheck, Trash2 } from "lucide-react"
+import { Ban, FileSpreadsheet, ShieldCheck, Trash2 } from "lucide-react"
 import { AsientoForm } from "@/components/asiento-form"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useContabilidad } from "@/components/contabilidad-provider"
 import { formatoMoneda, totalesAsiento } from "@/lib/contabilidad"
+import { exportarLibroExcel } from "@/lib/excel"
 import type { Asiento } from "@/lib/types"
 
 export default function LibroDiarioPage() {
-  const { asientos, cuentas, anularAsiento } = useContabilidad()
+  const { asientos, cuentas, anularAsiento, esEjercicioCerrado, ejercicioSeleccionado } = useContabilidad()
 
   const nombreCuenta = (codigo: string) =>
     cuentas.find((c) => c.codigo === codigo)?.nombre ?? "Cuenta desconocida"
@@ -20,7 +22,53 @@ export default function LibroDiarioPage() {
     return b.numero - a.numero
   })
 
+  function exportarExcel() {
+    const filas: (string | number | null | undefined)[][] = [
+      ["SISTEMA CONTABLE AUTOMATIZADO - LIBRO DIARIO"],
+      [`Ejercicio Fiscal: ${ejercicioSeleccionado}`],
+      [`Fecha de emisión: ${new Date().toLocaleDateString("es-SV")}`],
+      [],
+      [
+        "Fecha",
+        "Partida #",
+        "Correlativo Global",
+        "Tipo",
+        "Estado",
+        "Concepto",
+        "Código Cuenta",
+        "Nombre Cuenta",
+        "Debe",
+        "Haber",
+      ],
+    ]
+
+    for (const a of ordenados) {
+      for (const l of a.lineas) {
+        filas.push([
+          a.fecha,
+          a.numero,
+          a.correlativo_global ?? "-",
+          a.tipo || "OPERACION",
+          a.estado || "APLICADO",
+          a.concepto,
+          l.codigo,
+          nombreCuenta(l.codigo),
+          Number(l.debe) || 0,
+          Number(l.haber) || 0,
+        ])
+      }
+    }
+
+    exportarLibroExcel(`Libro_Diario_Ejercicio_${ejercicioSeleccionado}`, [
+      { nombre: "Libro Diario", filas },
+    ])
+  }
+
   function handleAnular(a: Asiento) {
+    if (esEjercicioCerrado) {
+      alert(`Operación Denegada por Auditoría: El ejercicio fiscal ${ejercicioSeleccionado} se encuentra CERRADO o BLOQUEADO. Las partidas contables no pueden ser anuladas ni modificadas.`)
+      return
+    }
     if (a.estado === "ANULADO") {
       alert("Esta partida ya se encuentra anulada en el historial contable.")
       return
@@ -37,12 +85,25 @@ export default function LibroDiarioPage() {
   return (
     <div className="space-y-8">
       <header className="space-y-2">
-        <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Libro Diario</h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Registro de asientos con numeración reiniciada por año fiscal (Partidas 1..N) y correlativo
-          global ininterrumpido. Por auditoría, no se eliminan partidas en cascada: se anulan preservando
-          el historial íntegro.
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Libro Diario</h1>
+            <p className="max-w-2xl text-sm text-muted-foreground">
+              Registro de asientos con numeración reiniciada por año fiscal (Partidas 1..N) y correlativo
+              global ininterrumpido. Por auditoría, no se eliminan partidas en cascada: se anulan preservando
+              el historial íntegro.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={exportarExcel}
+            className="border-emerald-600/40 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/20"
+          >
+            <FileSpreadsheet className="size-4 text-emerald-600 mr-1.5" />
+            Exportar Excel
+          </Button>
+        </div>
       </header>
 
       <AsientoForm />

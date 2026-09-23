@@ -17,12 +17,13 @@ function nuevaLinea(): LineaEditable {
 }
 
 export function AsientoForm() {
-  const { cuentas, agregarAsiento } = useContabilidad()
+  const { cuentas, agregarAsiento, esEjercicioCerrado, ejercicioSeleccionado } = useContabilidad()
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10))
   const [concepto, setConcepto] = useState("")
   const [lineas, setLineas] = useState<LineaEditable[]>([nuevaLinea(), nuevaLinea()])
   const [errores, setErrores] = useState<string[]>([])
   const [exito, setExito] = useState(false)
+  const [guardando, setGuardando] = useState(false)
 
   const totales = useMemo(() => totalesAsiento(lineas), [lineas])
   const balanceado = totales.debe === totales.haber && totales.debe > 0
@@ -56,8 +57,13 @@ export function AsientoForm() {
     setErrores([])
   }
 
-  function guardar() {
+  async function guardar() {
     setExito(false)
+    if (esEjercicioCerrado) {
+      setErrores([`El ejercicio fiscal ${ejercicioSeleccionado} se encuentra cerrado o bloqueado. No se admiten nuevas operaciones.`])
+      return
+    }
+
     const limpias = lineas
       .filter((l) => l.codigo)
       .map(({ codigo, debe, haber }) => ({ codigo, debe: Number(debe) || 0, haber: Number(haber) || 0 }))
@@ -67,8 +73,16 @@ export function AsientoForm() {
       setErrores(validacion.errores)
       return
     }
-    // El guardado sólo ocurre cuando la Partida Doble es válida.
-    agregarAsiento({ fecha, concepto: concepto.trim(), lineas: limpias })
+
+    setGuardando(true)
+    const res = await agregarAsiento({ fecha, concepto: concepto.trim(), lineas: limpias })
+    setGuardando(false)
+
+    if (res && !res.success) {
+      setErrores([res.error || "Error al guardar el asiento"])
+      return
+    }
+
     setErrores([])
     setExito(true)
     limpiar()
@@ -219,11 +233,20 @@ export function AsientoForm() {
           </div>
         )}
 
+        {esEjercicioCerrado && (
+          <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200">
+            <TriangleAlert className="size-4 shrink-0 text-amber-600" />
+            <span>
+              El ejercicio fiscal <strong>{ejercicioSeleccionado}</strong> se encuentra CERRADO o BLOQUEADO. No se pueden registrar nuevas partidas contables en este año.
+            </span>
+          </div>
+        )}
+
         <div className="flex gap-3">
-          <Button type="button" onClick={guardar}>
-            Guardar asiento
+          <Button type="button" onClick={guardar} disabled={esEjercicioCerrado || guardando}>
+            {guardando ? "Guardando..." : "Guardar asiento"}
           </Button>
-          <Button type="button" variant="ghost" onClick={limpiar}>
+          <Button type="button" variant="ghost" onClick={limpiar} disabled={guardando}>
             Limpiar
           </Button>
         </div>

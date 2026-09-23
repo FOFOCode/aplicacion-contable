@@ -296,6 +296,7 @@ CREATE TABLE asiento_historial (
     total_debe NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
     total_haber NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
     motivo TEXT,
+    usuario_email VARCHAR(150) NOT NULL DEFAULT 'admin@contable.sv',
     creado_en TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -345,7 +346,8 @@ FOR EACH ROW EXECUTE FUNCTION fn_prohibir_delete_contable();
 -- 11. PROCEDIMIENTO DE ANULACIÓN FORMAL DE ASIENTOS
 CREATE OR REPLACE FUNCTION sp_anular_asiento(
     p_asiento_id UUID,
-    p_motivo TEXT DEFAULT 'Anulación contable por corrección/auditoría'
+    p_motivo TEXT DEFAULT 'Anulación contable por corrección/auditoría',
+    p_usuario_email TEXT DEFAULT 'admin@contable.sv'
 )
 RETURNS BOOLEAN AS $$
 DECLARE
@@ -388,10 +390,10 @@ BEGIN
 
     INSERT INTO asiento_historial (
         asiento_id, accion, ejercicio, numero, concepto,
-        total_debe, total_haber, motivo
+        total_debe, total_haber, motivo, usuario_email
     ) VALUES (
         p_asiento_id, 'ANULACION', v_ejercicio, v_numero, v_concepto,
-        v_total_debe, v_total_haber, p_motivo
+        v_total_debe, v_total_haber, p_motivo, COALESCE(p_usuario_email, 'admin@contable.sv')
     );
 
     RETURN TRUE;
