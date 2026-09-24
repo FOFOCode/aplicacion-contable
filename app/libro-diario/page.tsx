@@ -51,9 +51,11 @@ import {
 } from "@/lib/asientoInferenceEngine"
 import { HistorialFoliosDrawer } from "@/components/contabilidad/HistorialFoliosDrawer"
 import { CuentaCombobox } from "@/components/contabilidad/CuentaCombobox"
+import { CapturaAsistida } from "@/components/captura-asistida"
 import { useContableKeyboard } from "@/hooks/useContableKeyboard"
 import { exportarFolioPDF, exportarFolioCSV } from "@/lib/exportFolio"
 import { cn } from "@/lib/utils"
+import type { AsientoLinea } from "@/lib/types"
 
 interface LineaCaptura {
   key: string
@@ -151,6 +153,7 @@ export default function LibroDiarioPage() {
   const [modalReabrirOpen, setModalReabrirOpen] = useState(false)
   const [motivoReapertura, setMotivoReapertura] = useState("")
   const [reabriendoFolio, setReabriendoFolio] = useState(false)
+  const [mostrarAsistentePlantillas, setMostrarAsistentePlantillas] = useState(false)
 
   // Notificaciones
   const [notificacion, setNotificacion] = useState<{
@@ -635,6 +638,88 @@ export default function LibroDiarioPage() {
     [modoCaptura],
   )
 
+  // Agregar IVA 13% sobre base neta (Comprobante de Crédito Fiscal - CCF)
+  // Mantiene intacta la base ingresada y agrega/actualiza la cuenta de IVA correspondiente
+  const handleAgregarIVA_Neto = useCallback(
+    (lineaKey: string, codigoOverride?: string) => {
+      setLineas((prevLineas) => {
+        const targetIndex = prevLineas.findIndex((l) => l.key === lineaKey)
+        if (targetIndex === -1) return prevLineas
+
+        const targetLinea = prevLineas[targetIndex]
+        const codigo = codigoOverride || targetLinea.codigo
+        const infoIva = esCuentaSujetaAIVA(codigo)
+        if (!infoIva.esSujeta) return prevLineas
+
+        let montoNeto = 0
+        if (modoCaptura === "CLASICO") {
+          montoNeto =
+            Number(targetLinea.debeDirecto) ||
+            Number(targetLinea.haberDirecto) ||
+            0
+        } else {
+          montoNeto = Number(targetLinea.monto) || 0
+        }
+
+        if (montoNeto <= 0) return prevLineas
+
+        const iva = redondear(montoNeto * 0.13)
+        const updated = [...prevLineas]
+        const esCompraOActivo = infoIva.tipo === "COMPRA"
+
+        // Buscar si ya existe la línea de IVA correspondiente
+        const ivaIndex = prevLineas.findIndex(
+          (l, idx) => idx !== targetIndex && l.codigo === infoIva.cuentaIvaCodigo,
+        )
+
+        if (ivaIndex !== -1) {
+          updated[ivaIndex] = {
+            ...updated[ivaIndex],
+            codigo: infoIva.cuentaIvaCodigo,
+            monto: iva,
+            operacion: "AUMENTA",
+            debeDirecto: esCompraOActivo ? iva : "",
+            haberDirecto: esCompraOActivo ? "" : iva,
+          }
+        } else {
+          const nextIdx = targetIndex + 1
+          const nextLinea = updated[nextIdx]
+          const nextEsVacia =
+            nextLinea &&
+            !nextLinea.codigo &&
+            (!nextLinea.monto || nextLinea.monto === 0) &&
+            (!nextLinea.debeDirecto || nextLinea.debeDirecto === 0) &&
+            (!nextLinea.haberDirecto || nextLinea.haberDirecto === 0)
+
+          const nuevaLineaIva: LineaCaptura = {
+            key: nextEsVacia ? nextLinea.key : String(Date.now() + Math.random()),
+            codigo: infoIva.cuentaIvaCodigo,
+            monto: iva,
+            operacion: "AUMENTA",
+            debeDirecto: esCompraOActivo ? iva : "",
+            haberDirecto: esCompraOActivo ? "" : iva,
+          }
+
+          if (nextEsVacia) {
+            updated[nextIdx] = nuevaLineaIva
+          } else {
+            updated.splice(nextIdx, 0, nuevaLineaIva)
+          }
+        }
+
+        setTimeout(() => {
+          setNotificacion({
+            tipo: "exito",
+            mensaje: `+ IVA 13% Crédito Fiscal: Base Neta ${formatoMoneda(montoNeto)} + ${infoIva.cuentaIvaNombre} ${formatoMoneda(iva)} = Total ${formatoMoneda(montoNeto + iva)}.`,
+          })
+        }, 50)
+
+        return updated
+      })
+    },
+    [modoCaptura],
+  )
+
   // Conversión bidireccional limpia al alternar entre Modo Smart (+/-) y Modo Clásico (D/H)
   const handleCambiarModoCaptura = useCallback(
     (nuevoModo: ModoCaptura) => {
@@ -686,6 +771,41 @@ export default function LibroDiarioPage() {
       { key: "2", codigo: "", monto: "", operacion: "AUMENTA", debeDirecto: "", haberDirecto: "" },
     ])
   }
+
+  // Aplicar datos desde el Asistente de Plantillas
+  const handleAplicarDesdeAsistente = useCallback((datos: {
+    fecha?: string
+    tipo?: "OPERACION" | "AJUSTE"
+    documento_soporte?: string
+    concepto: string
+    lineas: AsientoLinea[]
+  }) => {
+    if (datos.concepto) setConcepto(datos.concepto)
+    if (datos.documento_soporte) setDocumentoSoporte(datos.documento_soporte)
+    if (datos.tipo) setTipoPartida(datos.tipo)
+    if (datos.lineas && datos.lineas.length > 0) {
+      setLineas(
+        datos.lineas.map((l, i) => {
+          const debe = Number(l.debe) || 0
+          const haber = Number(l.haber) || 0
+          const monto = debe > 0 ? debe : haber
+          return {
+            key: String(Date.now() + i),
+            codigo: l.codigo,
+            monto: monto > 0 ? monto : "",
+            operacion: debe > 0 ? "AUMENTA" : "DISMINUYE",
+            debeDirecto: debe > 0 ? debe : "",
+            haberDirecto: haber > 0 ? haber : "",
+          }
+        }),
+      )
+    }
+    setMostrarAsistentePlantillas(false)
+    setNotificacion({
+      tipo: "exito",
+      mensaje: "Plantilla cargada exitosamente en la mesa de captura. Revisa las cuentas y pulsa Guardar Partida.",
+    })
+  }, [])
 
   // Cargar Partida para Edición In-situ
   const handleEditarPartida = (partida: {
@@ -1308,33 +1428,45 @@ export default function LibroDiarioPage() {
                     </div>
                   )}
 
-                  {/* Selector de Modo de Captura (Segmented Tabs compacto) */}
-                  <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted/40 p-1 border border-border">
+                  {/* Selector de Modo de Captura y Acceso Rápido a Plantillas */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted/40 p-1 border border-border flex-1">
+                      <button
+                        type="button"
+                        onClick={() => handleCambiarModoCaptura("SMART")}
+                        className={cn(
+                          "py-1 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+                          modoCaptura === "SMART"
+                            ? "bg-card text-foreground shadow-xs border border-border/50"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        <Zap className="size-3 text-amber-500" />
+                        <span>Smart (+/-)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleCambiarModoCaptura("CLASICO")}
+                        className={cn(
+                          "py-1 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+                          modoCaptura === "CLASICO"
+                            ? "bg-card text-foreground shadow-xs border border-border/50"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        <Sliders className="size-3 text-primary" />
+                        <span>Clásico (D/H)</span>
+                      </button>
+                    </div>
+
                     <button
                       type="button"
-                      onClick={() => handleCambiarModoCaptura("SMART")}
-                      className={cn(
-                        "py-1 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer",
-                        modoCaptura === "SMART"
-                          ? "bg-card text-foreground shadow-xs border border-border/50"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
+                      onClick={() => setMostrarAsistentePlantillas(true)}
+                      className="py-1 px-2.5 text-xs font-semibold rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 h-8"
+                      title="Cargar asiento preconfigurado desde plantilla de compras, ventas o sueldos"
                     >
-                      <Zap className="size-3 text-amber-500" />
-                      <span>Smart (+/-)</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleCambiarModoCaptura("CLASICO")}
-                      className={cn(
-                        "py-1 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer",
-                        modoCaptura === "CLASICO"
-                          ? "bg-card text-foreground shadow-xs border border-border/50"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      <Sliders className="size-3 text-primary" />
-                      <span>Clásico (D/H)</span>
+                      <Sparkles className="size-3.5 text-primary" />
+                      <span>Plantillas</span>
                     </button>
                   </div>
                 </div>
@@ -1524,15 +1656,26 @@ export default function LibroDiarioPage() {
                                         )}
                                       </div>
 
-                                      <button
-                                        type="button"
-                                        onClick={() => handleDesglosarIVA(linea.key, true)}
-                                        disabled={montoActual <= 0}
-                                        className="text-[10px] font-semibold text-amber-800 dark:text-amber-200 hover:text-amber-950 dark:hover:text-white bg-amber-500/25 hover:bg-amber-500/35 disabled:opacity-40 px-2 py-0.5 rounded transition-colors cursor-pointer shrink-0"
-                                        title="Calcular o forzar desglose de IVA (13%)"
-                                      >
-                                        ⚡ Desglosar IVA 13%
-                                      </button>
+                                      <div className="flex items-center gap-1.5 shrink-0">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleAgregarIVA_Neto(linea.key)}
+                                          disabled={montoActual <= 0}
+                                          className="text-[10px] font-semibold text-emerald-800 dark:text-emerald-200 hover:text-emerald-950 dark:hover:text-white bg-emerald-500/20 hover:bg-emerald-500/30 disabled:opacity-40 px-2 py-0.5 rounded transition-colors cursor-pointer"
+                                          title="Agregar 13% de IVA manteniendo la base neta (Comprobante de Crédito Fiscal - CCF)"
+                                        >
+                                          + IVA 13% (Neto CCF)
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDesglosarIVA(linea.key, true)}
+                                          disabled={montoActual <= 0}
+                                          className="text-[10px] font-semibold text-amber-800 dark:text-amber-200 hover:text-amber-950 dark:hover:text-white bg-amber-500/25 hover:bg-amber-500/35 disabled:opacity-40 px-2 py-0.5 rounded transition-colors cursor-pointer"
+                                          title="Desglosar IVA dividiendo entre 1.13 (Factura Consumidor Final)"
+                                        >
+                                          ⚡ Desglosar / 1.13
+                                        </button>
+                                      </div>
                                     </div>
                                   )
                                 })()}
@@ -1612,16 +1755,6 @@ export default function LibroDiarioPage() {
                                         })
                                       }
                                     }}
-                                    onBlur={() => {
-                                      if (esCuentaSujetaAIVA(linea.codigo).esSujeta) {
-                                        handleDesglosarIVA(linea.key)
-                                      }
-                                    }}
-                                    onKeyDown={(e) => {
-                                      if (e.key === "Enter" && esCuentaSujetaAIVA(linea.codigo).esSujeta) {
-                                        handleDesglosarIVA(linea.key)
-                                      }
-                                    }}
                                     className="w-full text-xs h-8 pl-6 pr-2 rounded-md border border-input bg-background text-foreground font-mono tabular-nums text-right focus:outline-none focus:ring-1 focus:ring-ring"
                                   />
                                 </div>
@@ -1662,16 +1795,6 @@ export default function LibroDiarioPage() {
                                         operacion: op,
                                       })
                                     }}
-                                    onBlur={() => {
-                                      if (esCuentaSujetaAIVA(linea.codigo).esSujeta) {
-                                        handleDesglosarIVA(linea.key)
-                                      }
-                                    }}
-                                    onKeyDown={(e) => {
-                                      if (e.key === "Enter" && esCuentaSujetaAIVA(linea.codigo).esSujeta) {
-                                        handleDesglosarIVA(linea.key)
-                                      }
-                                    }}
                                     className="w-full text-xs h-8 pl-7 pr-2 rounded-md border border-input bg-background text-foreground font-mono tabular-nums text-right focus:outline-none focus:ring-1 focus:ring-ring"
                                   />
                                 </div>
@@ -1693,16 +1816,6 @@ export default function LibroDiarioPage() {
                                         monto: val,
                                         operacion: op,
                                       })
-                                    }}
-                                    onBlur={() => {
-                                      if (esCuentaSujetaAIVA(linea.codigo).esSujeta) {
-                                        handleDesglosarIVA(linea.key)
-                                      }
-                                    }}
-                                    onKeyDown={(e) => {
-                                      if (e.key === "Enter" && esCuentaSujetaAIVA(linea.codigo).esSujeta) {
-                                        handleDesglosarIVA(linea.key)
-                                      }
                                     }}
                                     className="w-full text-xs h-8 pl-7 pr-2 rounded-md border border-input bg-background text-foreground font-mono tabular-nums text-right focus:outline-none focus:ring-1 focus:ring-ring"
                                   />
@@ -2319,6 +2432,41 @@ export default function LibroDiarioPage() {
                 {reabriendoFolio ? "Reabriendo..." : "Autorizar Reapertura"}
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Asistente de Plantillas Rápidas */}
+      {mostrarAsistentePlantillas && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          <div className="bg-card text-card-foreground rounded-2xl max-w-4xl w-full p-5 sm:p-7 shadow-2xl border border-border space-y-4 max-h-[92vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-border pb-3.5">
+              <div className="flex items-center gap-2.5">
+                <div className="size-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                  <Sparkles className="size-4.5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-foreground">
+                    Asistente de Plantillas Contables
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Selecciona una operación preconfigurada para cargar automáticamente las cuentas y fórmulas de partida doble.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMostrarAsistentePlantillas(false)}
+                className="size-8 rounded-lg border border-border hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <CapturaAsistida
+              cuentas={cuentas}
+              onAplicarAsiento={handleAplicarDesdeAsistente}
+            />
           </div>
         </div>
       )}
