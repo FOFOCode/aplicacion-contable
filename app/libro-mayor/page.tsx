@@ -54,8 +54,8 @@ export default function LibroMayorPage() {
     const mapa = new Map<
       string,
       {
-        debe: { fecha: string; numero: number; monto: number }[]
-        haber: { fecha: string; numero: number; monto: number }[]
+        debe: { fecha: string; numero: number; concepto: string; monto: number }[]
+        haber: { fecha: string; numero: number; concepto: string; monto: number }[]
       }
     >()
 
@@ -65,11 +65,12 @@ export default function LibroMayorPage() {
           mapa.set(l.codigo, { debe: [], haber: [] })
         }
         const obj = mapa.get(l.codigo)!
+        const concepto = a.concepto?.trim() || "Concepto no informado"
         if (Number(l.debe) > 0) {
-          obj.debe.push({ fecha: a.fecha, numero: a.numero, monto: Number(l.debe) })
+          obj.debe.push({ fecha: a.fecha, numero: a.numero, concepto, monto: Number(l.debe) })
         }
         if (Number(l.haber) > 0) {
-          obj.haber.push({ fecha: a.fecha, numero: a.numero, monto: Number(l.haber) })
+          obj.haber.push({ fecha: a.fecha, numero: a.numero, concepto, monto: Number(l.haber) })
         }
       }
     }
@@ -121,6 +122,55 @@ export default function LibroMayorPage() {
     filasMayor.push([])
     filasMayor.push(["TOTALES", "", "", "", totalDebe, totalHaber, "", ""])
 
+    const filasDetalle: (string | number | null | undefined)[][] = [
+      ["DETALLE DE CUENTAS T"],
+      [`Ejercicio fiscal: ${ejercicioSeleccionado}`],
+      [`Fecha de emisión: ${new Date().toLocaleDateString("es-SV")}`],
+      [],
+      ["Código", "Cuenta", "Folio", "Fecha", "Concepto", "Debe", "Haber", "Saldo final", "Condición"],
+    ]
+
+    for (const m of mayor) {
+      const movimientos = movimientosPorCuenta.get(m.cuenta.codigo)
+      for (const movimiento of movimientos?.debe || []) {
+        filasDetalle.push([
+          m.cuenta.codigo,
+          m.cuenta.nombre,
+          movimiento.numero,
+          movimiento.fecha,
+          movimiento.concepto,
+          movimiento.monto,
+          0,
+          "",
+          "",
+        ])
+      }
+      for (const movimiento of movimientos?.haber || []) {
+        filasDetalle.push([
+          m.cuenta.codigo,
+          m.cuenta.nombre,
+          movimiento.numero,
+          movimiento.fecha,
+          movimiento.concepto,
+          0,
+          movimiento.monto,
+          "",
+          "",
+        ])
+      }
+      filasDetalle.push([
+        m.cuenta.codigo,
+        m.cuenta.nombre,
+        "",
+        "",
+        "Saldo final",
+        "",
+        "",
+        m.saldo,
+        m.naturalezaSaldo || "Saldada",
+      ])
+    }
+
     const filasComprobacion: (string | number | null | undefined)[][] = [
       ["BALANCE DE COMPROBACIÓN"],
       [`Ejercicio fiscal: ${ejercicioSeleccionado}`],
@@ -146,6 +196,7 @@ export default function LibroMayorPage() {
 
     exportarLibroExcel(`Libro_Mayor_Ejercicio_${ejercicioSeleccionado}`, [
       { nombre: "Libro Mayor", filas: filasMayor },
+      { nombre: "Detalle Cuentas T", filas: filasDetalle },
       { nombre: "Balance de Comprobación", filas: filasComprobacion },
     ])
   }
@@ -169,6 +220,9 @@ export default function LibroMayorPage() {
               <span className="text-xs text-muted-foreground">·</span>
               <Badge variant="default" className="text-xs font-mono">
                 Ciclo Fiscal {ejercicioSeleccionado}
+              </Badge>
+              <Badge variant="success" className="text-[10px]">
+                Mayorización automática
               </Badge>
             </div>
             <h1 className="text-2xl font-bold tracking-tight md:text-3xl mt-0.5">Libro Mayor y Balanza</h1>
@@ -326,11 +380,16 @@ export default function LibroMayorPage() {
                             <p className="text-center text-muted-foreground/40 py-2">-</p>
                           ) : (
                             movs.debe.map((item, idx) => (
-                              <div key={idx} className="flex justify-between items-center pt-1 font-mono">
-                                <span className="text-[10px] text-muted-foreground">
-                                  #{item.numero} ({item.fecha.slice(5)})
-                                </span>
-                                <span className="font-medium text-foreground">
+                              <div key={idx} className="flex items-start justify-between gap-2 pt-1">
+                                <div className="min-w-0">
+                                  <span className="block font-mono text-[10px] text-muted-foreground">
+                                    #{item.numero} ({item.fecha.slice(5)})
+                                  </span>
+                                  <span className="mt-0.5 block truncate text-[10px] text-foreground" title={item.concepto}>
+                                    {item.concepto}
+                                  </span>
+                                </div>
+                                <span className="shrink-0 font-mono font-medium text-foreground">
                                   {formatoMoneda(item.monto)}
                                 </span>
                               </div>
@@ -355,11 +414,16 @@ export default function LibroMayorPage() {
                             <p className="text-center text-muted-foreground/40 py-2">-</p>
                           ) : (
                             movs.haber.map((item, idx) => (
-                              <div key={idx} className="flex justify-between items-center pt-1 font-mono">
-                                <span className="text-[10px] text-muted-foreground">
-                                  #{item.numero} ({item.fecha.slice(5)})
-                                </span>
-                                <span className="font-medium text-foreground">
+                              <div key={idx} className="flex items-start justify-between gap-2 pt-1">
+                                <div className="min-w-0">
+                                  <span className="block font-mono text-[10px] text-muted-foreground">
+                                    #{item.numero} ({item.fecha.slice(5)})
+                                  </span>
+                                  <span className="mt-0.5 block truncate text-[10px] text-foreground" title={item.concepto}>
+                                    {item.concepto}
+                                  </span>
+                                </div>
+                                <span className="shrink-0 font-mono font-medium text-foreground">
                                   {formatoMoneda(item.monto)}
                                 </span>
                               </div>

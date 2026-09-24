@@ -14,8 +14,8 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgrespassword
       PGDATA: /var/lib/postgresql/data/pgdata
-    ports:
-      - "5432:5432"
+    # PostgreSQL se comunica con la aplicación únicamente por la red interna de Docker.
+    # No se publica el puerto 5432 en el host para evitar conflictos con otros proyectos.
     volumes:
       - postgres_data:/var/lib/postgresql/data
       # Inicialización automática: schema y catálogo con datos iniciales
