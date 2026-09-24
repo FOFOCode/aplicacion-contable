@@ -121,7 +121,12 @@ const GLOSAS_RAPIDAS = [
 ]
 
 export default function LibroDiarioPage() {
-  const { cuentas, recargarAsientos } = useContabilidad()
+  const { cuentas, recargarAsientos, recargarReporteAnaliticoSql, ejercicioSeleccionado } = useContabilidad()
+
+  // Refresca asientos y el Estado de Resultados (reporte analítico SQL) tras cualquier cambio
+  const recargarDatosDespuesDeCambio = useCallback(async () => {
+    await Promise.all([recargarAsientos(), recargarReporteAnaliticoSql(ejercicioSeleccionado)])
+  }, [recargarAsientos, recargarReporteAnaliticoSql, ejercicioSeleccionado])
 
   // Estado del Folio Diario
   const [fechaSeleccionada, setFechaSeleccionada] = useState<string>(() =>
@@ -203,7 +208,7 @@ export default function LibroDiarioPage() {
         mensaje: `Folio diario para el día ${fechaSeleccionada} aperturado exitosamente.`,
       })
       await cargarFolioFecha(fechaSeleccionada)
-      await recargarAsientos()
+      await recargarDatosDespuesDeCambio()
     } catch (e: unknown) {
       setNotificacion({
         tipo: "error",
@@ -239,7 +244,7 @@ export default function LibroDiarioPage() {
       })
       setModalCierreOpen(false)
       await cargarFolioFecha(fechaSeleccionada)
-      await recargarAsientos()
+      await recargarDatosDespuesDeCambio()
     } catch (e: unknown) {
       setNotificacion({
         tipo: "error",
@@ -283,7 +288,7 @@ export default function LibroDiarioPage() {
       setModalReabrirOpen(false)
       setMotivoReapertura("")
       await cargarFolioFecha(fechaSeleccionada)
-      await recargarAsientos()
+      await recargarDatosDespuesDeCambio()
     } catch (e: unknown) {
       setNotificacion({
         tipo: "error",
@@ -871,7 +876,7 @@ export default function LibroDiarioPage() {
         tipo: "exito",
         mensaje: `Partida #${partida.numero} anulada correctamente en el folio.`,
       })
-      await Promise.all([cargarFolioFecha(fechaSeleccionada), recargarAsientos()])
+      await Promise.all([cargarFolioFecha(fechaSeleccionada), recargarDatosDespuesDeCambio()])
     } catch (e: unknown) {
       setNotificacion({
         tipo: "error",
@@ -950,7 +955,7 @@ export default function LibroDiarioPage() {
         })
 
         handleLimpiarFormulario()
-        await Promise.all([cargarFolioFecha(fechaSeleccionada), recargarAsientos()])
+        await Promise.all([cargarFolioFecha(fechaSeleccionada), recargarDatosDespuesDeCambio()])
       } catch (e: unknown) {
         setNotificacion({
           tipo: "error",
@@ -970,7 +975,7 @@ export default function LibroDiarioPage() {
       datosFolio?.folio?.id,
       partidaEnEdicion,
       cargarFolioFecha,
-      recargarAsientos,
+      recargarDatosDespuesDeCambio,
     ],
   )
 

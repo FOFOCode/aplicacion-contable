@@ -1,19 +1,34 @@
-"use client"
+"use client";
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode, useCallback } from "react"
-import { CATALOGO_CUENTAS } from "@/lib/catalogo"
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+  useCallback,
+} from "react";
+import { CATALOGO_CUENTAS, enriquecerJerarquia } from "@/lib/catalogo";
 import {
   calcularBalanceGeneral,
   calcularEstadoResultados,
   calcularMayor,
-} from "@/lib/contabilidad"
-import type { Asiento, CierreContable, Cuenta, EjercicioFiscal, InventarioTomaFisica } from "@/lib/types"
+} from "@/lib/contabilidad";
+import type {
+  Asiento,
+  CierreContable,
+  Cuenta,
+  EjercicioFiscal,
+  InventarioTomaFisica,
+  ReporteEstadosFinancieros,
+} from "@/lib/types";
 
-const STORAGE_ASIENTOS = "modulo-contable:asientos"
-const STORAGE_CUENTAS = "modulo-contable:cuentas"
-const STORAGE_CIERRES = "modulo-contable:cierres"
-const STORAGE_EJERCICIO = "modulo-contable:ejercicio_seleccionado"
-const STORAGE_TOMA = "modulo-contable:toma_fisica"
+const STORAGE_ASIENTOS = "modulo-contable:asientos";
+const STORAGE_CUENTAS = "modulo-contable:cuentas";
+const STORAGE_CIERRES = "modulo-contable:cierres";
+const STORAGE_EJERCICIO = "modulo-contable:ejercicio_seleccionado";
+const STORAGE_TOMA = "modulo-contable:toma_fisica";
 
 const EJERCICIOS_DEFECTO: EjercicioFiscal[] = [
   {
@@ -23,15 +38,16 @@ const EJERCICIOS_DEFECTO: EjercicioFiscal[] = [
     ultimo_numero: 7,
     estado: "ABIERTO",
   },
-]
+];
 
 const TOMA_FISICA_DEFECTO: InventarioTomaFisica = {
   ejercicio: 2026,
   fecha_toma: "2026-12-31",
   valor_inventario_final: 6500.0,
   responsable: "Comité de Auditoría y Control de Inventarios",
-  observaciones: "Toma física de existencias y conteo al cierre del ejercicio 2026 (Método Analítico)",
-}
+  observaciones:
+    "Toma física de existencias y conteo al cierre del ejercicio 2026 (Método Analítico)",
+};
 
 const ASIENTOS_EJEMPLO: Asiento[] = [
   {
@@ -39,7 +55,8 @@ const ASIENTOS_EJEMPLO: Asiento[] = [
     ejercicio: 2026,
     numero: 1,
     fecha: "2026-01-02",
-    concepto: "Aportación inicial de los socios en efectivo, banco e inventario inicial de mercaderías.",
+    concepto:
+      "Aportación inicial de los socios en efectivo, banco e inventario inicial de mercaderías.",
     tipo: "APERTURA",
     estado: "APLICADO",
     lineas: [
@@ -54,7 +71,8 @@ const ASIENTOS_EJEMPLO: Asiento[] = [
     ejercicio: 2026,
     numero: 2,
     fecha: "2026-01-05",
-    concepto: "Compra de mercadería al contado según factura (Método Analítico).",
+    concepto:
+      "Compra de mercadería al contado según factura (Método Analítico).",
     tipo: "OPERACION",
     estado: "APLICADO",
     lineas: [
@@ -68,7 +86,8 @@ const ASIENTOS_EJEMPLO: Asiento[] = [
     ejercicio: 2026,
     numero: 3,
     fecha: "2026-01-07",
-    concepto: "Pago de fletes y transporte de mercadería comprada (Método Analítico).",
+    concepto:
+      "Pago de fletes y transporte de mercadería comprada (Método Analítico).",
     tipo: "OPERACION",
     estado: "APLICADO",
     lineas: [
@@ -82,7 +101,8 @@ const ASIENTOS_EJEMPLO: Asiento[] = [
     ejercicio: 2026,
     numero: 4,
     fecha: "2026-01-09",
-    concepto: "Devolución de mercadería dañada al proveedor según nota de crédito (Método Analítico).",
+    concepto:
+      "Devolución de mercadería dañada al proveedor según nota de crédito (Método Analítico).",
     tipo: "OPERACION",
     estado: "APLICADO",
     lineas: [
@@ -96,7 +116,8 @@ const ASIENTOS_EJEMPLO: Asiento[] = [
     ejercicio: 2026,
     numero: 5,
     fecha: "2026-01-12",
-    concepto: "Venta de mercaderías al contado con IVA débito fiscal (Método Analítico).",
+    concepto:
+      "Venta de mercaderías al contado con IVA débito fiscal (Método Analítico).",
     tipo: "OPERACION",
     estado: "APLICADO",
     lineas: [
@@ -110,7 +131,8 @@ const ASIENTOS_EJEMPLO: Asiento[] = [
     ejercicio: 2026,
     numero: 6,
     fecha: "2026-01-15",
-    concepto: "Cliente devuelve mercadería por no cumplir especificaciones técnicas (Método Analítico).",
+    concepto:
+      "Cliente devuelve mercadería por no cumplir especificaciones técnicas (Método Analítico).",
     tipo: "OPERACION",
     estado: "APLICADO",
     lineas: [
@@ -124,7 +146,8 @@ const ASIENTOS_EJEMPLO: Asiento[] = [
     ejercicio: 2026,
     numero: 7,
     fecha: "2026-01-20",
-    concepto: "Pago de servicios contables y gastos administrativos con cheque.",
+    concepto:
+      "Pago de servicios contables y gastos administrativos con cheque.",
     tipo: "OPERACION",
     estado: "APLICADO",
     lineas: [
@@ -132,183 +155,230 @@ const ASIENTOS_EJEMPLO: Asiento[] = [
       { codigo: "1102", debe: 0, haber: 800 },
     ],
   },
-]
+];
 
 interface ContabilidadContextValue {
-  cuentas: Cuenta[]
-  asientos: Asiento[]
-  cierres: CierreContable[]
-  ejercicios: EjercicioFiscal[]
-  ejercicioSeleccionado: number
-  setEjercicioSeleccionado: (e: number) => void
-  ejercicioActual: EjercicioFiscal | undefined
-  esEjercicioCerrado: boolean
-  tomaFisica: InventarioTomaFisica | null
-  guardarTomaFisica: (toma: Partial<InventarioTomaFisica>) => Promise<boolean>
-  cambiarEstadoEjercicio: (ejercicio: number, nuevoEstado: "ABIERTO" | "CERRADO" | "BLOQUEADO") => Promise<boolean>
-  crearEjercicio: (ejercicio: number) => Promise<boolean>
-  generarPartidaApertura: (origen: number, destino: number) => Promise<{ success: boolean; error?: string }>
-  dbConnected: boolean
-  cargando: boolean
-  agregarAsiento: (a: Omit<Asiento, "id" | "numero">) => Promise<{ success: boolean; error?: string }>
-  eliminarAsiento: (id: string, motivo?: string) => Promise<void>
-  anularAsiento: (id: string, motivo?: string) => Promise<{ success: boolean; error?: string }>
-  agregarCuenta: (c: Cuenta) => Promise<void>
-  renombrarCuenta: (codigo: string, nombre: string) => Promise<void>
-  eliminarCuenta: (codigo: string) => { softDeleted: boolean }
-  reactivarCuenta: (codigo: string) => Promise<void>
-  cuentaEnUso: (codigo: string) => boolean
-  reiniciarEjemplo: () => void
-  limpiarTodo: () => void
-  cerrarCicloContable: (opciones?: { aperturarSiguiente?: boolean }) => Promise<{ success: boolean; error?: string; [key: string]: any } | void>
-  recargarCierres: () => Promise<void>
-  recargarAsientos: () => Promise<void>
-  recargarTodo: () => Promise<void>
-  mayor: ReturnType<typeof calcularMayor>
-  estadoResultados: ReturnType<typeof calcularEstadoResultados>
-  balanceGeneral: ReturnType<typeof calcularBalanceGeneral>
+  cuentas: Cuenta[];
+  asientos: Asiento[];
+  cierres: CierreContable[];
+  ejercicios: EjercicioFiscal[];
+  ejercicioSeleccionado: number;
+  setEjercicioSeleccionado: (e: number) => void;
+  ejercicioActual: EjercicioFiscal | undefined;
+  esEjercicioCerrado: boolean;
+  tomaFisica: InventarioTomaFisica | null;
+  guardarTomaFisica: (toma: Partial<InventarioTomaFisica>) => Promise<boolean>;
+  cambiarEstadoEjercicio: (
+    ejercicio: number,
+    nuevoEstado: "ABIERTO" | "CERRADO" | "BLOQUEADO",
+  ) => Promise<boolean>;
+  crearEjercicio: (ejercicio: number) => Promise<boolean>;
+  generarPartidaApertura: (
+    origen: number,
+    destino: number,
+  ) => Promise<{ success: boolean; error?: string }>;
+  dbConnected: boolean;
+  cargando: boolean;
+  agregarAsiento: (
+    a: Omit<Asiento, "id" | "numero">,
+  ) => Promise<{ success: boolean; error?: string }>;
+  eliminarAsiento: (id: string, motivo?: string) => Promise<void>;
+  anularAsiento: (
+    id: string,
+    motivo?: string,
+  ) => Promise<{ success: boolean; error?: string }>;
+  agregarCuenta: (c: Cuenta) => Promise<void>;
+  renombrarCuenta: (codigo: string, nombre: string) => Promise<void>;
+  eliminarCuenta: (codigo: string) => { softDeleted: boolean };
+  reactivarCuenta: (codigo: string) => Promise<void>;
+  cuentaEnUso: (codigo: string) => boolean;
+  reiniciarEjemplo: () => void;
+  limpiarTodo: () => void;
+  cerrarCicloContable: (opciones?: {
+    aperturarSiguiente?: boolean;
+  }) => Promise<{
+    success: boolean;
+    error?: string;
+    [key: string]: any;
+  } | void>;
+  recargarCierres: () => Promise<void>;
+  recargarAsientos: () => Promise<void>;
+  recargarTodo: () => Promise<void>;
+  recargarReporteAnaliticoSql: (ejercicio: number) => Promise<void>;
+  mayor: ReturnType<typeof calcularMayor>;
+  estadoResultados: ReturnType<typeof calcularEstadoResultados>;
+  balanceGeneral: ReturnType<typeof calcularBalanceGeneral>;
 }
 
-const ContabilidadContext = createContext<ContabilidadContextValue | null>(null)
+const ContabilidadContext = createContext<ContabilidadContextValue | null>(
+  null,
+);
 
 export function ContabilidadProvider({ children }: { children: ReactNode }) {
-  const [cuentas, setCuentas] = useState<Cuenta[]>(CATALOGO_CUENTAS)
-  const [asientos, setAsientos] = useState<Asiento[]>(ASIENTOS_EJEMPLO)
-  const [cierres, setCierres] = useState<CierreContable[]>([])
-  const [ejercicios, setEjercicios] = useState<EjercicioFiscal[]>(EJERCICIOS_DEFECTO)
-  const [ejercicioSeleccionado, setEjercicioSeleccionadoState] = useState<number>(2026)
-  const [tomaFisica, setTomaFisica] = useState<InventarioTomaFisica | null>(TOMA_FISICA_DEFECTO)
-  const [reporteAnaliticoSql, setReporteAnaliticoSql] = useState<Record<string, unknown> | null>(null)
-  const [hidratado, setHidratado] = useState(false)
-  const [dbConnected, setDbConnected] = useState(false)
-  const [cargando, setCargando] = useState(true)
+  const [cuentas, setCuentas] = useState<Cuenta[]>(CATALOGO_CUENTAS);
+  const [asientos, setAsientos] = useState<Asiento[]>(ASIENTOS_EJEMPLO);
+  const [cierres, setCierres] = useState<CierreContable[]>([]);
+  const [ejercicios, setEjercicios] =
+    useState<EjercicioFiscal[]>(EJERCICIOS_DEFECTO);
+  const [ejercicioSeleccionado, setEjercicioSeleccionadoState] =
+    useState<number>(2026);
+  const [tomaFisica, setTomaFisica] = useState<InventarioTomaFisica | null>(
+    TOMA_FISICA_DEFECTO,
+  );
+  const [reporteAnaliticoSql, setReporteAnaliticoSql] =
+    useState<ReporteEstadosFinancieros | null>(null);
+  const [hidratado, setHidratado] = useState(false);
+  const [dbConnected, setDbConnected] = useState(false);
+  const [cargando, setCargando] = useState(true);
 
   const ejercicioActual = useMemo(() => {
-    return ejercicios.find((e) => e.ejercicio === ejercicioSeleccionado) || {
-      ejercicio: ejercicioSeleccionado,
-      fecha_inicio: `${ejercicioSeleccionado}-01-01`,
-      fecha_fin: `${ejercicioSeleccionado}-12-31`,
-      ultimo_numero: 0,
-      estado: "ABIERTO" as const,
-    }
-  }, [ejercicios, ejercicioSeleccionado])
+    return (
+      ejercicios.find((e) => e.ejercicio === ejercicioSeleccionado) || {
+        ejercicio: ejercicioSeleccionado,
+        fecha_inicio: `${ejercicioSeleccionado}-01-01`,
+        fecha_fin: `${ejercicioSeleccionado}-12-31`,
+        ultimo_numero: 0,
+        estado: "ABIERTO" as const,
+      }
+    );
+  }, [ejercicios, ejercicioSeleccionado]);
 
   const esEjercicioCerrado = useMemo(() => {
-    return ejercicioActual.estado !== "ABIERTO"
-  }, [ejercicioActual])
+    return ejercicioActual.estado !== "ABIERTO";
+  }, [ejercicioActual]);
 
   const setEjercicioSeleccionado = (ej: number) => {
-    setEjercicioSeleccionadoState(ej)
+    setEjercicioSeleccionadoState(ej);
     if (typeof window !== "undefined") {
-      localStorage.setItem(STORAGE_EJERCICIO, ej.toString())
+      localStorage.setItem(STORAGE_EJERCICIO, ej.toString());
     }
-  }
+  };
 
   const recargarCierres = async () => {
     try {
-      const res = await fetch("/api/cierres")
+      const res = await fetch("/api/cierres");
       if (res.ok) {
-        const data = await res.json()
-        if (Array.isArray(data)) setCierres(data)
+        const data = await res.json();
+        if (Array.isArray(data)) setCierres(data);
       }
     } catch (e) {
-      console.error("Error al cargar cierres:", e)
+      console.error("Error al cargar cierres:", e);
     }
-  }
+  };
 
   const recargarAsientos = useCallback(async () => {
-    if (!dbConnected) return
+    if (!dbConnected) return;
     try {
-      const res = await fetch(`/api/asientos?ejercicio=${ejercicioSeleccionado}`)
+      const res = await fetch(
+        `/api/asientos?ejercicio=${ejercicioSeleccionado}`,
+      );
       if (res.ok) {
-        const data = await res.json()
-        if (Array.isArray(data)) setAsientos(data)
+        const data = await res.json();
+        if (Array.isArray(data)) setAsientos(data);
       }
     } catch (e) {
-      console.error("Error al recargar asientos:", e)
+      console.error("Error al recargar asientos:", e);
     }
-  }, [dbConnected, ejercicioSeleccionado])
+  }, [dbConnected, ejercicioSeleccionado]);
 
   const recargarTodo = useCallback(async () => {
-    await Promise.all([recargarAsientos(), recargarCierres()])
-  }, [recargarAsientos, recargarCierres])
+    await Promise.all([recargarAsientos(), recargarCierres()]);
+  }, [recargarAsientos, recargarCierres]);
 
-  const recargarTomaFisica = useCallback(async (ej: number) => {
-    if (!dbConnected) return
-    try {
-      const res = await fetch(`/api/inventario?ejercicio=${ej}`)
-      if (res.ok) {
-        const data = await res.json()
-        if (data && data.existe) {
-          setTomaFisica(data)
-        } else {
-          setTomaFisica({
-            ejercicio: ej,
-            fecha_toma: `${ej}-12-31`,
-            valor_inventario_final: 0,
-            responsable: "",
-            observaciones: "",
-          })
+  const recargarTomaFisica = useCallback(
+    async (ej: number) => {
+      if (!dbConnected) return;
+      try {
+        const res = await fetch(`/api/inventario?ejercicio=${ej}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.existe) {
+            setTomaFisica(data);
+          } else {
+            setTomaFisica({
+              ejercicio: ej,
+              fecha_toma: `${ej}-12-31`,
+              valor_inventario_final: 0,
+              responsable: "",
+              observaciones: "",
+            });
+          }
         }
+      } catch (e) {
+        console.error("Error al cargar toma física de inventarios:", e);
       }
-    } catch (e) {
-      console.error("Error al cargar toma física de inventarios:", e)
-    }
-  }, [dbConnected])
+    },
+    [dbConnected],
+  );
 
-  const recargarReporteAnaliticoSql = useCallback(async (ej: number) => {
-    if (!dbConnected) return
-    try {
-      const res = await fetch(`/api/reportes/analitico?ejercicio=${ej}`)
-      if (res.ok) {
-        const data = await res.json()
-        setReporteAnaliticoSql(data)
-      } else {
-        setReporteAnaliticoSql(null)
+  const recargarReporteAnaliticoSql = useCallback(
+    async (ej: number) => {
+      if (!dbConnected) return;
+      try {
+        const res = await fetch(
+          `/api/reportes/estados-financieros?ejercicio=${ej}`,
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setReporteAnaliticoSql(data as ReporteEstadosFinancieros);
+        } else {
+          setReporteAnaliticoSql(null);
+        }
+      } catch {
+        setReporteAnaliticoSql(null);
       }
-    } catch {
-      setReporteAnaliticoSql(null)
-    }
-  }, [dbConnected])
+    },
+    [dbConnected],
+  );
 
   // Carga inicial sincronizada con la base de datos
   useEffect(() => {
     async function inicializar() {
       try {
-        const resStatus = await fetch("/api/status").catch(() => null)
-        const statusData = resStatus && resStatus.ok ? await resStatus.json() : null
+        const resStatus = await fetch("/api/status").catch(() => null);
+        const statusData =
+          resStatus && resStatus.ok ? await resStatus.json() : null;
 
         if (statusData?.connected) {
-          setDbConnected(true)
+          setDbConnected(true);
           const [cRes, ejRes, cierresRes] = await Promise.all([
             fetch("/api/cuentas"),
             fetch("/api/ejercicios").catch(() => null),
             fetch("/api/cierres").catch(() => null),
-          ])
+          ]);
 
           if (cRes.ok) {
-            const dbCuentas = await cRes.json()
+            const dbCuentas = await cRes.json();
             if (Array.isArray(dbCuentas) && dbCuentas.length > 0) {
-              setCuentas(dbCuentas)
+              setCuentas(dbCuentas);
             }
           }
 
-          let ejActivo = 2026
+          let ejActivo = 2026;
           if (ejRes && ejRes.ok) {
-            const dbEjercicios = await ejRes.json()
+            const dbEjercicios = await ejRes.json();
             if (Array.isArray(dbEjercicios) && dbEjercicios.length > 0) {
-              setEjercicios(dbEjercicios)
+              setEjercicios(dbEjercicios);
               // Seleccionar el ejercicio guardado en localStorage o el primer ejercicio abierto
-              const guardado = typeof window !== "undefined" ? localStorage.getItem(STORAGE_EJERCICIO) : null
-              const parsedGuardado = guardado ? parseInt(guardado, 10) : null
-              const encontrado = dbEjercicios.find((x: EjercicioFiscal) => x.ejercicio === parsedGuardado)
+              const guardado =
+                typeof window !== "undefined"
+                  ? localStorage.getItem(STORAGE_EJERCICIO)
+                  : null;
+              const parsedGuardado = guardado ? parseInt(guardado, 10) : null;
+              const encontrado = dbEjercicios.find(
+                (x: EjercicioFiscal) => x.ejercicio === parsedGuardado,
+              );
               if (encontrado) {
-                ejActivo = encontrado.ejercicio
+                ejActivo = encontrado.ejercicio;
               } else {
-                const abierto = dbEjercicios.find((x: EjercicioFiscal) => x.estado === "ABIERTO")
-                ejActivo = abierto ? abierto.ejercicio : dbEjercicios[0].ejercicio
+                const abierto = dbEjercicios.find(
+                  (x: EjercicioFiscal) => x.estado === "ABIERTO",
+                );
+                ejActivo = abierto
+                  ? abierto.ejercicio
+                  : dbEjercicios[0].ejercicio;
               }
-              setEjercicioSeleccionadoState(ejActivo)
+              setEjercicioSeleccionadoState(ejActivo);
             }
           }
 
@@ -316,79 +386,93 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
           const [aRes, invRes, repSqlRes] = await Promise.all([
             fetch(`/api/asientos?ejercicio=${ejActivo}`),
             fetch(`/api/inventario?ejercicio=${ejActivo}`).catch(() => null),
-            fetch(`/api/reportes/analitico?ejercicio=${ejActivo}`).catch(() => null),
-          ])
+            fetch(
+              `/api/reportes/estados-financieros?ejercicio=${ejActivo}`,
+            ).catch(() => null),
+          ]);
 
           if (aRes.ok) {
-            const dbAsientos = await aRes.json()
-            if (Array.isArray(dbAsientos)) setAsientos(dbAsientos)
+            const dbAsientos = await aRes.json();
+            if (Array.isArray(dbAsientos)) setAsientos(dbAsientos);
           }
 
           if (invRes && invRes.ok) {
-            const dbToma = await invRes.json()
-            if (dbToma && dbToma.existe) setTomaFisica(dbToma)
+            const dbToma = await invRes.json();
+            if (dbToma && dbToma.existe) setTomaFisica(dbToma);
           }
 
           if (repSqlRes && repSqlRes.ok) {
-            const repData = await repSqlRes.json()
-            setReporteAnaliticoSql(repData)
+            const repData = await repSqlRes.json();
+            setReporteAnaliticoSql(repData as ReporteEstadosFinancieros);
           }
 
           if (cierresRes && cierresRes.ok) {
-            const dbCierres = await cierresRes.json()
-            if (Array.isArray(dbCierres)) setCierres(dbCierres)
+            const dbCierres = await cierresRes.json();
+            if (Array.isArray(dbCierres)) setCierres(dbCierres);
           }
         } else {
           // Fallback a localStorage si la base de datos no está disponible
-          setDbConnected(false)
-          const rawA = localStorage.getItem(STORAGE_ASIENTOS)
-          const rawC = localStorage.getItem(STORAGE_CUENTAS)
-          const rawCierres = localStorage.getItem(STORAGE_CIERRES)
-          const rawToma = localStorage.getItem(STORAGE_TOMA)
-          if (rawA) setAsientos(JSON.parse(rawA))
-          if (rawC) setCuentas(JSON.parse(rawC))
-          if (rawCierres) setCierres(JSON.parse(rawCierres))
-          if (rawToma) setTomaFisica(JSON.parse(rawToma))
+          setDbConnected(false);
+          const rawA = localStorage.getItem(STORAGE_ASIENTOS);
+          const rawC = localStorage.getItem(STORAGE_CUENTAS);
+          const rawCierres = localStorage.getItem(STORAGE_CIERRES);
+          const rawToma = localStorage.getItem(STORAGE_TOMA);
+          if (rawA) setAsientos(JSON.parse(rawA));
+          if (rawC) setCuentas(JSON.parse(rawC));
+          if (rawCierres) setCierres(JSON.parse(rawCierres));
+          if (rawToma) setTomaFisica(JSON.parse(rawToma));
         }
       } catch (err) {
-        console.error("Error durante inicialización contable:", err)
-        setDbConnected(false)
+        console.error("Error durante inicialización contable:", err);
+        setDbConnected(false);
       } finally {
-        setHidratado(true)
-        setCargando(false)
+        setHidratado(true);
+        setCargando(false);
       }
     }
 
-    inicializar()
-  }, [])
+    inicializar();
+  }, []);
 
   // Al cambiar de ejercicio fiscal, sincronizar asientos, toma física y reporte SQL
   useEffect(() => {
-    if (!hidratado) return
+    if (!hidratado) return;
     if (dbConnected) {
-      recargarAsientos()
-      recargarTomaFisica(ejercicioSeleccionado)
-      recargarReporteAnaliticoSql(ejercicioSeleccionado)
+      recargarAsientos();
+      recargarTomaFisica(ejercicioSeleccionado);
+      recargarReporteAnaliticoSql(ejercicioSeleccionado);
     }
-  }, [ejercicioSeleccionado, dbConnected, hidratado, recargarAsientos, recargarTomaFisica, recargarReporteAnaliticoSql])
+  }, [
+    ejercicioSeleccionado,
+    dbConnected,
+    hidratado,
+    recargarAsientos,
+    recargarTomaFisica,
+    recargarReporteAnaliticoSql,
+  ]);
 
   // Persistir en local storage si no hay base de datos conectada
   useEffect(() => {
-    if (!hidratado || dbConnected) return
-    localStorage.setItem(STORAGE_ASIENTOS, JSON.stringify(asientos))
-    localStorage.setItem(STORAGE_CUENTAS, JSON.stringify(cuentas))
-    localStorage.setItem(STORAGE_CIERRES, JSON.stringify(cierres))
-    if (tomaFisica) localStorage.setItem(STORAGE_TOMA, JSON.stringify(tomaFisica))
-  }, [asientos, cuentas, cierres, tomaFisica, hidratado, dbConnected])
+    if (!hidratado || dbConnected) return;
+    localStorage.setItem(STORAGE_ASIENTOS, JSON.stringify(asientos));
+    localStorage.setItem(STORAGE_CUENTAS, JSON.stringify(cuentas));
+    localStorage.setItem(STORAGE_CIERRES, JSON.stringify(cierres));
+    if (tomaFisica)
+      localStorage.setItem(STORAGE_TOMA, JSON.stringify(tomaFisica));
+  }, [asientos, cuentas, cierres, tomaFisica, hidratado, dbConnected]);
 
-  const guardarTomaFisica = async (toma: Partial<InventarioTomaFisica>): Promise<boolean> => {
+  const guardarTomaFisica = async (
+    toma: Partial<InventarioTomaFisica>,
+  ): Promise<boolean> => {
     const nuevaToma: InventarioTomaFisica = {
       ejercicio: toma.ejercicio || ejercicioSeleccionado,
       fecha_toma: toma.fecha_toma || new Date().toISOString().slice(0, 10),
       valor_inventario_final: Number(toma.valor_inventario_final) || 0,
       responsable: toma.responsable || "Auditoría Interna",
       observaciones: toma.observaciones || "Toma física de existencias",
-    }
+      es_manual: toma.es_manual ?? true,
+      origen: toma.origen || "MANUAL",
+    };
 
     if (dbConnected) {
       try {
@@ -396,27 +480,27 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(nuevaToma),
-        })
+        });
         if (res.ok) {
-          const guardada = await res.json()
-          setTomaFisica(guardada)
-          await recargarReporteAnaliticoSql(nuevaToma.ejercicio)
-          return true
+          const guardada = await res.json();
+          setTomaFisica(guardada);
+          await recargarReporteAnaliticoSql(nuevaToma.ejercicio);
+          return true;
         }
-        return false
+        return false;
       } catch (e) {
-        console.error("Error al guardar toma física en base de datos:", e)
-        return false
+        console.error("Error al guardar toma física en base de datos:", e);
+        return false;
       }
     }
 
-    setTomaFisica(nuevaToma)
-    return true
-  }
+    setTomaFisica(nuevaToma);
+    return true;
+  };
 
   const cambiarEstadoEjercicio = async (
     ejercicio: number,
-    nuevoEstado: "ABIERTO" | "CERRADO" | "BLOQUEADO"
+    nuevoEstado: "ABIERTO" | "CERRADO" | "BLOQUEADO",
   ): Promise<boolean> => {
     if (dbConnected) {
       try {
@@ -424,26 +508,30 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ejercicio, estado: nuevoEstado }),
-        })
+        });
         if (res.ok) {
-          const actualizado = await res.json()
+          const actualizado = await res.json();
           setEjercicios((prev) =>
-            prev.map((e) => (e.ejercicio === ejercicio ? { ...e, ...actualizado } : e))
-          )
-          return true
+            prev.map((e) =>
+              e.ejercicio === ejercicio ? { ...e, ...actualizado } : e,
+            ),
+          );
+          return true;
         }
-        return false
+        return false;
       } catch (e) {
-        console.error("Error al actualizar ejercicio:", e)
-        return false
+        console.error("Error al actualizar ejercicio:", e);
+        return false;
       }
     }
 
     setEjercicios((prev) =>
-      prev.map((e) => (e.ejercicio === ejercicio ? { ...e, estado: nuevoEstado } : e))
-    )
-    return true
-  }
+      prev.map((e) =>
+        e.ejercicio === ejercicio ? { ...e, estado: nuevoEstado } : e,
+      ),
+    );
+    return true;
+  };
 
   const crearEjercicio = async (ejercicio: number): Promise<boolean> => {
     if (dbConnected) {
@@ -452,17 +540,20 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ejercicio }),
-        })
+        });
         if (res.ok) {
-          const nuevo = await res.json()
-          setEjercicios((prev) => [nuevo, ...prev.filter((e) => e.ejercicio !== ejercicio)])
-          setEjercicioSeleccionado(ejercicio)
-          return true
+          const nuevo = await res.json();
+          setEjercicios((prev) => [
+            nuevo,
+            ...prev.filter((e) => e.ejercicio !== ejercicio),
+          ]);
+          setEjercicioSeleccionado(ejercicio);
+          return true;
         }
-        return false
+        return false;
       } catch (e) {
-        console.error("Error al crear ejercicio:", e)
-        return false
+        console.error("Error al crear ejercicio:", e);
+        return false;
       }
     }
 
@@ -472,43 +563,64 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
       fecha_fin: `${ejercicio}-12-31`,
       ultimo_numero: 0,
       estado: "ABIERTO",
-    }
-    setEjercicios((prev) => [nuevo, ...prev.filter((e) => e.ejercicio !== ejercicio)])
-    setEjercicioSeleccionado(ejercicio)
-    return true
-  }
+    };
+    setEjercicios((prev) => [
+      nuevo,
+      ...prev.filter((e) => e.ejercicio !== ejercicio),
+    ]);
+    setEjercicioSeleccionado(ejercicio);
+    return true;
+  };
 
   const generarPartidaApertura = async (
     origen: number,
-    destino: number
+    destino: number,
   ): Promise<{ success: boolean; error?: string }> => {
     if (!dbConnected) {
-      return { success: false, error: "La generación de apertura requiere conexión activa a la base de datos." }
+      return {
+        success: false,
+        error:
+          "La generación de apertura requiere conexión activa a la base de datos.",
+      };
     }
     try {
       const res = await fetch("/api/ejercicios/apertura", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ejercicio_origen: origen, ejercicio_destino: destino }),
-      })
+        body: JSON.stringify({
+          ejercicio_origen: origen,
+          ejercicio_destino: destino,
+        }),
+      });
       if (res.ok) {
-        const ejRes = await fetch("/api/ejercicios")
+        const ejRes = await fetch("/api/ejercicios");
         if (ejRes.ok) {
-          setEjercicios(await ejRes.json())
+          setEjercicios(await ejRes.json());
         }
-        setEjercicioSeleccionado(destino)
-        return { success: true }
+        setEjercicioSeleccionado(destino);
+        return { success: true };
       }
-      const err = await res.json().catch(() => ({}))
-      return { success: false, error: err.error || "Error al generar partida de apertura" }
+      const err = await res.json().catch(() => ({}));
+      return {
+        success: false,
+        error: err.error || "Error al generar partida de apertura",
+      };
     } catch (e: unknown) {
-      return { success: false, error: e instanceof Error ? e.message : "Error inesperado de red" }
+      return {
+        success: false,
+        error: e instanceof Error ? e.message : "Error inesperado de red",
+      };
     }
-  }
+  };
 
-  const agregarAsiento = async (a: Omit<Asiento, "id" | "numero">): Promise<{ success: boolean; error?: string }> => {
+  const agregarAsiento = async (
+    a: Omit<Asiento, "id" | "numero">,
+  ): Promise<{ success: boolean; error?: string }> => {
     if (esEjercicioCerrado) {
-      return { success: false, error: `El ejercicio fiscal ${ejercicioSeleccionado} está CERRADO o BLOQUEADO. No se admiten nuevas partidas.` }
+      return {
+        success: false,
+        error: `El ejercicio fiscal ${ejercicioSeleccionado} está CERRADO o BLOQUEADO. No se admiten nuevas partidas.`,
+      };
     }
 
     if (dbConnected) {
@@ -517,27 +629,40 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ...a, usuario_email: "admin@contable.sv" }),
-        })
+        });
         if (res.ok) {
-          await recargarAsientos()
-          await recargarReporteAnaliticoSql(ejercicioSeleccionado)
-          return { success: true }
+          await recargarAsientos();
+          await recargarReporteAnaliticoSql(ejercicioSeleccionado);
+          return { success: true };
         }
-        const errJson = await res.json().catch(() => null)
-        return { success: false, error: errJson?.error || "Error al registrar asiento" }
+        const errJson = await res.json().catch(() => null);
+        return {
+          success: false,
+          error: errJson?.error || "Error al registrar asiento",
+        };
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "Error al guardar asiento en base de datos"
-        return { success: false, error: msg }
+        const msg =
+          e instanceof Error
+            ? e.message
+            : "Error al guardar asiento en base de datos";
+        return { success: false, error: msg };
       }
     }
 
     setAsientos((prev) => {
-      const ej = a.fecha ? new Date(a.fecha).getFullYear() : ejercicioSeleccionado
+      const ej = a.fecha
+        ? new Date(a.fecha).getFullYear()
+        : ejercicioSeleccionado;
       const asientosDelAnio = prev.filter(
-        (x) => (x.ejercicio || (x.fecha ? new Date(x.fecha).getFullYear() : ej)) === ej
-      )
-      const numero = asientosDelAnio.reduce((max, x) => Math.max(max, x.numero), 0) + 1
-      const correlativo_global = prev.reduce((max, x) => Math.max(max, x.correlativo_global || 0), 0) + 1
+        (x) =>
+          (x.ejercicio || (x.fecha ? new Date(x.fecha).getFullYear() : ej)) ===
+          ej,
+      );
+      const numero =
+        asientosDelAnio.reduce((max, x) => Math.max(max, x.numero), 0) + 1;
+      const correlativo_global =
+        prev.reduce((max, x) => Math.max(max, x.correlativo_global || 0), 0) +
+        1;
       return [
         {
           ...a,
@@ -548,17 +673,20 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
           estado: "APLICADO",
         },
         ...prev,
-      ]
-    })
-    return { success: true }
-  }
+      ];
+    });
+    return { success: true };
+  };
 
   const anularAsiento = async (
     id: string,
-    motivo: string = "Anulación contable por corrección/auditoría"
+    motivo: string = "Anulación contable por corrección/auditoría",
   ): Promise<{ success: boolean; error?: string }> => {
     if (esEjercicioCerrado) {
-      return { success: false, error: `No es posible anular partidas en el ejercicio fiscal ${ejercicioSeleccionado} porque está CERRADO o BLOQUEADO.` }
+      return {
+        success: false,
+        error: `No es posible anular partidas en el ejercicio fiscal ${ejercicioSeleccionado} porque está CERRADO o BLOQUEADO.`,
+      };
     }
 
     if (dbConnected) {
@@ -567,17 +695,23 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ motivo, usuario_email: "admin@contable.sv" }),
-        })
+        });
         if (res.ok) {
-          await recargarAsientos()
-          await recargarReporteAnaliticoSql(ejercicioSeleccionado)
-          return { success: true }
+          await recargarAsientos();
+          await recargarReporteAnaliticoSql(ejercicioSeleccionado);
+          return { success: true };
         }
-        const errJson = await res.json().catch(() => null)
-        return { success: false, error: errJson?.error || "Error al anular partida" }
+        const errJson = await res.json().catch(() => null);
+        return {
+          success: false,
+          error: errJson?.error || "Error al anular partida",
+        };
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "Error al anular partida en base de datos"
-        return { success: false, error: msg }
+        const msg =
+          e instanceof Error
+            ? e.message
+            : "Error al anular partida en base de datos";
+        return { success: false, error: msg };
       }
     }
 
@@ -591,15 +725,15 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
               anulado_en: new Date().toISOString(),
               motivo_anulacion: motivo,
             }
-          : a
-      )
-    )
-    return { success: true }
-  }
+          : a,
+      ),
+    );
+    return { success: true };
+  };
 
   const eliminarAsiento = async (id: string, motivo?: string) => {
-    await anularAsiento(id, motivo)
-  }
+    await anularAsiento(id, motivo);
+  };
 
   const agregarCuenta = async (c: Cuenta) => {
     if (dbConnected) {
@@ -607,17 +741,21 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(c),
-      }).catch((e) => console.error("Error al guardar cuenta en base de datos:", e))
+      }).catch((e) =>
+        console.error("Error al guardar cuenta en base de datos:", e),
+      );
     }
     setCuentas((prev) =>
       prev.some((x) => x.codigo === c.codigo)
         ? prev
-        : [...prev, { ...c, activa: true }].sort((a, b) => a.codigo.localeCompare(b.codigo)),
-    )
-  }
+        : [...prev, { ...c, activa: true }].sort((a, b) =>
+            a.codigo.localeCompare(b.codigo),
+          ),
+    );
+  };
 
   const cuentaEnUso = (codigo: string) =>
-    asientos.some((a) => a.lineas.some((l) => l.codigo === codigo))
+    asientos.some((a) => a.lineas.some((l) => l.codigo === codigo));
 
   const renombrarCuenta = async (codigo: string, nombre: string) => {
     if (dbConnected) {
@@ -625,44 +763,56 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ nombre }),
-      }).catch((e) => console.error("Error al renombrar cuenta en base de datos:", e))
+      }).catch((e) =>
+        console.error("Error al renombrar cuenta en base de datos:", e),
+      );
     }
-    setCuentas((prev) => prev.map((c) => (c.codigo === codigo ? { ...c, nombre } : c)))
-  }
+    setCuentas((prev) =>
+      prev.map((c) => (c.codigo === codigo ? { ...c, nombre } : c)),
+    );
+  };
 
   const eliminarCuenta = (codigo: string) => {
-    const enUso = asientos.some((a) => a.lineas.some((l) => l.codigo === codigo))
+    const enUso = asientos.some((a) =>
+      a.lineas.some((l) => l.codigo === codigo),
+    );
     if (dbConnected) {
       fetch(`/api/cuentas/${codigo}`, { method: "DELETE" }).catch((e) =>
-        console.error("Error al eliminar cuenta en base de datos:", e)
-      )
+        console.error("Error al eliminar cuenta en base de datos:", e),
+      );
     }
     if (enUso) {
-      setCuentas((prev) => prev.map((c) => (c.codigo === codigo ? { ...c, activa: false } : c)))
-      return { softDeleted: true }
+      setCuentas((prev) =>
+        prev.map((c) => (c.codigo === codigo ? { ...c, activa: false } : c)),
+      );
+      return { softDeleted: true };
     }
-    setCuentas((prev) => prev.filter((c) => c.codigo !== codigo))
-    return { softDeleted: false }
-  }
+    setCuentas((prev) => prev.filter((c) => c.codigo !== codigo));
+    return { softDeleted: false };
+  };
 
   const reactivarCuenta = async (codigo: string) => {
     if (dbConnected) {
       fetch(`/api/cuentas/${codigo}`, { method: "PATCH" }).catch((e) =>
-        console.error("Error al reactivar cuenta en base de datos:", e)
-      )
+        console.error("Error al reactivar cuenta en base de datos:", e),
+      );
     }
-    setCuentas((prev) => prev.map((c) => (c.codigo === codigo ? { ...c, activa: true } : c)))
-  }
+    setCuentas((prev) =>
+      prev.map((c) => (c.codigo === codigo ? { ...c, activa: true } : c)),
+    );
+  };
 
   const reiniciarEjemplo = () => {
-    setCuentas(CATALOGO_CUENTAS)
-    setAsientos(ASIENTOS_EJEMPLO)
-    setTomaFisica(TOMA_FISICA_DEFECTO)
-  }
+    setCuentas(CATALOGO_CUENTAS);
+    setAsientos(ASIENTOS_EJEMPLO);
+    setTomaFisica(TOMA_FISICA_DEFECTO);
+  };
 
-  const limpiarTodo = () => setAsientos([])
+  const limpiarTodo = () => setAsientos([]);
 
-  const cerrarCicloContable = async (opciones?: { aperturarSiguiente?: boolean }) => {
+  const cerrarCicloContable = async (opciones?: {
+    aperturarSiguiente?: boolean;
+  }) => {
     if (dbConnected) {
       try {
         const res = await fetch("/api/cierre", {
@@ -672,68 +822,91 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
             ejercicio: ejercicioSeleccionado,
             aperturar_siguiente: Boolean(opciones?.aperturarSiguiente),
           }),
-        })
+        });
         if (res.ok) {
-          const data = await res.json()
-          const ejRes = await fetch("/api/ejercicios")
+          const data = await res.json();
+          const ejRes = await fetch("/api/ejercicios");
           if (ejRes.ok) {
-            const list = await ejRes.json()
-            setEjercicios(list)
+            const list = await ejRes.json();
+            setEjercicios(list);
           }
           if (opciones?.aperturarSiguiente && data.siguienteEjercicio) {
-            setEjercicioSeleccionado(data.siguienteEjercicio)
+            setEjercicioSeleccionado(data.siguienteEjercicio);
           } else {
             await Promise.all([
               recargarAsientos(),
               recargarCierres(),
               recargarReporteAnaliticoSql(ejercicioSeleccionado),
-            ])
+            ]);
           }
-          return { success: true, ...data }
+          return { success: true, ...data };
         } else {
-          const err = await res.json().catch(() => ({}))
-          return { success: false, error: err.error || "Error al liquidar ejercicio" }
+          const err = await res.json().catch(() => ({}));
+          return {
+            success: false,
+            error: err.error || "Error al liquidar ejercicio",
+          };
         }
       } catch (e) {
-        console.error("Error al invocar cierre contable en base de datos:", e)
-        return { success: false, error: "Error de red o conexión" }
+        console.error("Error al invocar cierre contable en base de datos:", e);
+        return { success: false, error: "Error de red o conexión" };
       }
     }
 
     // Modo local / Fallback
-    const m = calcularMayor(cuentas, asientos, ejercicioSeleccionado, false)
-    const er = calcularEstadoResultados(m, tomaFisica?.valor_inventario_final)
+    const m = calcularMayor(cuentas, asientos, ejercicioSeleccionado, false);
+    const er = calcularEstadoResultados(m, tomaFisica?.valor_inventario_final);
     const cuentaCapital =
-      cuentas.find((cuenta) => cuenta.tipo === "capital" && cuenta.activa && cuenta.codigo === "3102") ||
-      cuentas.find((cuenta) => cuenta.tipo === "capital" && cuenta.activa)
+      cuentas.find(
+        (cuenta) =>
+          cuenta.tipo === "capital" &&
+          cuenta.activa &&
+          cuenta.codigo === "3102",
+      ) || cuentas.find((cuenta) => cuenta.tipo === "capital" && cuenta.activa);
 
-    if (!cuentaCapital) return
+    if (!cuentaCapital) return;
 
-    const lineasCierre: Asiento["lineas"] = []
+    const lineasCierre: Asiento["lineas"] = [];
     // 1. Cancelar ingresos (cargos al Debe)
     for (const item of m.filter((s) => s.cuenta.tipo === "ingreso")) {
-      const saldo = item.haber - item.debe
+      const saldo = item.haber - item.debe;
       if (saldo > 0) {
-        lineasCierre.push({ codigo: item.cuenta.codigo, debe: saldo, haber: 0 })
+        lineasCierre.push({
+          codigo: item.cuenta.codigo,
+          debe: saldo,
+          haber: 0,
+        });
       }
     }
     // 2. Cancelar gastos (abonos al Haber)
     for (const item of m.filter((s) => s.cuenta.tipo === "gasto")) {
-      const saldo = item.debe - item.haber
+      const saldo = item.debe - item.haber;
       if (saldo > 0) {
-        lineasCierre.push({ codigo: item.cuenta.codigo, debe: 0, haber: saldo })
+        lineasCierre.push({
+          codigo: item.cuenta.codigo,
+          debe: 0,
+          haber: saldo,
+        });
       }
     }
     // 3. Imputar utilidad o pérdida a Capital
     if (er.utilidad > 0) {
-      lineasCierre.push({ codigo: cuentaCapital.codigo, debe: 0, haber: er.utilidad })
+      lineasCierre.push({
+        codigo: cuentaCapital.codigo,
+        debe: 0,
+        haber: er.utilidad,
+      });
     } else if (er.utilidad < 0) {
-      lineasCierre.push({ codigo: cuentaCapital.codigo, debe: Math.abs(er.utilidad), haber: 0 })
+      lineasCierre.push({
+        codigo: cuentaCapital.codigo,
+        debe: Math.abs(er.utilidad),
+        haber: 0,
+      });
     }
 
-    if (lineasCierre.length === 0) return
+    if (lineasCierre.length === 0) return;
 
-    const nextNum = asientos.reduce((max, a) => Math.max(max, a.numero), 0) + 1
+    const nextNum = asientos.reduce((max, a) => Math.max(max, a.numero), 0) + 1;
     const nuevoAsiento: Asiento = {
       id: crypto.randomUUID(),
       ejercicio: ejercicioSeleccionado,
@@ -743,7 +916,7 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
       tipo: "CIERRE",
       estado: "APLICADO",
       lineas: lineasCierre,
-    }
+    };
 
     const nuevoCierre: CierreContable = {
       id: crypto.randomUUID(),
@@ -758,114 +931,85 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
       asiento_cierre_id: nuevoAsiento.id,
       asiento_numero: nuevoAsiento.numero,
       creado_en: new Date().toISOString(),
-    }
+    };
 
-    setAsientos((prev) => [...prev, nuevoAsiento])
-    setCierres((prev) => [nuevoCierre, ...prev])
-  }
+    setAsientos((prev) => [...prev, nuevoAsiento]);
+    setCierres((prev) => [nuevoCierre, ...prev]);
+  };
 
   // Cálculos contables sincronizados con aislamiento de ejercicio y exclusión de partida de cierre
-  const mayor = useMemo(
-    () => calcularMayor(cuentas, asientos, ejercicioSeleccionado, false),
-    [cuentas, asientos, ejercicioSeleccionado]
-  )
+  const mayor = useMemo(() => {
+    if (
+      dbConnected &&
+      reporteAnaliticoSql?.ejercicio === ejercicioSeleccionado
+    ) {
+      return reporteAnaliticoSql.mayor.map((saldo) => ({
+        ...saldo,
+        cuenta: enriquecerJerarquia(saldo.cuenta),
+      }));
+    }
+    return calcularMayor(
+      cuentas.map(enriquecerJerarquia),
+      asientos,
+      ejercicioSeleccionado,
+      false,
+    );
+  }, [
+    cuentas,
+    asientos,
+    ejercicioSeleccionado,
+    dbConnected,
+    reporteAnaliticoSql,
+  ]);
 
   const estadoResultados = useMemo(() => {
+    if (
+      dbConnected &&
+      reporteAnaliticoSql?.ejercicio === ejercicioSeleccionado
+    ) {
+      return reporteAnaliticoSql.estadoResultados;
+    }
+
     const baseEr = calcularEstadoResultados(
       mayor,
       tomaFisica?.valor_inventario_final,
-      tomaFisica ? { fecha: tomaFisica.fecha_toma, responsable: tomaFisica.responsable } : undefined
-    )
-
-    if (
-      dbConnected &&
-      reporteAnaliticoSql &&
-      Number(reporteAnaliticoSql.ejercicio) === ejercicioSeleccionado
-    ) {
-      const sql = reporteAnaliticoSql as {
-        ejercicio: number
-        ventasTotales: number
-        devolucionesSobreVentas: number
-        rebajasSobreVentas: number
-        ventasNetas: number
-        inventarioInicial: number
-        compras: number
-        gastosSobreCompras: number
-        comprasTotales: number
-        devolucionesSobreCompras: number
-        rebajasSobreCompras: number
-        comprasNetas: number
-        totalMercancias: number
-        inventarioFinal: number
-        fechaInventarioFinal: string | null
-        costoVentas: number
-        utilidadBruta: number
-        gastosOperacion: number
-        utilidadOperacion: number
-        productosFinancieros: number
-        gastosFinancieros: number
-        otrosIngresos: number
-        utilidadNeta: number
-      }
-
-      return {
-        ...baseEr,
-        calculadoPorSql: true,
-        totalVentas: sql.ventasNetas,
-        totalCostoVentas: sql.costoVentas,
-        utilidadBruta: sql.utilidadBruta,
-        totalGastosOperacion: sql.gastosOperacion,
-        utilidadOperacion: sql.utilidadOperacion,
-        totalIngresosFinancieros: sql.productosFinancieros || 0,
-        totalGastosFinancieros: sql.gastosFinancieros || 0,
-        resultadoFinanciero: (sql.productosFinancieros || 0) - (sql.gastosFinancieros || 0),
-        totalIngresos: sql.ventasNetas + (sql.productosFinancieros || 0) + (sql.otrosIngresos || 0),
-        totalGastos: sql.costoVentas + sql.gastosOperacion + (sql.gastosFinancieros || 0),
-        utilidad: sql.utilidadNeta,
-        analitico: {
-          ventasTotales: sql.ventasTotales,
-          devolucionesSobreVentas: sql.devolucionesSobreVentas,
-          rebajasSobreVentas: sql.rebajasSobreVentas,
-          ventasNetas: sql.ventasNetas,
-          inventarioInicial: sql.inventarioInicial,
-          compras: sql.compras,
-          gastosSobreCompras: sql.gastosSobreCompras,
-          comprasTotales: sql.comprasTotales,
-          devolucionesSobreCompras: sql.devolucionesSobreCompras,
-          rebajasSobreCompras: sql.rebajasSobreCompras,
-          comprasNetas: sql.comprasNetas,
-          totalMercancias: sql.totalMercancias,
-          inventarioFinalEstimado: sql.inventarioFinal,
-          valorInventarioFinal: sql.inventarioFinal,
-          fechaInventarioFinal: sql.fechaInventarioFinal || baseEr.analitico.fechaInventarioFinal,
-          responsableInventarioFinal: baseEr.analitico.responsableInventarioFinal,
-          costoVentas: sql.costoVentas,
-          utilidadBruta: sql.utilidadBruta,
-          gastosOperacion: sql.gastosOperacion,
-          utilidadOperacion: sql.utilidadOperacion,
-          totalIngresosFinancieros: sql.productosFinancieros || 0,
-          totalGastosFinancieros: sql.gastosFinancieros || 0,
-          otrosIngresos: sql.otrosIngresos || 0,
-          utilidadNeta: sql.utilidadNeta,
-        },
-      }
-    }
+      tomaFisica
+        ? { fecha: tomaFisica.fecha_toma, responsable: tomaFisica.responsable }
+        : undefined,
+    );
 
     return {
       ...baseEr,
       calculadoPorSql: false,
-    }
-  }, [mayor, tomaFisica, dbConnected, reporteAnaliticoSql, ejercicioSeleccionado])
+    };
+  }, [
+    mayor,
+    tomaFisica,
+    dbConnected,
+    reporteAnaliticoSql,
+    ejercicioSeleccionado,
+  ]);
 
-  const balanceGeneral = useMemo(
-    () =>
-      calcularBalanceGeneral(
-        mayor,
-        estadoResultados.utilidad,
-        estadoResultados.analitico.valorInventarioFinal
-      ),
-    [mayor, estadoResultados.utilidad, estadoResultados.analitico.valorInventarioFinal]
-  )
+  const balanceGeneral = useMemo(() => {
+    if (
+      dbConnected &&
+      reporteAnaliticoSql?.ejercicio === ejercicioSeleccionado
+    ) {
+      return reporteAnaliticoSql.balanceGeneral;
+    }
+    return calcularBalanceGeneral(
+      mayor,
+      estadoResultados.utilidad,
+      estadoResultados.analitico.valorInventarioFinal,
+    );
+  }, [
+    mayor,
+    estadoResultados.utilidad,
+    estadoResultados.analitico.valorInventarioFinal,
+    dbConnected,
+    reporteAnaliticoSql,
+    ejercicioSeleccionado,
+  ]);
 
   const value: ContabilidadContextValue = {
     cuentas,
@@ -897,16 +1041,24 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
     recargarCierres,
     recargarAsientos,
     recargarTodo,
+    recargarReporteAnaliticoSql,
     mayor,
     estadoResultados,
     balanceGeneral,
-  }
+  };
 
-  return <ContabilidadContext.Provider value={value}>{children}</ContabilidadContext.Provider>
+  return (
+    <ContabilidadContext.Provider value={value}>
+      {children}
+    </ContabilidadContext.Provider>
+  );
 }
 
 export function useContabilidad() {
-  const ctx = useContext(ContabilidadContext)
-  if (!ctx) throw new Error("useContabilidad debe usarse dentro de ContabilidadProvider")
-  return ctx
+  const ctx = useContext(ContabilidadContext);
+  if (!ctx)
+    throw new Error(
+      "useContabilidad debe usarse dentro de ContabilidadProvider",
+    );
+  return ctx;
 }

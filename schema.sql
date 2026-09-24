@@ -45,6 +45,7 @@ CREATE TABLE catalogo_cuentas (
     nombre VARCHAR(150) NOT NULL,
     tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('activo', 'pasivo', 'capital', 'gasto', 'ingreso')),
     naturaleza VARCHAR(20) NOT NULL CHECK (naturaleza IN ('deudora', 'acreedora')),
+    padre_codigo VARCHAR(20) REFERENCES catalogo_cuentas(codigo) ON DELETE RESTRICT,
     permite_movimiento BOOLEAN NOT NULL DEFAULT TRUE,
     activa BOOLEAN NOT NULL DEFAULT TRUE,
     creado_en TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -67,6 +68,7 @@ CREATE TABLE catalogo_cuentas (
 CREATE INDEX idx_catalogo_tipo ON catalogo_cuentas(tipo);
 CREATE INDEX idx_catalogo_activa ON catalogo_cuentas(activa);
 CREATE INDEX idx_catalogo_permite_mov ON catalogo_cuentas(permite_movimiento);
+CREATE INDEX idx_catalogo_padre ON catalogo_cuentas(padre_codigo);
 
 -- 3. TABLA: CONTROL DE EJERCICIOS FISCALES Y CONCURRENCIA ATÓMICA
 CREATE TABLE ejercicio_fiscal (
@@ -887,6 +889,35 @@ SET nombre = EXCLUDED.nombre,
     naturaleza = EXCLUDED.naturaleza,
     permite_movimiento = EXCLUDED.permite_movimiento,
     activa = EXCLUDED.activa;
+
+INSERT INTO catalogo_cuentas (codigo, nombre, tipo, naturaleza, permite_movimiento, activa) VALUES
+('1100', 'Efectivo y equivalentes', 'activo', 'deudora', FALSE, TRUE),
+('1200', 'Propiedad, planta y equipo', 'activo', 'deudora', FALSE, TRUE),
+('2100', 'Pasivo corriente', 'pasivo', 'acreedora', FALSE, TRUE),
+('2200', 'Pasivo no corriente', 'pasivo', 'acreedora', FALSE, TRUE),
+('3100', 'Capital contable', 'capital', 'acreedora', FALSE, TRUE),
+('4100', 'Costos y gastos analíticos', 'gasto', 'deudora', FALSE, TRUE),
+('4200', 'Gastos de operación', 'gasto', 'deudora', FALSE, TRUE),
+('4300', 'Gastos financieros', 'gasto', 'deudora', FALSE, TRUE),
+('5100', 'Ingresos de operación', 'ingreso', 'acreedora', FALSE, TRUE),
+('5200', 'Ingresos financieros', 'ingreso', 'acreedora', FALSE, TRUE)
+ON CONFLICT (codigo) DO UPDATE SET permite_movimiento = FALSE, activa = TRUE;
+
+UPDATE catalogo_cuentas
+SET padre_codigo = CASE
+    WHEN codigo IN ('1101', '1102') THEN '1100'
+    WHEN codigo LIKE '12%' THEN '1200'
+    WHEN codigo LIKE '21%' THEN '2100'
+    WHEN codigo LIKE '22%' THEN '2200'
+    WHEN codigo LIKE '31%' THEN '3100'
+    WHEN codigo LIKE '41%' THEN '4100'
+    WHEN codigo LIKE '42%' THEN '4200'
+    WHEN codigo LIKE '43%' THEN '4300'
+    WHEN codigo LIKE '51%' THEN '5100'
+    WHEN codigo LIKE '52%' THEN '5200'
+    ELSE padre_codigo
+END
+WHERE codigo NOT IN ('1100', '1200', '2100', '2200', '3100', '4100', '4200', '4300', '5100', '5200');
 
 -- 15. DATOS SEMILLA: EJERCICIO FISCAL 2026 Y 7 PARTIDAS CONTABLES
 INSERT INTO ejercicio_fiscal (ejercicio, fecha_inicio, fecha_fin, ultimo_numero, estado)

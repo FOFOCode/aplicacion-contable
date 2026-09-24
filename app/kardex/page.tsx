@@ -1,8 +1,8 @@
-"use client"
+"use client";
 
-import { Suspense, useEffect, useMemo, useState, useCallback } from "react"
-import { useSearchParams } from "next/navigation"
-import Link from "next/link"
+import { Suspense, useEffect, useMemo, useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
   ArrowRight,
   BookOpenText,
@@ -23,45 +23,71 @@ import {
   RotateCcw,
   Search,
   X,
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/field"
-import { useContabilidad } from "@/components/contabilidad-provider"
-import { formatoMoneda, redondear, totalesAsiento } from "@/lib/contabilidad"
-import { exportarLibroExcel } from "@/lib/excel"
-import type { Asiento, Cuenta, TipoCuenta } from "@/lib/types"
+  PencilLine,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/field";
+import { useContabilidad } from "@/components/contabilidad-provider";
+import { formatoMoneda, redondear, totalesAsiento } from "@/lib/contabilidad";
+import { exportarLibroExcel } from "@/lib/excel";
+import type { Asiento, Cuenta, TipoCuenta } from "@/lib/types";
 
 interface MovimientoKardex {
-  fecha: string
-  partidaNumero: number
-  correlativoGlobal?: number
-  tipoPartida: string
-  referenciaDoc: string
-  concepto: string
-  debe: number
-  haber: number
-  saldo: number
-  asientoOriginal?: Asiento
+  fecha: string;
+  partidaNumero: number;
+  correlativoGlobal?: number;
+  tipoPartida: string;
+  referenciaDoc: string;
+  concepto: string;
+  debe: number;
+  haber: number;
+  saldo: number;
+  asientoOriginal?: Asiento;
 }
 
 export interface MovimientoKardexInventario {
-  id: string
-  fecha: string
-  comprobante: string
-  concepto: string
-  tipo: "ENTRADA" | "SALIDA" | "DEVOLUCION_COMPRA" | "DEVOLUCION_VENTA" | "AJUSTE"
-  unidadesEntrada: number
-  unidadesSalida: number
-  unidadesSaldo: number
-  costoUnitario: number
-  debe: number
-  haber: number
-  saldo: number
+  id: string;
+  fecha: string;
+  comprobante: string;
+  concepto: string;
+  tipo:
+    | "ENTRADA"
+    | "SALIDA"
+    | "DEVOLUCION_COMPRA"
+    | "DEVOLUCION_VENTA"
+    | "AJUSTE";
+  unidadesEntrada: number;
+  unidadesSalida: number;
+  unidadesSaldo: number;
+  costoUnitario: number;
+  debe: number;
+  haber: number;
+  saldo: number;
 }
 
-export const STORAGE_KARDEX_INVENTARIO = "modulo-contable:kardex_inventario_v1"
+interface FilaKardexManual {
+  id: string;
+  asientoId: string;
+  fecha: string;
+  partidaNumero: number;
+  comprobante: string;
+  concepto: string;
+  tipo: MovimientoKardexInventario["tipo"];
+  montoContable: string;
+  unidades: string;
+  costoUnitario: string;
+}
+
+export const STORAGE_KARDEX_INVENTARIO = "modulo-contable:kardex_inventario_v1";
+const STORAGE_KARDEX_MANUAL = "modulo-contable:kardex_manual_v1";
 
 export const ARTICULOS_KARDEX = [
   {
@@ -84,7 +110,7 @@ export const ARTICULOS_KARDEX = [
     stockMinimo: 50,
     stockMaximo: 800,
   },
-]
+];
 
 export const MOVIMIENTOS_KARDEX_DEFECTO: MovimientoKardexInventario[] = [
   {
@@ -119,7 +145,8 @@ export const MOVIMIENTOS_KARDEX_DEFECTO: MovimientoKardexInventario[] = [
     id: "k3",
     fecha: "2026-01-09",
     comprobante: "NC-102",
-    concepto: "Devolución de mercadería dañada al proveedor según nota de crédito",
+    concepto:
+      "Devolución de mercadería dañada al proveedor según nota de crédito",
     tipo: "DEVOLUCION_COMPRA",
     unidadesEntrada: 0,
     unidadesSalida: 80,
@@ -147,7 +174,8 @@ export const MOVIMIENTOS_KARDEX_DEFECTO: MovimientoKardexInventario[] = [
     id: "k5",
     fecha: "2026-01-15",
     comprobante: "NC-001",
-    concepto: "Reingreso por devolución de cliente por especificaciones técnicas",
+    concepto:
+      "Reingreso por devolución de cliente por especificaciones técnicas",
     tipo: "DEVOLUCION_VENTA",
     unidadesEntrada: 40,
     unidadesSalida: 0,
@@ -161,7 +189,8 @@ export const MOVIMIENTOS_KARDEX_DEFECTO: MovimientoKardexInventario[] = [
     id: "k6",
     fecha: "2026-12-31",
     comprobante: "TF-2026",
-    concepto: "Ajuste e incorporación de inventario final según toma física de auditoría",
+    concepto:
+      "Ajuste e incorporación de inventario final según toma física de auditoría",
     tipo: "AJUSTE",
     unidadesEntrada: 340,
     unidadesSalida: 0,
@@ -171,48 +200,53 @@ export const MOVIMIENTOS_KARDEX_DEFECTO: MovimientoKardexInventario[] = [
     haber: 0.0,
     saldo: 6500.0,
   },
-]
+];
 
 function recalcularKardexMovimientos(
   movs: {
-    id: string
-    fecha: string
-    comprobante: string
-    concepto: string
-    tipo: "ENTRADA" | "SALIDA" | "DEVOLUCION_COMPRA" | "DEVOLUCION_VENTA" | "AJUSTE"
-    unidadesEntrada: number
-    unidadesSalida: number
-    costoUnitario: number
-  }[]
+    id: string;
+    fecha: string;
+    comprobante: string;
+    concepto: string;
+    tipo:
+      | "ENTRADA"
+      | "SALIDA"
+      | "DEVOLUCION_COMPRA"
+      | "DEVOLUCION_VENTA"
+      | "AJUSTE";
+    unidadesEntrada: number;
+    unidadesSalida: number;
+    costoUnitario: number;
+  }[],
 ): MovimientoKardexInventario[] {
-  let uSaldo = 0
-  let mSaldo = 0
+  let uSaldo = 0;
+  let mSaldo = 0;
 
   return movs.map((m) => {
-    let costoUnit = m.costoUnitario
-    let debe = 0
-    let haber = 0
+    let costoUnit = m.costoUnitario;
+    let debe = 0;
+    let haber = 0;
 
     if (m.tipo === "ENTRADA" || m.tipo === "DEVOLUCION_VENTA") {
-      uSaldo += m.unidadesEntrada
-      debe = redondear(m.unidadesEntrada * costoUnit)
-      mSaldo = redondear(mSaldo + debe)
+      uSaldo += m.unidadesEntrada;
+      debe = redondear(m.unidadesEntrada * costoUnit);
+      mSaldo = redondear(mSaldo + debe);
     } else if (m.tipo === "SALIDA" || m.tipo === "DEVOLUCION_COMPRA") {
       if (uSaldo > 0 && mSaldo > 0) {
-        costoUnit = redondear(mSaldo / uSaldo)
+        costoUnit = redondear(mSaldo / uSaldo);
       }
-      uSaldo -= m.unidadesSalida
-      haber = redondear(m.unidadesSalida * costoUnit)
-      mSaldo = redondear(mSaldo - haber)
+      uSaldo -= m.unidadesSalida;
+      haber = redondear(m.unidadesSalida * costoUnit);
+      mSaldo = redondear(mSaldo - haber);
     } else if (m.tipo === "AJUSTE") {
       if (m.unidadesEntrada > 0) {
-        uSaldo += m.unidadesEntrada
-        debe = redondear(m.unidadesEntrada * costoUnit)
-        mSaldo = redondear(mSaldo + debe)
+        uSaldo += m.unidadesEntrada;
+        debe = redondear(m.unidadesEntrada * costoUnit);
+        mSaldo = redondear(mSaldo + debe);
       } else {
-        uSaldo -= m.unidadesSalida
-        haber = redondear(m.unidadesSalida * costoUnit)
-        mSaldo = redondear(mSaldo - haber)
+        uSaldo -= m.unidadesSalida;
+        haber = redondear(m.unidadesSalida * costoUnit);
+        mSaldo = redondear(mSaldo - haber);
       }
     }
 
@@ -229,10 +263,9 @@ function recalcularKardexMovimientos(
       debe,
       haber,
       saldo: redondear(mSaldo),
-    }
-  })
+    };
+  });
 }
-
 
 const MESES = [
   { valor: "todos", label: "Todo el año fiscal" },
@@ -248,7 +281,7 @@ const MESES = [
   { valor: "10", label: "10 - Octubre" },
   { valor: "11", label: "11 - Noviembre" },
   { valor: "12", label: "12 - Diciembre" },
-]
+];
 
 const GRUPOS_CONTABLES: { id: string; nombre: string; tipo: TipoCuenta }[] = [
   { id: "1", nombre: "1. ACTIVO", tipo: "activo" },
@@ -256,23 +289,29 @@ const GRUPOS_CONTABLES: { id: string; nombre: string; tipo: TipoCuenta }[] = [
   { id: "3", nombre: "3. CAPITAL", tipo: "capital" },
   { id: "4", nombre: "4. COSTOS Y GASTOS", tipo: "gasto" },
   { id: "5", nombre: "5. INGRESOS", tipo: "ingreso" },
-]
+];
 
 /**
  * Extrae o sintetiza la referencia documental formal (Factura, CCF, Cheque, Recibo)
  * de acuerdo a la práctica de registro de pólizas y asientos contables.
  */
-function extraerReferenciaOperativa(concepto: string, tipo: string = "OPERACION", partidaNumero: number): string {
-  const match = concepto.match(/\b(ccf|factura|fac|f\/|cheque|ch|recibo|rec|nota de cr[eé]dito|nc|nota de d[eé]bito|nd|quedan|p[oó]liza)\s*([a-z0-9#-]+)?/i)
+function extraerReferenciaOperativa(
+  concepto: string,
+  tipo: string = "OPERACION",
+  partidaNumero: number,
+): string {
+  const match = concepto.match(
+    /\b(ccf|factura|fac|f\/|cheque|ch|recibo|rec|nota de cr[eé]dito|nc|nota de d[eé]bito|nd|quedan|p[oó]liza)\s*([a-z0-9#-]+)?/i,
+  );
   if (match) {
-    const docTipo = match[1].toUpperCase()
-    const docNum = match[2] ? match[2].trim() : ""
-    return docNum ? `${docTipo} ${docNum}` : docTipo
+    const docTipo = match[1].toUpperCase();
+    const docNum = match[2] ? match[2].trim() : "";
+    return docNum ? `${docTipo} ${docNum}` : docTipo;
   }
-  if (tipo === "APERTURA") return "P. APERTURA"
-  if (tipo === "AJUSTE") return "P. AJUSTE"
-  if (tipo === "CIERRE") return "P. CIERRE"
-  return `PD-${String(partidaNumero).padStart(3, "0")}`
+  if (tipo === "APERTURA") return "P. APERTURA";
+  if (tipo === "AJUSTE") return "P. AJUSTE";
+  if (tipo === "CIERRE") return "P. CIERRE";
+  return `PD-${String(partidaNumero).padStart(3, "0")}`;
 }
 
 /**
@@ -283,104 +322,409 @@ function normalizar(texto: string): string {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .trim()
+    .trim();
 }
 
 function KardexContent() {
-  const { cuentas, asientos, ejercicioSeleccionado, mayor, tomaFisica, guardarTomaFisica, dbConnected } = useContabilidad()
-  const searchParams = useSearchParams()
-  const tabParam = searchParams.get("tab")
-  const codigoParam = searchParams.get("codigo") || searchParams.get("cuenta")
+  const {
+    cuentas,
+    asientos,
+    ejercicioSeleccionado,
+    mayor,
+    tomaFisica,
+    guardarTomaFisica,
+    dbConnected,
+  } = useContabilidad();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const codigoParam = searchParams.get("codigo") || searchParams.get("cuenta");
 
   // Pestaña principal: "kardex_inventario" (Tarjeta con Entrada, Salida, Debe, Haber, Saldo) | "libro_auxiliar" (Cuentas)
-  const [pestañaPrincipal, setPestañaPrincipal] = useState<"kardex_inventario" | "libro_auxiliar">(
-    tabParam === "auxiliar" || codigoParam ? "libro_auxiliar" : "kardex_inventario"
-  )
+  const [pestañaPrincipal, setPestañaPrincipal] = useState<
+    "kardex_inventario" | "libro_auxiliar"
+  >(
+    tabParam === "auxiliar" || codigoParam
+      ? "libro_auxiliar"
+      : "kardex_inventario",
+  );
 
   // ----------------------------------------------------
   // ESTADO: TARJETA DE KARDEX DE INVENTARIOS
   // ----------------------------------------------------
-  const [articuloId, setArticuloId] = useState<string>("ART-001")
-  const [metodoValuacion, setMetodoValuacion] = useState<"PROMEDIO" | "PEPS">("PROMEDIO")
-  const [movimientosKardex, setMovimientosKardex] = useState<MovimientoKardexInventario[]>(() => {
+  const [articuloId, setArticuloId] = useState<string>("ART-001");
+  const [metodoValuacion, setMetodoValuacion] = useState<"PROMEDIO" | "PEPS">(
+    "PROMEDIO",
+  );
+  const [modoKardex, setModoKardex] = useState<"automatico" | "manual">(
+    "manual",
+  );
+  const [filasManuales, setFilasManuales] = useState<FilaKardexManual[]>([]);
+  const [movimientosKardex, setMovimientosKardex] = useState<
+    MovimientoKardexInventario[]
+  >(() => {
     if (typeof window !== "undefined") {
       try {
-        const saved = localStorage.getItem(STORAGE_KARDEX_INVENTARIO)
-        if (saved) return JSON.parse(saved)
+        const saved = localStorage.getItem(STORAGE_KARDEX_INVENTARIO);
+        if (saved) return JSON.parse(saved);
       } catch {
         // fallback
       }
     }
-    return MOVIMIENTOS_KARDEX_DEFECTO
-  })
+    return MOVIMIENTOS_KARDEX_DEFECTO;
+  });
 
-  const [modalNuevoMovimiento, setModalNuevoMovimiento] = useState(false)
-  const [nuevoTipo, setNuevoTipo] = useState<"ENTRADA" | "SALIDA" | "DEVOLUCION_COMPRA" | "DEVOLUCION_VENTA" | "AJUSTE">("ENTRADA")
-  const [nuevoFecha, setNuevoFecha] = useState(`${ejercicioSeleccionado}-01-20`)
-  const [nuevoComprobante, setNuevoComprobante] = useState("")
-  const [nuevoConcepto, setNuevoConcepto] = useState("")
-  const [nuevoUnidades, setNuevoUnidades] = useState<string>("100")
-  const [nuevoCosto, setNuevoCosto] = useState<string>("5.00")
-  const [sincronizandoToma, setSincronizandoToma] = useState(false)
-  const [sincronizadoExitoso, setSincronizadoExitoso] = useState(false)
+  const [modalNuevoMovimiento, setModalNuevoMovimiento] = useState(false);
+  const [nuevoTipo, setNuevoTipo] = useState<
+    "ENTRADA" | "SALIDA" | "DEVOLUCION_COMPRA" | "DEVOLUCION_VENTA" | "AJUSTE"
+  >("ENTRADA");
+  const [nuevoFecha, setNuevoFecha] = useState(
+    `${ejercicioSeleccionado}-01-20`,
+  );
+  const [nuevoComprobante, setNuevoComprobante] = useState("");
+  const [nuevoConcepto, setNuevoConcepto] = useState("");
+  const [nuevoUnidades, setNuevoUnidades] = useState<string>("100");
+  const [nuevoCosto, setNuevoCosto] = useState<string>("5.00");
+  const [sincronizandoToma, setSincronizandoToma] = useState(false);
+  const [sincronizadoExitoso, setSincronizadoExitoso] = useState(false);
+
+  const esFilaAperturaManual = (fila: FilaKardexManual, indice: number) => {
+    const conceptoNormalizado = normalizar(fila.concepto);
+    return (
+      conceptoNormalizado.includes("inventario inicial") ||
+      (indice === 0 &&
+        (fila.partidaNumero === 1 || conceptoNormalizado.includes("apertura")))
+    );
+  };
+
+  const movimientosManuales = useMemo(() => {
+    let unidades = 0;
+    let saldo = 0;
+    let debe = 0;
+    let haber = 0;
+    const movimientos: MovimientoKardexInventario[] = [];
+
+    for (const [indice, fila] of filasManuales.entries()) {
+      const cantidad = Number(fila.unidades);
+      const costo = Number(fila.costoUnitario);
+      const montoDirecto = Number(fila.montoContable);
+      const esApertura = esFilaAperturaManual(fila, indice);
+      if (
+        !Number.isFinite(cantidad) ||
+        cantidad <= 0 ||
+        (esApertura
+          ? !Number.isFinite(montoDirecto) || montoDirecto <= 0
+          : !Number.isFinite(costo) || costo <= 0)
+      )
+        continue;
+
+      const esEntrada =
+        fila.tipo === "ENTRADA" || fila.tipo === "DEVOLUCION_VENTA";
+      const entrada = esEntrada ? cantidad : 0;
+      const salida = esEntrada ? 0 : cantidad;
+      const costoRedondeado = Number.isFinite(costo) ? redondear(costo) : 0;
+      const montoDirectoRedondeado = redondear(montoDirecto);
+      const costoSalida =
+        unidades > 0 ? redondear(saldo / unidades) : costoRedondeado;
+      const costoEntrada = esApertura
+        ? costoRedondeado > 0
+          ? costoRedondeado
+          : redondear(montoDirectoRedondeado / cantidad)
+        : costoRedondeado;
+      const valorDebe = esApertura
+        ? montoDirectoRedondeado
+        : redondear(entrada * costoRedondeado);
+      const valorHaber = redondear(salida * costoSalida);
+      unidades = Math.max(0, unidades + entrada - salida);
+      saldo = redondear(Math.max(0, saldo + valorDebe - valorHaber));
+      debe = redondear(debe + valorDebe);
+      haber = redondear(haber + valorHaber);
+      movimientos.push({
+        id: fila.id,
+        fecha: fila.fecha,
+        comprobante: fila.comprobante,
+        concepto: fila.concepto,
+        tipo: fila.tipo,
+        unidadesEntrada: entrada,
+        unidadesSalida: salida,
+        unidadesSaldo: unidades,
+        costoUnitario: esApertura
+          ? costoEntrada
+          : esEntrada
+            ? costoRedondeado
+            : costoSalida,
+        debe: valorDebe,
+        haber: valorHaber,
+        saldo,
+      });
+    }
+
+    return { movimientos, unidades, saldo, debe, haber };
+  }, [filasManuales]);
+
+  const movimientosKardexVista =
+    modoKardex === "manual"
+      ? movimientosManuales.movimientos
+      : movimientosKardex;
+
+  const filasManualesPendientes = filasManuales.filter((fila, indice) => {
+    const cantidad = Number(fila.unidades);
+    const costo = Number(fila.costoUnitario);
+    const montoDirecto = Number(fila.montoContable);
+    const esApertura = esFilaAperturaManual(fila, indice);
+    return (
+      !Number.isFinite(cantidad) ||
+      cantidad <= 0 ||
+      (esApertura
+        ? !Number.isFinite(montoDirecto) || montoDirecto <= 0
+        : !Number.isFinite(costo) || costo <= 0)
+    );
+  }).length;
+
+  useEffect(() => {
+    if (
+      modoKardex !== "manual" ||
+      filasManualesPendientes > 0 ||
+      movimientosManuales.movimientos.length === 0
+    ) {
+      return;
+    }
+
+    const temporizador = window.setTimeout(() => {
+      guardarTomaFisica({
+        ejercicio: ejercicioSeleccionado,
+        fecha_toma: `${ejercicioSeleccionado}-12-31`,
+        valor_inventario_final: movimientosManuales.saldo,
+        responsable: "Control de Almacén",
+        observaciones: `Inventario final sincronizado desde la plantilla manual de Kardex (CPP). ${filasManuales.length} movimientos revisados.`,
+        es_manual: true,
+        origen: "KARDEX_MANUAL",
+      }).catch((error) => {
+        console.error(
+          "Error al sincronizar inventario final del Kardex:",
+          error,
+        );
+      });
+    }, 400);
+
+    return () => window.clearTimeout(temporizador);
+  }, [
+    ejercicioSeleccionado,
+    filasManuales.length,
+    filasManualesPendientes,
+    modoKardex,
+    movimientosManuales.movimientos.length,
+    movimientosManuales.saldo,
+  ]);
+
+  const asientosInventario = useMemo(() => {
+    const cuentasEntrada = new Set(["1104", "4101"]);
+    const cuentasSalida = new Set(["5101", "5102", "4103", "4106", "5103"]);
+    return asientos
+      .filter((asiento) => {
+        if (asiento.estado === "ANULADO" || asiento.tipo === "CIERRE")
+          return false;
+        const ejercicio =
+          asiento.ejercicio || new Date(asiento.fecha).getFullYear();
+        return ejercicio === ejercicioSeleccionado;
+      })
+      .flatMap((asiento) =>
+        asiento.lineas.flatMap((linea, indice) => {
+          const monto =
+            Number(linea.debe) > 0 ? Number(linea.debe) : Number(linea.haber);
+          let tipo: FilaKardexManual["tipo"] | null = null;
+          if (cuentasEntrada.has(linea.codigo) && Number(linea.debe) > 0)
+            tipo = "ENTRADA";
+          if (cuentasSalida.has(linea.codigo) && Number(linea.haber) > 0) {
+            tipo =
+              linea.codigo === "5102" || linea.codigo === "4106"
+                ? "DEVOLUCION_COMPRA"
+                : linea.codigo === "4103" || linea.codigo === "5103"
+                  ? "DEVOLUCION_VENTA"
+                  : "SALIDA";
+          }
+          if (!tipo || monto <= 0) return [];
+          return [
+            {
+              id: `${asiento.id}-${indice}`,
+              asientoId: asiento.id,
+              fecha: asiento.fecha,
+              partidaNumero: asiento.numero,
+              comprobante: asiento.documento_soporte || `P-${asiento.numero}`,
+              concepto: asiento.concepto,
+              tipo,
+              montoContable: String(monto),
+              unidades: "",
+              costoUnitario: "",
+            },
+          ];
+        }),
+      );
+  }, [asientos, ejercicioSeleccionado]);
+
+  useEffect(() => {
+    const clave = `${STORAGE_KARDEX_MANUAL}:${ejercicioSeleccionado}:${articuloId}`;
+    const plantillaInicial: FilaKardexManual[] =
+      asientosInventario.length > 0
+        ? asientosInventario
+        : [
+            {
+              id: `manual-${ejercicioSeleccionado}-1`,
+              asientoId: "",
+              fecha: `${ejercicioSeleccionado}-01-01`,
+              partidaNumero: 1,
+              comprobante: "",
+              concepto: "",
+              tipo: "ENTRADA",
+              montoContable: "",
+              unidades: "",
+              costoUnitario: "",
+            },
+          ];
+    try {
+      const guardadas = localStorage.getItem(clave);
+      setFilasManuales(guardadas ? JSON.parse(guardadas) : plantillaInicial);
+    } catch {
+      setFilasManuales(plantillaInicial);
+    }
+  }, [ejercicioSeleccionado, articuloId, asientosInventario]);
+
+  useEffect(() => {
+    const clave = `${STORAGE_KARDEX_MANUAL}:${ejercicioSeleccionado}:${articuloId}`;
+    if (filasManuales.length > 0)
+      localStorage.setItem(clave, JSON.stringify(filasManuales));
+  }, [filasManuales, ejercicioSeleccionado, articuloId]);
+
+  function actualizarFilaManual(
+    id: string,
+    campo:
+      | "fecha"
+      | "comprobante"
+      | "concepto"
+      | "tipo"
+      | "unidades"
+      | "montoContable"
+      | "costoUnitario",
+    valor: string,
+  ) {
+    setFilasManuales((actuales) =>
+      actuales.map((fila) =>
+        fila.id === id ? { ...fila, [campo]: valor } : fila,
+      ),
+    );
+  }
+
+  function agregarFilaManual() {
+    setFilasManuales((actuales) => [
+      ...actuales,
+      {
+        id: `manual-${Date.now()}`,
+        asientoId: "",
+        fecha: `${ejercicioSeleccionado}-01-01`,
+        partidaNumero: actuales.length + 1,
+        comprobante: "",
+        concepto: "",
+        tipo: "ENTRADA",
+        montoContable: "",
+        unidades: "",
+        costoUnitario: "",
+      },
+    ]);
+  }
+
+  function eliminarFilaManual(id: string) {
+    setFilasManuales((actuales) => actuales.filter((fila) => fila.id !== id));
+  }
+
+  async function usarSaldoManualComoInventarioFinal() {
+    if (
+      filasManualesPendientes > 0 ||
+      movimientosManuales.movimientos.length === 0
+    )
+      return;
+    await guardarTomaFisica({
+      ejercicio: ejercicioSeleccionado,
+      fecha_toma: `${ejercicioSeleccionado}-12-31`,
+      valor_inventario_final: movimientosManuales.saldo,
+      responsable: "Control de Almacén y Auditoría",
+      observaciones: `Inventario final valorizado mediante plantilla manual de Kardex (CPP). ${filasManuales.length} movimientos revisados.`,
+      es_manual: true,
+      origen: "KARDEX_MANUAL",
+    });
+  }
 
   // Cargar movimientos persistentes desde base de datos central
   useEffect(() => {
-    if (!dbConnected) return
-    let cancel = false
+    if (!dbConnected) return;
+    let cancel = false;
     async function cargarKardexDb() {
       try {
-        const res = await fetch(`/api/kardex?ejercicio=${ejercicioSeleccionado}&articulo=${articuloId}`)
+        const res = await fetch(
+          `/api/kardex?ejercicio=${ejercicioSeleccionado}&articulo=${articuloId}`,
+        );
         if (res.ok) {
-          const data = await res.json()
-          if (!cancel && Array.isArray(data.movimientos) && data.movimientos.length > 0) {
-            setMovimientosKardex(data.movimientos)
+          const data = await res.json();
+          if (
+            !cancel &&
+            Array.isArray(data.movimientos) &&
+            data.movimientos.length > 0
+          ) {
+            setMovimientosKardex(data.movimientos);
           }
         }
       } catch (err) {
-        console.error("Error al cargar kardex de base de datos:", err)
+        console.error("Error al cargar kardex de base de datos:", err);
       }
     }
-    cargarKardexDb()
+    cargarKardexDb();
     return () => {
-      cancel = true
-    }
-  }, [dbConnected, ejercicioSeleccionado, articuloId])
+      cancel = true;
+    };
+  }, [dbConnected, ejercicioSeleccionado, articuloId]);
 
-  const guardarMovimientosKardex = useCallback((nuevos: MovimientoKardexInventario[]) => {
-    setMovimientosKardex(nuevos)
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem(STORAGE_KARDEX_INVENTARIO, JSON.stringify(nuevos))
-      } catch {
-        // ignore
+  const guardarMovimientosKardex = useCallback(
+    (nuevos: MovimientoKardexInventario[]) => {
+      setMovimientosKardex(nuevos);
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(
+            STORAGE_KARDEX_INVENTARIO,
+            JSON.stringify(nuevos),
+          );
+        } catch {
+          // ignore
+        }
       }
-    }
-  }, [])
+    },
+    [],
+  );
 
   const restablecerKardex = useCallback(() => {
-    guardarMovimientosKardex(MOVIMIENTOS_KARDEX_DEFECTO)
-  }, [guardarMovimientosKardex])
+    guardarMovimientosKardex(MOVIMIENTOS_KARDEX_DEFECTO);
+  }, [guardarMovimientosKardex]);
 
   const articuloActual = useMemo(() => {
-    return ARTICULOS_KARDEX.find((a) => a.codigo === articuloId) || ARTICULOS_KARDEX[0]
-  }, [articuloId])
+    return (
+      ARTICULOS_KARDEX.find((a) => a.codigo === articuloId) ||
+      ARTICULOS_KARDEX[0]
+    );
+  }, [articuloId]);
 
   const totalesKardex = useMemo(() => {
-    let entradas = 0
-    let salidas = 0
-    let debe = 0
-    let haber = 0
-    for (const m of movimientosKardex) {
-      entradas += m.unidadesEntrada
-      salidas += m.unidadesSalida
-      debe += m.debe
-      haber += m.haber
+    let entradas = 0;
+    let salidas = 0;
+    let debe = 0;
+    let haber = 0;
+    for (const m of movimientosKardexVista) {
+      entradas += m.unidadesEntrada;
+      salidas += m.unidadesSalida;
+      debe += m.debe;
+      haber += m.haber;
     }
-    const ultimo = movimientosKardex[movimientosKardex.length - 1]
-    const existenciaFinal = ultimo?.unidadesSaldo || 0
-    const saldoFinal = ultimo?.saldo || 0
-    const costoUnitarioMedio = existenciaFinal > 0 ? redondear(saldoFinal / existenciaFinal) : 0
+    const ultimo = movimientosKardexVista[movimientosKardexVista.length - 1];
+    const existenciaFinal = ultimo?.unidadesSaldo || 0;
+    const saldoFinal = ultimo?.saldo || 0;
+    const costoUnitarioMedio =
+      existenciaFinal > 0 ? redondear(saldoFinal / existenciaFinal) : 0;
 
     return {
       entradas,
@@ -397,17 +741,21 @@ function KardexContent() {
       saldoValor: redondear(saldoFinal),
       costoUnitarioMedio,
       costoPromedioActual: costoUnitarioMedio,
-    }
-  }, [movimientosKardex])
+    };
+  }, [movimientosKardexVista]);
 
   function agregarMovimientoKardex(e: React.FormEvent) {
-    e.preventDefault()
-    const u = Number(nuevoUnidades) || 0
-    const c = Number(nuevoCosto) || 0
-    if (u <= 0) return
+    e.preventDefault();
+    const u = Number(nuevoUnidades) || 0;
+    const c = Number(nuevoCosto) || 0;
+    if (u <= 0) return;
 
-    const esEntrada = nuevoTipo === "ENTRADA" || nuevoTipo === "DEVOLUCION_VENTA" || (nuevoTipo === "AJUSTE" && c > 0)
-    const esSalida = nuevoTipo === "SALIDA" || nuevoTipo === "DEVOLUCION_COMPRA"
+    const esEntrada =
+      nuevoTipo === "ENTRADA" ||
+      nuevoTipo === "DEVOLUCION_VENTA" ||
+      (nuevoTipo === "AJUSTE" && c > 0);
+    const esSalida =
+      nuevoTipo === "SALIDA" || nuevoTipo === "DEVOLUCION_COMPRA";
 
     const raw = [
       ...movimientosKardex.map((m) => ({
@@ -423,17 +771,22 @@ function KardexContent() {
       {
         id: `k-${Date.now()}`,
         fecha: nuevoFecha,
-        comprobante: nuevoComprobante.trim() || (esEntrada ? "CCF-PROV" : "FAC-CLI"),
-        concepto: nuevoConcepto.trim() || (esEntrada ? "Ingreso de existencias a bodega" : "Despacho de existencias por venta"),
+        comprobante:
+          nuevoComprobante.trim() || (esEntrada ? "CCF-PROV" : "FAC-CLI"),
+        concepto:
+          nuevoConcepto.trim() ||
+          (esEntrada
+            ? "Ingreso de existencias a bodega"
+            : "Despacho de existencias por venta"),
         tipo: nuevoTipo,
         unidadesEntrada: esEntrada ? u : 0,
         unidadesSalida: esSalida ? u : 0,
         costoUnitario: c,
       },
-    ].sort((a, b) => a.fecha.localeCompare(b.fecha))
+    ].sort((a, b) => a.fecha.localeCompare(b.fecha));
 
-    const recalculados = recalcularKardexMovimientos(raw)
-    guardarMovimientosKardex(recalculados)
+    const recalculados = recalcularKardexMovimientos(raw);
+    guardarMovimientosKardex(recalculados);
 
     // Persistir en servidor contable si hay conexión
     if (dbConnected) {
@@ -444,24 +797,58 @@ function KardexContent() {
           ejercicio: ejercicioSeleccionado,
           articuloCodigo: articuloId,
           fecha: nuevoFecha,
-          comprobante: nuevoComprobante.trim() || (esEntrada ? "CCF-PROV" : "FAC-CLI"),
-          concepto: nuevoConcepto.trim() || (esEntrada ? "Ingreso de existencias a bodega" : "Despacho de existencias por venta"),
+          comprobante:
+            nuevoComprobante.trim() || (esEntrada ? "CCF-PROV" : "FAC-CLI"),
+          concepto:
+            nuevoConcepto.trim() ||
+            (esEntrada
+              ? "Ingreso de existencias a bodega"
+              : "Despacho de existencias por venta"),
           tipo: nuevoTipo,
           unidadesEntrada: esEntrada ? u : 0,
           unidadesSalida: esSalida ? u : 0,
           costoUnitario: c,
         }),
-      }).catch((err) => console.error("Error al persistir movimiento en servidor contable:", err))
+      }).catch((err) =>
+        console.error(
+          "Error al persistir movimiento en servidor contable:",
+          err,
+        ),
+      );
     }
 
-    setModalNuevoMovimiento(false)
-    setNuevoComprobante("")
-    setNuevoConcepto("")
+    setModalNuevoMovimiento(false);
+    setNuevoComprobante("");
+    setNuevoConcepto("");
   }
 
   async function handleSincronizarConTomaFisica() {
-    setSincronizandoToma(true)
+    setSincronizandoToma(true);
     try {
+      if (modoKardex === "manual") {
+        if (
+          filasManualesPendientes > 0 ||
+          movimientosManuales.movimientos.length === 0
+        ) {
+          return;
+        }
+
+        const guardado = await guardarTomaFisica({
+          ejercicio: ejercicioSeleccionado,
+          fecha_toma: `${ejercicioSeleccionado}-12-31`,
+          valor_inventario_final: movimientosManuales.saldo,
+          responsable: "Control de Almacén y Auditoría",
+          observaciones: `Inventario final valorizado mediante plantilla manual de Kardex (CPP). ${filasManuales.length} movimientos revisados.`,
+          es_manual: true,
+          origen: "KARDEX_MANUAL",
+        });
+        if (guardado) {
+          setSincronizadoExitoso(true);
+          setTimeout(() => setSincronizadoExitoso(false), 5000);
+        }
+        return;
+      }
+
       if (dbConnected) {
         const res = await fetch("/api/kardex", {
           method: "POST",
@@ -472,11 +859,11 @@ function KardexContent() {
             responsable: "Comité de Auditoría y Control de Inventarios",
             observaciones: `Inventario final conciliado directamente desde las tarjetas de Kardex (CPP) ($${totalesKardex.saldoFinal.toFixed(2)})`,
           }),
-        })
+        });
         if (res.ok) {
-          const data = await res.json()
+          const data = await res.json();
           if (data.tomaFisica) {
-            await guardarTomaFisica(data.tomaFisica)
+            await guardarTomaFisica(data.tomaFisica);
           }
         }
       } else {
@@ -485,153 +872,178 @@ function KardexContent() {
           valor_inventario_final: totalesKardex.saldoFinal,
           responsable: "Control de Almacén y Auditoría",
           observaciones: `Inventario final valorado según tarjeta de Kardex (CPP) ($${totalesKardex.saldoFinal.toFixed(2)})`,
-        })
+          es_manual: false,
+          origen: "KARDEX_AUTO",
+        });
       }
-      setSincronizadoExitoso(true)
-      setTimeout(() => setSincronizadoExitoso(false), 5000)
+      setSincronizadoExitoso(true);
+      setTimeout(() => setSincronizadoExitoso(false), 5000);
     } catch (e) {
-      console.error("Error al sincronizar kardex con toma física:", e)
+      console.error("Error al sincronizar kardex con toma física:", e);
     } finally {
-      setSincronizandoToma(false)
+      setSincronizandoToma(false);
     }
   }
 
   // ----------------------------------------------------
   // ESTADO: LIBRO AUXILIAR DE CUENTAS CONTABLES
   // ----------------------------------------------------
-  const [codigoSeleccionado, setCodigoSeleccionado] = useState<string>(codigoParam || "1101")
-  const [modoVista, setModoVista] = useState<"ficha" | "continuo">("ficha")
-  const [busqueda, setBusqueda] = useState("")
-  const [mesFiltro, setMesFiltro] = useState<string>("todos")
-  const [soloConMovimientos, setSoloConMovimientos] = useState<boolean>(true)
-  const [partidaDetalle, setPartidaDetalle] = useState<Asiento | null>(null)
+  const [codigoSeleccionado, setCodigoSeleccionado] = useState<string>(
+    codigoParam || "1101",
+  );
+  const [modoVista, setModoVista] = useState<"ficha" | "continuo">("ficha");
+  const [busqueda, setBusqueda] = useState("");
+  const [mesFiltro, setMesFiltro] = useState<string>("todos");
+  const [soloConMovimientos, setSoloConMovimientos] = useState<boolean>(true);
+  const [partidaDetalle, setPartidaDetalle] = useState<Asiento | null>(null);
 
   useEffect(() => {
     if (codigoParam && codigoParam !== codigoSeleccionado) {
-      setCodigoSeleccionado(codigoParam)
-      setPestañaPrincipal("libro_auxiliar")
+      setCodigoSeleccionado(codigoParam);
+      setPestañaPrincipal("libro_auxiliar");
     }
-  }, [codigoParam, codigoSeleccionado])
+  }, [codigoParam, codigoSeleccionado]);
 
   // Cuentas activas del catálogo
-  const cuentasActivas = useMemo(() => cuentas.filter((c) => c.activa), [cuentas])
+  const cuentasActivas = useMemo(
+    () => cuentas.filter((c) => c.activa),
+    [cuentas],
+  );
 
   // Mapa de saldo de mayor general por cuenta en el ejercicio actual
   const saldoMayorMap = useMemo(() => {
-    const map = new Map<string, { debe: number; haber: number; saldo: number; movs: number }>()
+    const map = new Map<
+      string,
+      { debe: number; haber: number; saldo: number; movs: number }
+    >();
     for (const a of asientos) {
-      if (a.estado === "ANULADO") continue
-      const ej = a.ejercicio || (a.fecha ? new Date(a.fecha).getFullYear() : undefined)
-      if (ej !== undefined && ej !== ejercicioSeleccionado) continue
+      if (a.estado === "ANULADO") continue;
+      const ej =
+        a.ejercicio || (a.fecha ? new Date(a.fecha).getFullYear() : undefined);
+      if (ej !== undefined && ej !== ejercicioSeleccionado) continue;
 
       for (const l of a.lineas) {
-        const actual = map.get(l.codigo) || { debe: 0, haber: 0, saldo: 0, movs: 0 }
-        actual.debe = redondear(actual.debe + (Number(l.debe) || 0))
-        actual.haber = redondear(actual.haber + (Number(l.haber) || 0))
-        actual.movs += 1
-        map.set(l.codigo, actual)
+        const actual = map.get(l.codigo) || {
+          debe: 0,
+          haber: 0,
+          saldo: 0,
+          movs: 0,
+        };
+        actual.debe = redondear(actual.debe + (Number(l.debe) || 0));
+        actual.haber = redondear(actual.haber + (Number(l.haber) || 0));
+        actual.movs += 1;
+        map.set(l.codigo, actual);
       }
     }
-    return map
-  }, [asientos, ejercicioSeleccionado])
+    return map;
+  }, [asientos, ejercicioSeleccionado]);
 
   // Cuenta activa actualmente en pantalla
   const cuentaActual: Cuenta | undefined = useMemo(() => {
-    return cuentasActivas.find((c) => c.codigo === codigoSeleccionado) || cuentasActivas[0]
-  }, [cuentasActivas, codigoSeleccionado])
+    return (
+      cuentasActivas.find((c) => c.codigo === codigoSeleccionado) ||
+      cuentasActivas[0]
+    );
+  }, [cuentasActivas, codigoSeleccionado]);
 
   // Cuentas elegibles para selector y navegación
   const cuentasNavegables = useMemo(() => {
-    let base = cuentasActivas
+    let base = cuentasActivas;
     if (soloConMovimientos) {
       base = base.filter((c) => {
-        const sm = saldoMayorMap.get(c.codigo)
-        return sm !== undefined && sm.movs > 0
-      })
+        const sm = saldoMayorMap.get(c.codigo);
+        return sm !== undefined && sm.movs > 0;
+      });
     }
-    return base
-  }, [cuentasActivas, soloConMovimientos, saldoMayorMap])
+    return base;
+  }, [cuentasActivas, soloConMovimientos, saldoMayorMap]);
 
   const indiceActual = useMemo(
     () => cuentasNavegables.findIndex((c) => c.codigo === codigoSeleccionado),
-    [cuentasNavegables, codigoSeleccionado]
-  )
+    [cuentasNavegables, codigoSeleccionado],
+  );
 
   const cuentaAnterior = useCallback(() => {
     if (indiceActual > 0) {
-      setCodigoSeleccionado(cuentasNavegables[indiceActual - 1].codigo)
+      setCodigoSeleccionado(cuentasNavegables[indiceActual - 1].codigo);
     }
-  }, [indiceActual, cuentasNavegables])
+  }, [indiceActual, cuentasNavegables]);
 
   const cuentaSiguiente = useCallback(() => {
     if (indiceActual >= 0 && indiceActual < cuentasNavegables.length - 1) {
-      setCodigoSeleccionado(cuentasNavegables[indiceActual + 1].codigo)
+      setCodigoSeleccionado(cuentasNavegables[indiceActual + 1].codigo);
     }
-  }, [indiceActual, cuentasNavegables])
+  }, [indiceActual, cuentasNavegables]);
 
   // Atajos de teclado para navegación contable y cierre de modales
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (partidaDetalle) {
-        if (e.key === "Escape") setPartidaDetalle(null)
-        return
+        if (e.key === "Escape") setPartidaDetalle(null);
+        return;
       }
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLSelectElement
+      )
+        return;
 
       if (e.altKey && e.key === "ArrowLeft") {
-        e.preventDefault()
-        cuentaAnterior()
+        e.preventDefault();
+        cuentaAnterior();
       } else if (e.altKey && e.key === "ArrowRight") {
-        e.preventDefault()
-        cuentaSiguiente()
+        e.preventDefault();
+        cuentaSiguiente();
       }
     }
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [partidaDetalle, cuentaAnterior, cuentaSiguiente])
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [partidaDetalle, cuentaAnterior, cuentaSiguiente]);
 
   // Cuentas filtradas por texto de búsqueda (insensible a acentos/tildes y mayúsculas)
   const cuentasFiltradas = useMemo(() => {
-    const q = normalizar(busqueda)
-    if (!q) return cuentasNavegables
+    const q = normalizar(busqueda);
+    if (!q) return cuentasNavegables;
     return cuentasNavegables.filter((c) => {
-      const codNorm = normalizar(c.codigo)
-      const nomNorm = normalizar(c.nombre)
-      return codNorm.includes(q) || nomNorm.includes(q)
-    })
-  }, [cuentasNavegables, busqueda])
+      const codNorm = normalizar(c.codigo);
+      const nomNorm = normalizar(c.nombre);
+      return codNorm.includes(q) || nomNorm.includes(q);
+    });
+  }, [cuentasNavegables, busqueda]);
 
   // Historial cronológico de la cuenta en el año
   const todosMovimientosAño = useMemo(() => {
-    if (!cuentaActual) return []
+    if (!cuentaActual) return [];
 
     const asientosDelEjercicio = asientos
       .filter((a) => {
-        if (a.estado === "ANULADO") return false
-        const ej = a.ejercicio || (a.fecha ? new Date(a.fecha).getFullYear() : undefined)
-        if (ej !== undefined && ej !== ejercicioSeleccionado) return false
-        return true
+        if (a.estado === "ANULADO") return false;
+        const ej =
+          a.ejercicio ||
+          (a.fecha ? new Date(a.fecha).getFullYear() : undefined);
+        if (ej !== undefined && ej !== ejercicioSeleccionado) return false;
+        return true;
       })
       .slice()
       .sort((a, b) => {
-        const fComp = (a.fecha || "").localeCompare(b.fecha || "")
-        if (fComp !== 0) return fComp
-        return a.numero - b.numero
-      })
+        const fComp = (a.fecha || "").localeCompare(b.fecha || "");
+        if (fComp !== 0) return fComp;
+        return a.numero - b.numero;
+      });
 
-    const lista: MovimientoKardex[] = []
-    let saldoAcumulado = 0
+    const lista: MovimientoKardex[] = [];
+    let saldoAcumulado = 0;
 
     for (const a of asientosDelEjercicio) {
       for (const linea of a.lineas) {
         if (linea.codigo === cuentaActual.codigo) {
-          const debe = Number(linea.debe) || 0
-          const haber = Number(linea.haber) || 0
+          const debe = Number(linea.debe) || 0;
+          const haber = Number(linea.haber) || 0;
 
           if (cuentaActual.naturaleza === "deudora") {
-            saldoAcumulado = redondear(saldoAcumulado + debe - haber)
+            saldoAcumulado = redondear(saldoAcumulado + debe - haber);
           } else {
-            saldoAcumulado = redondear(saldoAcumulado + haber - debe)
+            saldoAcumulado = redondear(saldoAcumulado + haber - debe);
           }
 
           lista.push({
@@ -639,257 +1051,311 @@ function KardexContent() {
             partidaNumero: a.numero,
             correlativoGlobal: a.correlativo_global,
             tipoPartida: a.tipo || "OPERACION",
-            referenciaDoc: extraerReferenciaOperativa(a.concepto, a.tipo || "OPERACION", a.numero),
+            referenciaDoc: extraerReferenciaOperativa(
+              a.concepto,
+              a.tipo || "OPERACION",
+              a.numero,
+            ),
             concepto: a.concepto,
             debe,
             haber,
             saldo: saldoAcumulado,
             asientoOriginal: a,
-          })
+          });
         }
       }
     }
 
-    return lista
-  }, [asientos, cuentaActual, ejercicioSeleccionado])
+    return lista;
+  }, [asientos, cuentaActual, ejercicioSeleccionado]);
 
   // Datos consolidados para Libro Auxiliar Continuo (Todas las cuentas con saldo o movimientos)
   const libroContinuoData = useMemo(() => {
-    if (modoVista !== "continuo") return []
+    if (modoVista !== "continuo") return [];
 
     const asientosDelEjercicio = asientos
       .filter((a) => {
-        if (a.estado === "ANULADO") return false
-        const ej = a.ejercicio || (a.fecha ? new Date(a.fecha).getFullYear() : undefined)
-        if (ej !== undefined && ej !== ejercicioSeleccionado) return false
-        return true
+        if (a.estado === "ANULADO") return false;
+        const ej =
+          a.ejercicio ||
+          (a.fecha ? new Date(a.fecha).getFullYear() : undefined);
+        if (ej !== undefined && ej !== ejercicioSeleccionado) return false;
+        return true;
       })
       .slice()
       .sort((a, b) => {
-        const fComp = (a.fecha || "").localeCompare(b.fecha || "")
-        if (fComp !== 0) return fComp
-        return a.numero - b.numero
-      })
+        const fComp = (a.fecha || "").localeCompare(b.fecha || "");
+        if (fComp !== 0) return fComp;
+        return a.numero - b.numero;
+      });
 
-    const mesNum = mesFiltro !== "todos" ? Number(mesFiltro) : null
+    const mesNum = mesFiltro !== "todos" ? Number(mesFiltro) : null;
 
-    return cuentasFiltradas.map((cuenta) => {
-      let saldoAcumulado = 0
-      let saldoInicial = 0
-      const movs: MovimientoKardex[] = []
+    return cuentasFiltradas
+      .map((cuenta) => {
+        let saldoAcumulado = 0;
+        let saldoInicial = 0;
+        const movs: MovimientoKardex[] = [];
 
-      for (const a of asientosDelEjercicio) {
-        for (const linea of a.lineas) {
-          if (linea.codigo === cuenta.codigo) {
-            const debe = Number(linea.debe) || 0
-            const haber = Number(linea.haber) || 0
-            if (cuenta.naturaleza === "deudora") {
-              saldoAcumulado = redondear(saldoAcumulado + debe - haber)
-            } else {
-              saldoAcumulado = redondear(saldoAcumulado + haber - debe)
-            }
-
-            const mItem: MovimientoKardex = {
-              fecha: a.fecha,
-              partidaNumero: a.numero,
-              correlativoGlobal: a.correlativo_global,
-              tipoPartida: a.tipo || "OPERACION",
-              referenciaDoc: extraerReferenciaOperativa(a.concepto, a.tipo || "OPERACION", a.numero),
-              concepto: a.concepto,
-              debe,
-              haber,
-              saldo: saldoAcumulado,
-              asientoOriginal: a,
-            }
-
-            if (mesNum !== null) {
-              const mMes = new Date(a.fecha + "T00:00:00").getMonth() + 1
-              if (mMes < mesNum) {
-                saldoInicial = saldoAcumulado
-              } else if (mMes === mesNum) {
-                movs.push(mItem)
+        for (const a of asientosDelEjercicio) {
+          for (const linea of a.lineas) {
+            if (linea.codigo === cuenta.codigo) {
+              const debe = Number(linea.debe) || 0;
+              const haber = Number(linea.haber) || 0;
+              if (cuenta.naturaleza === "deudora") {
+                saldoAcumulado = redondear(saldoAcumulado + debe - haber);
+              } else {
+                saldoAcumulado = redondear(saldoAcumulado + haber - debe);
               }
-            } else {
-              movs.push(mItem)
+
+              const mItem: MovimientoKardex = {
+                fecha: a.fecha,
+                partidaNumero: a.numero,
+                correlativoGlobal: a.correlativo_global,
+                tipoPartida: a.tipo || "OPERACION",
+                referenciaDoc: extraerReferenciaOperativa(
+                  a.concepto,
+                  a.tipo || "OPERACION",
+                  a.numero,
+                ),
+                concepto: a.concepto,
+                debe,
+                haber,
+                saldo: saldoAcumulado,
+                asientoOriginal: a,
+              };
+
+              if (mesNum !== null) {
+                const mMes = new Date(a.fecha + "T00:00:00").getMonth() + 1;
+                if (mMes < mesNum) {
+                  saldoInicial = saldoAcumulado;
+                } else if (mMes === mesNum) {
+                  movs.push(mItem);
+                }
+              } else {
+                movs.push(mItem);
+              }
             }
           }
         }
-      }
 
-      const totalDebe = redondear(movs.reduce((acc, m) => acc + m.debe, 0))
-      const totalHaber = redondear(movs.reduce((acc, m) => acc + m.haber, 0))
-      const saldoFinal = movs.length > 0 ? movs[movs.length - 1].saldo : saldoInicial
+        const totalDebe = redondear(movs.reduce((acc, m) => acc + m.debe, 0));
+        const totalHaber = redondear(movs.reduce((acc, m) => acc + m.haber, 0));
+        const saldoFinal =
+          movs.length > 0 ? movs[movs.length - 1].saldo : saldoInicial;
 
-      return {
-        cuenta,
-        movimientos: movs,
-        saldoInicial,
-        totalDebe,
-        totalHaber,
-        saldoFinal,
-      }
-    }).filter((item) => item.movimientos.length > 0 || item.saldoInicial !== 0)
-  }, [modoVista, asientos, ejercicioSeleccionado, mesFiltro, cuentasFiltradas])
+        return {
+          cuenta,
+          movimientos: movs,
+          saldoInicial,
+          totalDebe,
+          totalHaber,
+          saldoFinal,
+        };
+      })
+      .filter((item) => item.movimientos.length > 0 || item.saldoInicial !== 0);
+  }, [modoVista, asientos, ejercicioSeleccionado, mesFiltro, cuentasFiltradas]);
 
   const totalesLibroContinuo = useMemo(() => {
-    let debe = 0
-    let haber = 0
+    let debe = 0;
+    let haber = 0;
     for (const item of libroContinuoData) {
-      debe += item.totalDebe
-      haber += item.totalHaber
+      debe += item.totalDebe;
+      haber += item.totalHaber;
     }
-    return { debe: redondear(debe), haber: redondear(haber) }
-  }, [libroContinuoData])
+    return { debe: redondear(debe), haber: redondear(haber) };
+  }, [libroContinuoData]);
 
   // Estado y helpers para plegar/desplegar cuentas en Libro Continuo (modo acordeón)
-  const [cuentasColapsadas, setCuentasColapsadas] = useState<Record<string, boolean>>({})
+  const [cuentasColapsadas, setCuentasColapsadas] = useState<
+    Record<string, boolean>
+  >({});
 
   const plegarTodas = useCallback(() => {
-    const map: Record<string, boolean> = {}
+    const map: Record<string, boolean> = {};
     for (const item of libroContinuoData) {
-      map[item.cuenta.codigo] = true
+      map[item.cuenta.codigo] = true;
     }
-    setCuentasColapsadas(map)
-  }, [libroContinuoData])
+    setCuentasColapsadas(map);
+  }, [libroContinuoData]);
 
   const expandirTodas = useCallback(() => {
-    setCuentasColapsadas({})
-  }, [])
+    setCuentasColapsadas({});
+  }, []);
 
   const toggleCuenta = useCallback((codigo: string) => {
     setCuentasColapsadas((prev) => ({
       ...prev,
       [codigo]: !prev[codigo],
-    }))
-  }, [])
+    }));
+  }, []);
 
   // Movimientos del período seleccionado con arrastre exacto de saldo anterior
   const { movimientos, saldoInicialPeriodo } = useMemo(() => {
     if (mesFiltro === "todos") {
-      return { movimientos: todosMovimientosAño, saldoInicialPeriodo: 0 }
+      return { movimientos: todosMovimientosAño, saldoInicialPeriodo: 0 };
     }
 
-    const mesNum = Number(mesFiltro)
-    let saldoInicial = 0
-    const delMes: MovimientoKardex[] = []
+    const mesNum = Number(mesFiltro);
+    let saldoInicial = 0;
+    const delMes: MovimientoKardex[] = [];
 
     for (const m of todosMovimientosAño) {
-      const fechaObj = new Date(m.fecha + "T00:00:00")
-      const mesItem = fechaObj.getMonth() + 1
+      const fechaObj = new Date(m.fecha + "T00:00:00");
+      const mesItem = fechaObj.getMonth() + 1;
       if (mesItem < mesNum) {
-        saldoInicial = m.saldo
+        saldoInicial = m.saldo;
       } else if (mesItem === mesNum) {
-        delMes.push(m)
+        delMes.push(m);
       }
     }
 
-    return { movimientos: delMes, saldoInicialPeriodo: saldoInicial }
-  }, [todosMovimientosAño, mesFiltro])
+    return { movimientos: delMes, saldoInicialPeriodo: saldoInicial };
+  }, [todosMovimientosAño, mesFiltro]);
 
   // Métricas del período
   const totalDebe = useMemo(
     () => redondear(movimientos.reduce((acc, m) => acc + m.debe, 0)),
-    [movimientos]
-  )
+    [movimientos],
+  );
   const totalHaber = useMemo(
     () => redondear(movimientos.reduce((acc, m) => acc + m.haber, 0)),
-    [movimientos]
-  )
+    [movimientos],
+  );
 
   const saldoFinalPeriodo = useMemo(() => {
-    if (movimientos.length === 0) return saldoInicialPeriodo
-    return movimientos[movimientos.length - 1].saldo
-  }, [movimientos, saldoInicialPeriodo])
+    if (movimientos.length === 0) return saldoInicialPeriodo;
+    return movimientos[movimientos.length - 1].saldo;
+  }, [movimientos, saldoInicialPeriodo]);
 
   // Variación neta del período (flujo)
   const variacionNeta = useMemo(() => {
     if (cuentaActual?.naturaleza === "deudora") {
-      return redondear(totalDebe - totalHaber)
+      return redondear(totalDebe - totalHaber);
     }
-    return redondear(totalHaber - totalDebe)
-  }, [cuentaActual, totalDebe, totalHaber])
+    return redondear(totalHaber - totalDebe);
+  }, [cuentaActual, totalDebe, totalHaber]);
 
   // Evaluación de anomalías o sobregiros contables
   const esSaldoAnomalo = useMemo(() => {
-    if (saldoFinalPeriodo === 0) return false
-    return saldoFinalPeriodo < 0
-  }, [saldoFinalPeriodo])
+    if (saldoFinalPeriodo === 0) return false;
+    return saldoFinalPeriodo < 0;
+  }, [saldoFinalPeriodo]);
 
-  const esCuentaSaldada = saldoFinalPeriodo === 0
+  const esCuentaSaldada = saldoFinalPeriodo === 0;
 
   const condicionSaldoTexto = useMemo(() => {
-    if (esCuentaSaldada) return "Saldada ($0.00)"
+    if (esCuentaSaldada) return "Saldada ($0.00)";
     if (cuentaActual?.naturaleza === "deudora") {
-      return saldoFinalPeriodo >= 0 ? "Deudor" : "Acreedor (Sobregiro)"
+      return saldoFinalPeriodo >= 0 ? "Deudor" : "Acreedor (Sobregiro)";
     } else {
-      return saldoFinalPeriodo >= 0 ? "Acreedor" : "Deudor (Anómalo)"
+      return saldoFinalPeriodo >= 0 ? "Acreedor" : "Deudor (Anómalo)";
     }
-  }, [esCuentaSaldada, cuentaActual, saldoFinalPeriodo])
+  }, [esCuentaSaldada, cuentaActual, saldoFinalPeriodo]);
 
   // Cálculos analíticos y tributarios de El Salvador
   const saldoMayorCuenta = useCallback(
     (codigo: string) => {
-      const sm = saldoMayorMap.get(codigo)
-      if (!sm) return 0
-      const c = cuentas.find((x) => x.codigo === codigo)
-      if (!c) return 0
-      return c.naturaleza === "deudora" ? sm.debe - sm.haber : sm.haber - sm.debe
+      const sm = saldoMayorMap.get(codigo);
+      if (!sm) return 0;
+      const c = cuentas.find((x) => x.codigo === codigo);
+      if (!c) return 0;
+      return c.naturaleza === "deudora"
+        ? sm.debe - sm.haber
+        : sm.haber - sm.debe;
     },
-    [saldoMayorMap, cuentas]
-  )
+    [saldoMayorMap, cuentas],
+  );
 
-  const totalDF = useMemo(() => Math.max(0, saldoMayorCuenta("2103")), [saldoMayorCuenta])
-  const totalCF = useMemo(() => Math.max(0, saldoMayorCuenta("1105")), [saldoMayorCuenta])
-  const diferenciaIVA = useMemo(() => redondear(totalDF - totalCF), [totalDF, totalCF])
+  const totalDF = useMemo(
+    () => Math.max(0, saldoMayorCuenta("2103")),
+    [saldoMayorCuenta],
+  );
+  const totalCF = useMemo(
+    () => Math.max(0, saldoMayorCuenta("1105")),
+    [saldoMayorCuenta],
+  );
+  const diferenciaIVA = useMemo(
+    () => redondear(totalDF - totalCF),
+    [totalDF, totalCF],
+  );
 
-  const comprasBrutas = useMemo(() => Math.max(0, saldoMayorCuenta("4101")), [saldoMayorCuenta])
-  const gastosCompras = useMemo(() => Math.max(0, saldoMayorCuenta("4102")), [saldoMayorCuenta])
-  const devCompras = useMemo(() => Math.max(0, saldoMayorCuenta("5102")), [saldoMayorCuenta])
-  const rebCompras = useMemo(() => Math.max(0, saldoMayorCuenta("5103")), [saldoMayorCuenta])
+  const comprasBrutas = useMemo(
+    () => Math.max(0, saldoMayorCuenta("4101")),
+    [saldoMayorCuenta],
+  );
+  const gastosCompras = useMemo(
+    () => Math.max(0, saldoMayorCuenta("4102")),
+    [saldoMayorCuenta],
+  );
+  const devCompras = useMemo(
+    () => Math.max(0, saldoMayorCuenta("5102")),
+    [saldoMayorCuenta],
+  );
+  const rebCompras = useMemo(
+    () => Math.max(0, saldoMayorCuenta("5103")),
+    [saldoMayorCuenta],
+  );
 
-  const ventasBrutas = useMemo(() => Math.max(0, saldoMayorCuenta("5101")), [saldoMayorCuenta])
-  const devVentas = useMemo(() => Math.max(0, saldoMayorCuenta("4103")), [saldoMayorCuenta])
-  const rebVentas = useMemo(() => Math.max(0, saldoMayorCuenta("4104")), [saldoMayorCuenta])
+  const ventasBrutas = useMemo(
+    () => Math.max(0, saldoMayorCuenta("5101")),
+    [saldoMayorCuenta],
+  );
+  const devVentas = useMemo(
+    () => Math.max(0, saldoMayorCuenta("4103")),
+    [saldoMayorCuenta],
+  );
+  const rebVentas = useMemo(
+    () => Math.max(0, saldoMayorCuenta("4104")),
+    [saldoMayorCuenta],
+  );
 
   const comprasNetas = useMemo(
     () => redondear(comprasBrutas + gastosCompras - devCompras - rebCompras),
-    [comprasBrutas, gastosCompras, devCompras, rebCompras]
-  )
+    [comprasBrutas, gastosCompras, devCompras, rebCompras],
+  );
   const ventasNetas = useMemo(
     () => redondear(ventasBrutas - devVentas - rebVentas),
-    [ventasBrutas, devVentas, rebVentas]
-  )
+    [ventasBrutas, devVentas, rebVentas],
+  );
 
   // Funciones de exportación e impresión
   function exportarPdf() {
     if (pestañaPrincipal === "kardex_inventario") {
-      const previousTitle = document.title
-      document.title = `Tarjeta_Kardex_${articuloActual.codigo}_${ejercicioSeleccionado}`
-      window.print()
+      const previousTitle = document.title;
+      document.title = `Tarjeta_Kardex_${articuloActual.codigo}_${ejercicioSeleccionado}`;
+      window.print();
       window.setTimeout(() => {
-        document.title = previousTitle
-      }, 500)
-      return
+        document.title = previousTitle;
+      }, 500);
+      return;
     }
 
-    const previousTitle = document.title
-    document.title = modoVista === "continuo"
-      ? `Libro_Auxiliar_General_Completo_${ejercicioSeleccionado}`
-      : `Libro_Auxiliar_${cuentaActual?.codigo || "cuenta"}_${ejercicioSeleccionado}`
-    window.print()
+    const previousTitle = document.title;
+    document.title =
+      modoVista === "continuo"
+        ? `Libro_Auxiliar_General_Completo_${ejercicioSeleccionado}`
+        : `Libro_Auxiliar_${cuentaActual?.codigo || "cuenta"}_${ejercicioSeleccionado}`;
+    window.print();
     window.setTimeout(() => {
-      document.title = previousTitle
-    }, 500)
+      document.title = previousTitle;
+    }, 500);
   }
 
   function exportarExcel() {
     if (pestañaPrincipal === "kardex_inventario") {
       const filas: (string | number | null | undefined)[][] = [
-        ["SISTEMA CONTABLE OFICIAL - TARJETA DE CONTROL DE INVENTARIOS (KARDEX)"],
+        [
+          "SISTEMA CONTABLE OFICIAL - TARJETA DE CONTROL DE INVENTARIOS (KARDEX)",
+        ],
         [`Ejercicio fiscal: ${ejercicioSeleccionado}`],
         [`Artículo: ${articuloActual.codigo} - ${articuloActual.nombre}`],
-        [`Método de Valuación: Costo Promedio Ponderado (Art. 143 C.T.) · Unidad: ${articuloActual.unidad}`],
-        [`Cuenta Contable: ${articuloActual.cuentaCodigo} - ${articuloActual.cuentaNombre}`],
+        [
+          `Método de Valuación: Costo Promedio Ponderado (Art. 143 C.T.) · Unidad: ${articuloActual.unidad}`,
+        ],
+        [
+          `Cuenta Contable: ${articuloActual.cuentaCodigo} - ${articuloActual.cuentaNombre}`,
+        ],
         [`Ubicación: ${articuloActual.ubicacion}`],
         [`Fecha de emisión: ${new Date().toLocaleDateString("es-SV")}`],
         [],
@@ -905,9 +1371,9 @@ function KardexContent() {
           "Haber (Salidas $)",
           "Saldo (Total $)",
         ],
-      ]
+      ];
 
-      for (const m of movimientosKardex) {
+      for (const m of movimientosKardexVista) {
         filas.push([
           m.fecha,
           m.comprobante,
@@ -919,10 +1385,10 @@ function KardexContent() {
           m.debe > 0 ? m.debe : "",
           m.haber > 0 ? m.haber : "",
           m.saldo,
-        ])
+        ]);
       }
 
-      filas.push([])
+      filas.push([]);
       filas.push([
         "TOTALES DE LA TARJETA DE KARDEX",
         "",
@@ -934,15 +1400,15 @@ function KardexContent() {
         totalesKardex.debe,
         totalesKardex.haber,
         totalesKardex.saldoFinal,
-      ])
+      ]);
 
       exportarLibroExcel(`Tarjeta_Kardex_${articuloActual.codigo}`, [
         {
           nombre: `Kardex ${articuloActual.codigo}`,
           filas,
         },
-      ])
-      return
+      ]);
+      return;
     }
 
     if (modoVista === "continuo") {
@@ -951,12 +1417,26 @@ function KardexContent() {
           ["SISTEMA CONTABLE OFICIAL - LIBRO AUXILIAR DE MAYOR"],
           [`Ejercicio fiscal: ${ejercicioSeleccionado}`],
           [`Cuenta: ${item.cuenta.codigo} - ${item.cuenta.nombre}`],
-          [`Clasificación: ${item.cuenta.tipo.toUpperCase()} | Naturaleza: ${item.cuenta.naturaleza.toUpperCase()}`],
-          [`Período reportado: ${MESES.find((m) => m.valor === mesFiltro)?.label || "Todo el año"}`],
+          [
+            `Clasificación: ${item.cuenta.tipo.toUpperCase()} | Naturaleza: ${item.cuenta.naturaleza.toUpperCase()}`,
+          ],
+          [
+            `Período reportado: ${MESES.find((m) => m.valor === mesFiltro)?.label || "Todo el año"}`,
+          ],
           [`Fecha de emisión: ${new Date().toLocaleDateString("es-SV")}`],
           [],
-          ["Fecha", "Partida #", "Tipo", "Referencia / Doc", "Concepto / Glosa", "Debe (Cargos)", "Haber (Abonos)", "Saldo Progresivo", "Nat."],
-        ]
+          [
+            "Fecha",
+            "Partida #",
+            "Tipo",
+            "Referencia / Doc",
+            "Concepto / Glosa",
+            "Debe (Cargos)",
+            "Haber (Abonos)",
+            "Saldo Progresivo",
+            "Nat.",
+          ],
+        ];
 
         if (mesFiltro !== "todos") {
           filas.push([
@@ -968,8 +1448,14 @@ function KardexContent() {
             "",
             "",
             item.saldoInicial,
-            item.saldoInicial >= 0 ? (item.cuenta.naturaleza === "deudora" ? "D" : "A") : (item.cuenta.naturaleza === "deudora" ? "A" : "D"),
-          ])
+            item.saldoInicial >= 0
+              ? item.cuenta.naturaleza === "deudora"
+                ? "D"
+                : "A"
+              : item.cuenta.naturaleza === "deudora"
+                ? "A"
+                : "D",
+          ]);
         }
 
         for (const m of item.movimientos) {
@@ -982,11 +1468,17 @@ function KardexContent() {
             m.debe > 0 ? m.debe : "",
             m.haber > 0 ? m.haber : "",
             m.saldo,
-            m.saldo >= 0 ? (item.cuenta.naturaleza === "deudora" ? "D" : "A") : (item.cuenta.naturaleza === "deudora" ? "A" : "D"),
-          ])
+            m.saldo >= 0
+              ? item.cuenta.naturaleza === "deudora"
+                ? "D"
+                : "A"
+              : item.cuenta.naturaleza === "deudora"
+                ? "A"
+                : "D",
+          ]);
         }
 
-        filas.push([])
+        filas.push([]);
         filas.push([
           "SUMAS DE LA CUENTA",
           "",
@@ -996,32 +1488,55 @@ function KardexContent() {
           item.totalDebe,
           item.totalHaber,
           item.saldoFinal,
-          item.saldoFinal >= 0 ? (item.cuenta.naturaleza === "deudora" ? "D" : "A") : (item.cuenta.naturaleza === "deudora" ? "A" : "D"),
-        ])
+          item.saldoFinal >= 0
+            ? item.cuenta.naturaleza === "deudora"
+              ? "D"
+              : "A"
+            : item.cuenta.naturaleza === "deudora"
+              ? "A"
+              : "D",
+        ]);
 
         return {
           nombre: `Aux ${item.cuenta.codigo}`,
           filas,
-        }
-      })
+        };
+      });
 
-      exportarLibroExcel(`Libro_Auxiliar_General_${ejercicioSeleccionado}`, hojas)
-      return
+      exportarLibroExcel(
+        `Libro_Auxiliar_General_${ejercicioSeleccionado}`,
+        hojas,
+      );
+      return;
     }
 
-    if (!cuentaActual) return
+    if (!cuentaActual) return;
 
     const filas: (string | number | null | undefined)[][] = [
       ["SISTEMA CONTABLE OFICIAL - LIBRO AUXILIAR DE CUENTAS MAYORES"],
       [`Ejercicio fiscal: ${ejercicioSeleccionado}`],
       [`Cuenta: ${cuentaActual.codigo} - ${cuentaActual.nombre}`],
-      [`Clasificación: ${cuentaActual.tipo.toUpperCase()} | Naturaleza Normal: ${cuentaActual.naturaleza.toUpperCase()}`],
-      [`Período reportado: ${MESES.find((m) => m.valor === mesFiltro)?.label || "Todo el año"}`],
+      [
+        `Clasificación: ${cuentaActual.tipo.toUpperCase()} | Naturaleza Normal: ${cuentaActual.naturaleza.toUpperCase()}`,
+      ],
+      [
+        `Período reportado: ${MESES.find((m) => m.valor === mesFiltro)?.label || "Todo el año"}`,
+      ],
       [`Condición del Saldo: ${condicionSaldoTexto}`],
       [`Fecha de emisión: ${new Date().toLocaleDateString("es-SV")}`],
       [],
-      ["Fecha", "Partida #", "Tipo", "Referencia / Doc", "Concepto / Glosa", "Debe (Cargos)", "Haber (Abonos)", "Saldo Progresivo", "Nat."],
-    ]
+      [
+        "Fecha",
+        "Partida #",
+        "Tipo",
+        "Referencia / Doc",
+        "Concepto / Glosa",
+        "Debe (Cargos)",
+        "Haber (Abonos)",
+        "Saldo Progresivo",
+        "Nat.",
+      ],
+    ];
 
     if (mesFiltro !== "todos") {
       filas.push([
@@ -1033,8 +1548,14 @@ function KardexContent() {
         "",
         "",
         saldoInicialPeriodo,
-        saldoInicialPeriodo >= 0 ? (cuentaActual.naturaleza === "deudora" ? "D" : "A") : (cuentaActual.naturaleza === "deudora" ? "A" : "D"),
-      ])
+        saldoInicialPeriodo >= 0
+          ? cuentaActual.naturaleza === "deudora"
+            ? "D"
+            : "A"
+          : cuentaActual.naturaleza === "deudora"
+            ? "A"
+            : "D",
+      ]);
     }
 
     for (const m of movimientos) {
@@ -1047,11 +1568,17 @@ function KardexContent() {
         m.debe > 0 ? m.debe : "",
         m.haber > 0 ? m.haber : "",
         m.saldo,
-        m.saldo >= 0 ? (cuentaActual.naturaleza === "deudora" ? "D" : "A") : (cuentaActual.naturaleza === "deudora" ? "A" : "D"),
-      ])
+        m.saldo >= 0
+          ? cuentaActual.naturaleza === "deudora"
+            ? "D"
+            : "A"
+          : cuentaActual.naturaleza === "deudora"
+            ? "A"
+            : "D",
+      ]);
     }
 
-    filas.push([])
+    filas.push([]);
     filas.push([
       "SUMAS DEL PERÍODO",
       "",
@@ -1062,14 +1589,17 @@ function KardexContent() {
       totalHaber,
       saldoFinalPeriodo,
       condicionSaldoTexto,
-    ])
+    ]);
 
-    exportarLibroExcel(`Libro_Auxiliar_${cuentaActual.codigo}_${cuentaActual.nombre.replace(/\s+/g, "_")}`, [
-      {
-        nombre: `Auxiliar ${cuentaActual.codigo}`,
-        filas,
-      },
-    ])
+    exportarLibroExcel(
+      `Libro_Auxiliar_${cuentaActual.codigo}_${cuentaActual.nombre.replace(/\s+/g, "_")}`,
+      [
+        {
+          nombre: `Auxiliar ${cuentaActual.codigo}`,
+          filas,
+        },
+      ],
+    );
   }
 
   // Cuentas agrupadas por clase contable para el selector
@@ -1077,12 +1607,14 @@ function KardexContent() {
     return GRUPOS_CONTABLES.map((g) => ({
       ...g,
       cuentas: cuentasFiltradas.filter((c) => c.tipo === g.tipo),
-    })).filter((g) => g.cuentas.length > 0)
-  }, [cuentasFiltradas])
+    })).filter((g) => g.cuentas.length > 0);
+  }, [cuentasFiltradas]);
 
   const totalCuentasConMovs = useMemo(() => {
-    return cuentasActivas.filter((c) => (saldoMayorMap.get(c.codigo)?.movs || 0) > 0).length
-  }, [cuentasActivas, saldoMayorMap])
+    return cuentasActivas.filter(
+      (c) => (saldoMayorMap.get(c.codigo)?.movs || 0) > 0,
+    ).length;
+  }, [cuentasActivas, saldoMayorMap]);
 
   return (
     <div className="space-y-5">
@@ -1096,38 +1628,89 @@ function KardexContent() {
             {pestañaPrincipal === "kardex_inventario"
               ? "Tarjeta de Control de Inventarios (Kardex)"
               : modoVista === "continuo"
-              ? "Libro Auxiliar General de Mayor"
-              : "Libro Auxiliar de Mayor"}
+                ? "Libro Auxiliar General de Mayor"
+                : "Libro Auxiliar de Mayor"}
           </p>
         </div>
 
         {pestañaPrincipal === "kardex_inventario" ? (
           <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs font-mono">
-            <p><strong>Artículo:</strong> {articuloActual.codigo} — {articuloActual.nombre}</p>
-            <p className="text-right"><strong>Ejercicio Fiscal:</strong> {ejercicioSeleccionado}</p>
-            <p><strong>Ubicación:</strong> {articuloActual.ubicacion} · <strong>Unidad:</strong> {articuloActual.unidad}</p>
-            <p className="text-right"><strong>Fecha de Emisión:</strong> {new Date().toLocaleDateString("es-SV")}</p>
-            <p><strong>Cuenta Contable:</strong> {articuloActual.cuentaCodigo} — {articuloActual.cuentaNombre}</p>
-            <p className="text-right"><strong>Existencia Final:</strong> {totalesKardex.saldoUnidades.toLocaleString()} {articuloActual.unidad.toLowerCase()} ({formatoMoneda(totalesKardex.saldoValor)})</p>
+            <p>
+              <strong>Artículo:</strong> {articuloActual.codigo} —{" "}
+              {articuloActual.nombre}
+            </p>
+            <p className="text-right">
+              <strong>Ejercicio Fiscal:</strong> {ejercicioSeleccionado}
+            </p>
+            <p>
+              <strong>Ubicación:</strong> {articuloActual.ubicacion} ·{" "}
+              <strong>Unidad:</strong> {articuloActual.unidad}
+            </p>
+            <p className="text-right">
+              <strong>Fecha de Emisión:</strong>{" "}
+              {new Date().toLocaleDateString("es-SV")}
+            </p>
+            <p>
+              <strong>Cuenta Contable:</strong> {articuloActual.cuentaCodigo} —{" "}
+              {articuloActual.cuentaNombre}
+            </p>
+            <p className="text-right">
+              <strong>Existencia Final:</strong>{" "}
+              {totalesKardex.saldoUnidades.toLocaleString()}{" "}
+              {articuloActual.unidad.toLowerCase()} (
+              {formatoMoneda(totalesKardex.saldoValor)})
+            </p>
           </div>
         ) : (
           <>
             {modoVista === "ficha" && cuentaActual && (
               <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs font-mono">
-                <p><strong>Cuenta:</strong> {cuentaActual.codigo} — {cuentaActual.nombre}</p>
-                <p className="text-right"><strong>Ejercicio Fiscal:</strong> {ejercicioSeleccionado}</p>
-                <p><strong>Clasificación:</strong> {cuentaActual.tipo.toUpperCase()} ({cuentaActual.naturaleza.toUpperCase()})</p>
-                <p className="text-right"><strong>Fecha de Emisión:</strong> {new Date().toLocaleDateString("es-SV")}</p>
-                <p><strong>Período:</strong> {MESES.find((m) => m.valor === mesFiltro)?.label || "Todo el año"}</p>
-                <p className="text-right"><strong>Saldo al Corte:</strong> {formatoMoneda(Math.abs(saldoFinalPeriodo))} ({condicionSaldoTexto})</p>
+                <p>
+                  <strong>Cuenta:</strong> {cuentaActual.codigo} —{" "}
+                  {cuentaActual.nombre}
+                </p>
+                <p className="text-right">
+                  <strong>Ejercicio Fiscal:</strong> {ejercicioSeleccionado}
+                </p>
+                <p>
+                  <strong>Clasificación:</strong>{" "}
+                  {cuentaActual.tipo.toUpperCase()} (
+                  {cuentaActual.naturaleza.toUpperCase()})
+                </p>
+                <p className="text-right">
+                  <strong>Fecha de Emisión:</strong>{" "}
+                  {new Date().toLocaleDateString("es-SV")}
+                </p>
+                <p>
+                  <strong>Período:</strong>{" "}
+                  {MESES.find((m) => m.valor === mesFiltro)?.label ||
+                    "Todo el año"}
+                </p>
+                <p className="text-right">
+                  <strong>Saldo al Corte:</strong>{" "}
+                  {formatoMoneda(Math.abs(saldoFinalPeriodo))} (
+                  {condicionSaldoTexto})
+                </p>
               </div>
             )}
 
             {modoVista === "continuo" && (
               <div className="mt-2 flex items-center justify-between text-xs font-mono">
-                <p><strong>Período:</strong> {MESES.find((m) => m.valor === mesFiltro)?.label || "Todo el año fiscal"}</p>
-                <p><strong>Cuentas reportadas:</strong> {libroContinuoData.length} cuentas</p>
-                <p><strong>Total Cargos:</strong> {formatoMoneda(totalesLibroContinuo.debe)} · <strong>Total Abonos:</strong> {formatoMoneda(totalesLibroContinuo.haber)}</p>
+                <p>
+                  <strong>Período:</strong>{" "}
+                  {MESES.find((m) => m.valor === mesFiltro)?.label ||
+                    "Todo el año fiscal"}
+                </p>
+                <p>
+                  <strong>Cuentas reportadas:</strong>{" "}
+                  {libroContinuoData.length} cuentas
+                </p>
+                <p>
+                  <strong>Total Cargos:</strong>{" "}
+                  {formatoMoneda(totalesLibroContinuo.debe)} ·{" "}
+                  <strong>Total Abonos:</strong>{" "}
+                  {formatoMoneda(totalesLibroContinuo.haber)}
+                </p>
               </div>
             )}
           </>
@@ -1175,22 +1758,50 @@ function KardexContent() {
                 <Badge variant="outline" className="text-xs font-mono">
                   {ejercicioSeleccionado}
                 </Badge>
+                <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5 text-xs font-medium ml-1">
+                  <button
+                    type="button"
+                    onClick={() => setModoKardex("automatico")}
+                    className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                      modoKardex === "automatico"
+                        ? "bg-background text-foreground font-semibold shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Automático
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModoKardex("manual")}
+                    className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                      modoKardex === "manual"
+                        ? "bg-background text-foreground font-semibold shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Manual
+                  </button>
+                </div>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Control permanente de existencias físicas y valuación de inventario en bodega por artículo.
+                {modoKardex === "manual"
+                  ? "Complete la plantilla del Kardex; existencias y valores se recalculan al instante."
+                  : "Control permanente de existencias físicas y valuación de inventario en bodega por artículo."}
               </p>
             </div>
 
             <div className="flex items-center gap-2 print:hidden shrink-0">
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => setModalNuevoMovimiento(true)}
-                className="h-8 gap-1.5 text-xs shadow-xs"
-              >
-                <Plus className="size-3.5" />
-                Registrar Movimiento
-              </Button>
+              {modoKardex === "automatico" && (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => setModalNuevoMovimiento(true)}
+                  className="h-8 gap-1.5 text-xs shadow-xs"
+                >
+                  <Plus className="size-3.5" />
+                  Registrar Movimiento
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="outline"
@@ -1243,11 +1854,26 @@ function KardexContent() {
             </div>
 
             <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0 flex-wrap">
-              <span>Ubicación: <strong className="text-foreground font-medium">{articuloActual.ubicacion}</strong></span>
+              <span>
+                Ubicación:{" "}
+                <strong className="text-foreground font-medium">
+                  {articuloActual.ubicacion}
+                </strong>
+              </span>
               <span>·</span>
-              <span>Cuenta Mayor: <strong className="text-foreground font-medium">{articuloActual.cuentaCodigo} ({articuloActual.cuentaNombre})</strong></span>
+              <span>
+                Cuenta Mayor:{" "}
+                <strong className="text-foreground font-medium">
+                  {articuloActual.cuentaCodigo} ({articuloActual.cuentaNombre})
+                </strong>
+              </span>
               <span>·</span>
-              <span>Unidad: <strong className="text-foreground font-medium">{articuloActual.unidad}</strong></span>
+              <span>
+                Unidad:{" "}
+                <strong className="text-foreground font-medium">
+                  {articuloActual.unidad}
+                </strong>
+              </span>
             </div>
           </div>
 
@@ -1257,7 +1883,10 @@ function KardexContent() {
               <div className="flex items-center gap-2.5">
                 <div
                   className={`p-2 rounded-lg ${
-                    Math.abs(totalesKardex.saldoFinal - (tomaFisica?.valor_inventario_final ?? 0)) < 0.01
+                    Math.abs(
+                      totalesKardex.saldoFinal -
+                        (tomaFisica?.valor_inventario_final ?? 0),
+                    ) < 0.01
                       ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                       : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
                   }`}
@@ -1269,12 +1898,16 @@ function KardexContent() {
                     <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
                       Auditoría y Conciliación de Inventario Final
                     </h4>
-                    {Math.abs(totalesKardex.saldoFinal - (tomaFisica?.valor_inventario_final ?? 0)) < 0.01 ? (
+                    {Math.abs(
+                      totalesKardex.saldoFinal -
+                        (tomaFisica?.valor_inventario_final ?? 0),
+                    ) < 0.01 ? (
                       <Badge
                         variant="outline"
                         className="text-[10px] text-emerald-600 border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/20"
                       >
-                        <CheckCircle2 className="size-3 mr-1 inline" /> Conciliado 100%
+                        <CheckCircle2 className="size-3 mr-1 inline" />{" "}
+                        Conciliado 100%
                       </Badge>
                     ) : (
                       <Badge
@@ -1286,9 +1919,11 @@ function KardexContent() {
                     )}
                   </div>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Conciliación de existencias en almacén para la determinación del Costo de Ventas:{" "}
+                    Conciliación de existencias en almacén para la determinación
+                    del Costo de Ventas:{" "}
                     <span className="font-mono text-foreground font-medium">
-                      Costo de Ventas = Inv. Inicial + Compras Netas − Inv. Final
+                      Costo de Ventas = Inv. Inicial + Compras Netas − Inv.
+                      Final
                     </span>
                   </p>
                 </div>
@@ -1302,33 +1937,53 @@ function KardexContent() {
                   onClick={handleSincronizarConTomaFisica}
                   className="h-8 gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer"
                 >
-                  <RotateCcw className={`size-3.5 ${sincronizandoToma ? "animate-spin" : ""}`} />
-                  {sincronizandoToma ? "Sincronizando..." : "Sincronizar Kardex con Toma Física"}
+                  <RotateCcw
+                    className={`size-3.5 ${sincronizandoToma ? "animate-spin" : ""}`}
+                  />
+                  {sincronizandoToma
+                    ? "Sincronizando..."
+                    : "Sincronizar Kardex con Toma Física"}
                 </Button>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-border/60 text-xs font-mono">
               <div className="flex items-center justify-between p-2 rounded-lg bg-muted/40 border border-border/50">
-                <span className="text-muted-foreground font-sans text-[11px]">Saldo Kardex (Bodega CPP):</span>
-                <span className="font-bold text-foreground">{formatoMoneda(totalesKardex.saldoFinal)}</span>
+                <span className="text-muted-foreground font-sans text-[11px]">
+                  Saldo Kardex (Bodega CPP):
+                </span>
+                <span className="font-bold text-foreground">
+                  {formatoMoneda(totalesKardex.saldoFinal)}
+                </span>
               </div>
               <div className="flex items-center justify-between p-2 rounded-lg bg-muted/40 border border-border/50">
-                <span className="text-muted-foreground font-sans text-[11px]">Toma Física Registrada:</span>
+                <span className="text-muted-foreground font-sans text-[11px]">
+                  Toma Física Registrada:
+                </span>
                 <span className="font-bold text-foreground">
                   {formatoMoneda(tomaFisica?.valor_inventario_final ?? 0)}
                 </span>
               </div>
               <div className="flex items-center justify-between p-2 rounded-lg bg-muted/40 border border-border/50">
-                <span className="text-muted-foreground font-sans text-[11px]">Diferencia de Auditoría:</span>
+                <span className="text-muted-foreground font-sans text-[11px]">
+                  Diferencia de Auditoría:
+                </span>
                 <span
                   className={`font-bold ${
-                    Math.abs(totalesKardex.saldoFinal - (tomaFisica?.valor_inventario_final ?? 0)) < 0.01
+                    Math.abs(
+                      totalesKardex.saldoFinal -
+                        (tomaFisica?.valor_inventario_final ?? 0),
+                    ) < 0.01
                       ? "text-emerald-600 dark:text-emerald-400"
                       : "text-amber-600 dark:text-amber-400"
                   }`}
                 >
-                  {formatoMoneda(Math.abs(totalesKardex.saldoFinal - (tomaFisica?.valor_inventario_final ?? 0)))}
+                  {formatoMoneda(
+                    Math.abs(
+                      totalesKardex.saldoFinal -
+                        (tomaFisica?.valor_inventario_final ?? 0),
+                    ),
+                  )}
                 </span>
               </div>
             </div>
@@ -1337,8 +1992,10 @@ function KardexContent() {
               <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs flex items-center gap-2">
                 <CheckCircle2 className="size-4 shrink-0" />
                 <span>
-                  ¡Inventario Final sincronizado con éxito en los registros contables! El Estado de Resultados y Costo de Ventas ya
-                  reflejan los {formatoMoneda(totalesKardex.saldoFinal)} calculados por el Kardex.
+                  ¡Inventario Final sincronizado con éxito en los registros
+                  contables! El Estado de Resultados y Costo de Ventas ya
+                  reflejan los {formatoMoneda(totalesKardex.saldoFinal)}{" "}
+                  calculados por el Kardex.
                 </span>
               </div>
             )}
@@ -1347,9 +2004,14 @@ function KardexContent() {
           {/* Resumen Compacto de Existencias y Valores */}
           <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border rounded-xl border border-border bg-card text-center text-xs font-mono py-2 shadow-2xs print:hidden">
             <div className="py-1 px-3">
-              <span className="text-[10px] uppercase font-sans text-muted-foreground block font-medium">Existencia Física</span>
+              <span className="text-[10px] uppercase font-sans text-muted-foreground block font-medium">
+                Existencia Física
+              </span>
               <div className="text-sm font-bold text-foreground mt-0.5">
-                {totalesKardex.saldoUnidades.toLocaleString()} <span className="text-[10px] font-normal font-sans text-muted-foreground">{articuloActual.unidad.toLowerCase()}</span>
+                {totalesKardex.saldoUnidades.toLocaleString()}{" "}
+                <span className="text-[10px] font-normal font-sans text-muted-foreground">
+                  {articuloActual.unidad.toLowerCase()}
+                </span>
               </div>
               <span className="text-[10px] text-muted-foreground block">
                 +{totalesKardex.totalEntradas} / −{totalesKardex.totalSalidas}
@@ -1357,7 +2019,9 @@ function KardexContent() {
             </div>
 
             <div className="py-1 px-3">
-              <span className="text-[10px] uppercase font-sans text-muted-foreground block font-medium">Costo Promedio</span>
+              <span className="text-[10px] uppercase font-sans text-muted-foreground block font-medium">
+                Costo Promedio
+              </span>
               <div className="text-sm font-bold text-foreground mt-0.5">
                 {formatoMoneda(totalesKardex.costoPromedioActual)}
               </div>
@@ -1367,7 +2031,9 @@ function KardexContent() {
             </div>
 
             <div className="py-1 px-3">
-              <span className="text-[10px] uppercase font-sans text-muted-foreground block font-medium">Saldo Valorado</span>
+              <span className="text-[10px] uppercase font-sans text-muted-foreground block font-medium">
+                Saldo Valorado
+              </span>
               <div className="text-sm font-extrabold text-foreground mt-0.5">
                 {formatoMoneda(totalesKardex.saldoValor)}
               </div>
@@ -1377,12 +2043,17 @@ function KardexContent() {
             </div>
 
             <div className="py-1 px-3">
-              <span className="text-[10px] uppercase font-sans text-muted-foreground block font-medium">Cuenta Mayor 1104</span>
+              <span className="text-[10px] uppercase font-sans text-muted-foreground block font-medium">
+                Cuenta Mayor 1104
+              </span>
               <div className="flex items-center justify-center gap-1 mt-0.5">
                 <span className="text-sm font-bold text-foreground">
                   {formatoMoneda(totalesKardex.saldoValor)}
                 </span>
-                <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400" title="Conciliado con el saldo contable de Inventarios">
+                <span
+                  className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400"
+                  title="Conciliado con el saldo contable de Inventarios"
+                >
                   (Cuadrado)
                 </span>
               </div>
@@ -1392,6 +2063,30 @@ function KardexContent() {
             </div>
           </div>
 
+          {modoKardex === "manual" && (
+            <div className="flex flex-col gap-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 p-3 text-xs sm:flex-row sm:items-center sm:justify-between print:hidden">
+              <div>
+                <p className="font-semibold text-foreground">
+                  Plantilla manual de movimientos
+                </p>
+                <p className="text-muted-foreground">
+                  Los saldos se recalculan según el orden de la plantilla y las
+                  filas incompletas quedan pendientes.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={agregarFilaManual}
+                className="h-8 gap-1.5 text-xs shrink-0"
+              >
+                <Plus className="size-3.5" />
+                Agregar fila
+              </Button>
+            </div>
+          )}
+
           {/* TABLA PRINCIPAL DEL KARDEX: 9 COLUMNAS CLÁSICAS */}
           <div className="rounded-xl border border-border bg-card overflow-hidden shadow-xs print:border-0 print:shadow-none print:rounded-none print:bg-transparent">
             <div className="overflow-x-auto print:overflow-visible">
@@ -1399,111 +2094,370 @@ function KardexContent() {
                 <thead>
                   {/* Fila 1 de encabezado agrupado */}
                   <tr className="bg-muted/80 border-b border-border text-[11px] uppercase tracking-wider font-bold text-muted-foreground">
-                    <th rowSpan={2} className="py-2.5 px-3 border-r border-border/60">Fecha</th>
-                    <th rowSpan={2} className="py-2.5 px-3 border-r border-border/60">Comprobante</th>
-                    <th rowSpan={2} className="py-2.5 px-3 border-r border-border/60 min-w-[220px]">Concepto / Detalle Operativo</th>
-                    <th colSpan={3} className="py-2 px-3 text-center border-r border-border/60 bg-muted/90 text-foreground font-semibold">
+                    <th
+                      rowSpan={2}
+                      className="py-2.5 px-3 border-r border-border/60"
+                    >
+                      Fecha
+                    </th>
+                    <th
+                      rowSpan={2}
+                      className="py-2.5 px-3 border-r border-border/60"
+                    >
+                      Comprobante
+                    </th>
+                    <th
+                      rowSpan={2}
+                      className="py-2.5 px-3 border-r border-border/60 min-w-[220px]"
+                    >
+                      Concepto / Detalle Operativo
+                    </th>
+                    <th
+                      colSpan={3}
+                      className="py-2 px-3 text-center border-r border-border/60 bg-muted/90 text-foreground font-semibold"
+                    >
                       Unidades
                     </th>
-                    <th rowSpan={2} className="py-2.5 px-3 text-right border-r border-border/60">Costo Unit.</th>
-                    <th colSpan={3} className="py-2 px-3 text-center bg-muted/90 text-foreground font-semibold">
+                    <th
+                      rowSpan={2}
+                      className="py-2.5 px-3 text-right border-r border-border/60"
+                    >
+                      Costo Unit.
+                    </th>
+                    <th
+                      colSpan={3}
+                      className="py-2 px-3 text-center bg-muted/90 text-foreground font-semibold"
+                    >
                       Valores en USD
                     </th>
                   </tr>
                   {/* Fila 2 de sub-encabezados */}
                   <tr className="bg-muted/60 border-b border-border text-[10px] uppercase font-semibold text-muted-foreground">
-                    <th className="py-1.5 px-3 text-right border-r border-border/40 text-emerald-700 dark:text-emerald-400" title="Unidades que ingresaron a bodega">Entrada (+)</th>
-                    <th className="py-1.5 px-3 text-right border-r border-border/40 text-rose-700 dark:text-rose-400" title="Unidades que salieron de bodega por venta o merma">Salida (−)</th>
-                    <th className="py-1.5 px-3 text-right border-r border-border/60 font-bold text-foreground" title="Existencia física actual en bodega">Existencia</th>
-                    <th className="py-1.5 px-3 text-right border-r border-border/40 text-emerald-700 dark:text-emerald-400" title="Cargos valorados por compras (+)">Debe (+)</th>
-                    <th className="py-1.5 px-3 text-right border-r border-border/40 text-rose-700 dark:text-rose-400" title="Abonos valorados por costo de ventas (−)">Haber (−)</th>
-                    <th className="py-1.5 px-3 text-right font-bold text-foreground bg-muted/10" title="Saldo monetario valorado acumulado en inventarios">Saldo ($)</th>
+                    <th
+                      className="py-1.5 px-3 text-right border-r border-border/40 text-emerald-700 dark:text-emerald-400"
+                      title="Unidades que ingresaron a bodega"
+                    >
+                      Entrada (+)
+                    </th>
+                    <th
+                      className="py-1.5 px-3 text-right border-r border-border/40 text-rose-700 dark:text-rose-400"
+                      title="Unidades que salieron de bodega por venta o merma"
+                    >
+                      Salida (−)
+                    </th>
+                    <th
+                      className="py-1.5 px-3 text-right border-r border-border/60 font-bold text-foreground"
+                      title="Existencia física actual en bodega"
+                    >
+                      Existencia
+                    </th>
+                    <th
+                      className="py-1.5 px-3 text-right border-r border-border/40 text-emerald-700 dark:text-emerald-400"
+                      title="Cargos valorados por compras (+)"
+                    >
+                      Debe (+)
+                    </th>
+                    <th
+                      className="py-1.5 px-3 text-right border-r border-border/40 text-rose-700 dark:text-rose-400"
+                      title="Abonos valorados por costo de ventas (−)"
+                    >
+                      Haber (−)
+                    </th>
+                    <th
+                      className="py-1.5 px-3 text-right font-bold text-foreground bg-muted/10"
+                      title="Saldo monetario valorado acumulado en inventarios"
+                    >
+                      Saldo ($)
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60 font-mono">
-                  {movimientosKardex.map((m) => {
-                    const esApertura = m.tipo === "AJUSTE" && m.comprobante.includes("APE")
-                    const esDevolucion = m.tipo.startsWith("DEVOLUCION")
-                    return (
-                      <tr
-                        key={m.id}
-                        className={`hover:bg-muted/40 transition-colors ${
-                          esApertura ? "bg-muted/20" : ""
-                        }`}
-                      >
-                        <td className="py-2.5 px-3 whitespace-nowrap text-muted-foreground">
-                          {m.fecha}
-                        </td>
-                        <td className="py-2.5 px-3 whitespace-nowrap font-medium text-foreground">
-                          <span className="rounded bg-muted px-1.5 py-0.5 text-[11px]">
-                            {m.comprobante}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 font-sans text-xs text-foreground min-w-[240px]">
-                          <div className="flex items-center gap-1.5">
-                            <span>{m.concepto}</span>
-                            {esDevolucion && (
-                              <Badge variant="outline" className="text-[9px] py-0 px-1 border-amber-500/50 text-amber-600 dark:text-amber-400">
-                                Devolución
-                              </Badge>
-                            )}
-                          </div>
-                        </td>
-                        {/* Unidades */}
-                        <td className="py-2.5 px-3 text-right tabular-nums border-r border-border/40">
-                          {m.unidadesEntrada > 0 ? (
-                            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
-                              +{m.unidadesEntrada.toLocaleString()}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground/40">—</span>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3 text-right tabular-nums border-r border-border/40">
-                          {m.unidadesSalida > 0 ? (
-                            <span className="text-rose-600 dark:text-rose-400 font-semibold">
-                              −{m.unidadesSalida.toLocaleString()}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground/40">—</span>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3 text-right tabular-nums font-bold text-foreground border-r border-border/60 bg-muted/10">
-                          {m.unidadesSaldo.toLocaleString()}
-                        </td>
-                        {/* Costo Unitario */}
-                        <td className="py-2.5 px-3 text-right tabular-nums text-muted-foreground border-r border-border/60">
-                          {formatoMoneda(m.costoUnitario)}
-                        </td>
-                        {/* Valores Monetarios */}
-                        <td className="py-2.5 px-3 text-right tabular-nums border-r border-border/40">
-                          {m.debe > 0 ? (
-                            <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                              +{formatoMoneda(m.debe)}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground/40">—</span>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3 text-right tabular-nums border-r border-border/40">
-                          {m.haber > 0 ? (
-                            <span className="text-rose-600 dark:text-rose-400 font-medium">
-                              −{formatoMoneda(m.haber)}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground/40">—</span>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3 text-right tabular-nums font-bold text-foreground bg-muted/15 border-l border-border/40">
-                          <strong className="text-foreground">{formatoMoneda(m.saldo)}</strong>
-                        </td>
-                      </tr>
-                    )
-                  })}
+                  {modoKardex === "manual"
+                    ? filasManuales.map((fila, indice) => {
+                        const m = movimientosManuales.movimientos.find(
+                          (movimiento) => movimiento.id === fila.id,
+                        );
+                        const esApertura = esFilaAperturaManual(fila, indice);
+                        return (
+                          <tr
+                            key={fila.id}
+                            className="hover:bg-muted/40 transition-colors align-top"
+                          >
+                            <td className="p-1.5">
+                              <Input
+                                type="date"
+                                value={fila.fecha}
+                                onChange={(e) =>
+                                  actualizarFilaManual(
+                                    fila.id,
+                                    "fecha",
+                                    e.target.value,
+                                  )
+                                }
+                                className="h-8 min-w-[125px] text-[11px]"
+                              />
+                            </td>
+                            <td className="p-1.5">
+                              <Input
+                                value={fila.comprobante}
+                                onChange={(e) =>
+                                  actualizarFilaManual(
+                                    fila.id,
+                                    "comprobante",
+                                    e.target.value,
+                                  )
+                                }
+                                placeholder="CCF-001"
+                                className="h-8 min-w-[105px] text-[11px]"
+                              />
+                            </td>
+                            <td className="p-1.5 min-w-[250px]">
+                              <Input
+                                value={fila.concepto}
+                                onChange={(e) =>
+                                  actualizarFilaManual(
+                                    fila.id,
+                                    "concepto",
+                                    e.target.value,
+                                  )
+                                }
+                                placeholder="Detalle del movimiento"
+                                className="h-8 min-w-[240px] text-[11px]"
+                              />
+                              <select
+                                value={fila.tipo}
+                                onChange={(e) =>
+                                  actualizarFilaManual(
+                                    fila.id,
+                                    "tipo",
+                                    e.target.value,
+                                  )
+                                }
+                                className="mt-1 h-7 w-full rounded-md border border-input bg-background px-2 text-[10px]"
+                              >
+                                <option value="ENTRADA">Entrada</option>
+                                <option value="SALIDA">Salida</option>
+                                <option value="DEVOLUCION_COMPRA">
+                                  Devolución compra
+                                </option>
+                                <option value="DEVOLUCION_VENTA">
+                                  Devolución venta
+                                </option>
+                                <option value="AJUSTE">Ajuste</option>
+                              </select>
+                            </td>
+                            <td className="p-1.5">
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={
+                                  fila.tipo === "SALIDA" ||
+                                  fila.tipo === "DEVOLUCION_COMPRA"
+                                    ? ""
+                                    : fila.unidades
+                                }
+                                onChange={(e) =>
+                                  actualizarFilaManual(
+                                    fila.id,
+                                    "unidades",
+                                    e.target.value,
+                                  )
+                                }
+                                placeholder="0"
+                                className="h-8 min-w-[75px] text-right text-[11px]"
+                              />
+                            </td>
+                            <td className="p-1.5">
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={
+                                  fila.tipo === "SALIDA" ||
+                                  fila.tipo === "DEVOLUCION_COMPRA"
+                                    ? fila.unidades
+                                    : ""
+                                }
+                                onChange={(e) =>
+                                  actualizarFilaManual(
+                                    fila.id,
+                                    "unidades",
+                                    e.target.value,
+                                  )
+                                }
+                                placeholder="0"
+                                className="h-8 min-w-[75px] text-right text-[11px]"
+                              />
+                            </td>
+                            <td className="py-2.5 px-3 text-right tabular-nums font-bold text-foreground border-r border-border/60 bg-muted/10">
+                              {m ? m.unidadesSaldo.toLocaleString() : "—"}
+                            </td>
+                            <td className="p-1.5">
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={
+                                  fila.costoUnitario ||
+                                  (esApertura
+                                    ? String(m?.costoUnitario ?? "")
+                                    : "")
+                                }
+                                onChange={(e) =>
+                                  actualizarFilaManual(
+                                    fila.id,
+                                    "costoUnitario",
+                                    e.target.value,
+                                  )
+                                }
+                                placeholder="0.00"
+                                className="h-8 min-w-[85px] text-right text-[11px]"
+                              />
+                            </td>
+                            <td className="p-1.5 border-r border-border/40">
+                              {esApertura ? (
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={fila.montoContable}
+                                  onChange={(e) =>
+                                    actualizarFilaManual(
+                                      fila.id,
+                                      "montoContable",
+                                      e.target.value,
+                                    )
+                                  }
+                                  placeholder="6000.00"
+                                  className="h-8 min-w-[95px] text-right text-[11px] text-emerald-700 dark:text-emerald-300"
+                                />
+                              ) : (
+                                <span className="block py-2.5 text-right tabular-nums text-emerald-600 dark:text-emerald-400">
+                                  {m?.debe ? `+${formatoMoneda(m.debe)}` : "—"}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-right tabular-nums border-r border-border/40 text-rose-600 dark:text-rose-400">
+                              {m?.haber ? `−${formatoMoneda(m.haber)}` : "—"}
+                            </td>
+                            <td className="py-2.5 px-3 text-right tabular-nums font-bold text-foreground bg-muted/15">
+                              {m ? formatoMoneda(m.saldo) : "—"}
+                            </td>
+                            <td className="p-1.5 print:hidden">
+                              <button
+                                type="button"
+                                onClick={() => eliminarFilaManual(fila.id)}
+                                className="p-1.5 text-muted-foreground hover:text-rose-600 cursor-pointer"
+                                title="Eliminar fila"
+                                aria-label="Eliminar fila"
+                              >
+                                <X className="size-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    : movimientosKardex.map((m) => {
+                        const esApertura =
+                          m.tipo === "AJUSTE" && m.comprobante.includes("APE");
+                        const esDevolucion = m.tipo.startsWith("DEVOLUCION");
+                        return (
+                          <tr
+                            key={m.id}
+                            className={`hover:bg-muted/40 transition-colors ${
+                              esApertura ? "bg-muted/20" : ""
+                            }`}
+                          >
+                            <td className="py-2.5 px-3 whitespace-nowrap text-muted-foreground">
+                              {m.fecha}
+                            </td>
+                            <td className="py-2.5 px-3 whitespace-nowrap font-medium text-foreground">
+                              <span className="rounded bg-muted px-1.5 py-0.5 text-[11px]">
+                                {m.comprobante}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 font-sans text-xs text-foreground min-w-[240px]">
+                              <div className="flex items-center gap-1.5">
+                                <span>{m.concepto}</span>
+                                {esDevolucion && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[9px] py-0 px-1 border-amber-500/50 text-amber-600 dark:text-amber-400"
+                                  >
+                                    Devolución
+                                  </Badge>
+                                )}
+                              </div>
+                            </td>
+                            {/* Unidades */}
+                            <td className="py-2.5 px-3 text-right tabular-nums border-r border-border/40">
+                              {m.unidadesEntrada > 0 ? (
+                                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                                  +{m.unidadesEntrada.toLocaleString()}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground/40">
+                                  —
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-right tabular-nums border-r border-border/40">
+                              {m.unidadesSalida > 0 ? (
+                                <span className="text-rose-600 dark:text-rose-400 font-semibold">
+                                  −{m.unidadesSalida.toLocaleString()}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground/40">
+                                  —
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-right tabular-nums font-bold text-foreground border-r border-border/60 bg-muted/10">
+                              {m.unidadesSaldo.toLocaleString()}
+                            </td>
+                            {/* Costo Unitario */}
+                            <td className="py-2.5 px-3 text-right tabular-nums text-muted-foreground border-r border-border/60">
+                              {formatoMoneda(m.costoUnitario)}
+                            </td>
+                            {/* Valores Monetarios */}
+                            <td className="py-2.5 px-3 text-right tabular-nums border-r border-border/40">
+                              {m.debe > 0 ? (
+                                <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                                  +{formatoMoneda(m.debe)}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground/40">
+                                  —
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-right tabular-nums border-r border-border/40">
+                              {m.haber > 0 ? (
+                                <span className="text-rose-600 dark:text-rose-400 font-medium">
+                                  −{formatoMoneda(m.haber)}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground/40">
+                                  —
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-right tabular-nums font-bold text-foreground bg-muted/15 border-l border-border/40">
+                              <strong className="text-foreground">
+                                {formatoMoneda(m.saldo)}
+                              </strong>
+                            </td>
+                          </tr>
+                        );
+                      })}
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-border bg-muted/50 font-mono text-xs font-bold">
-                    <td colSpan={3} className="py-3 px-3 uppercase text-foreground font-sans">
+                    <td
+                      colSpan={3}
+                      className="py-3 px-3 uppercase text-foreground font-sans"
+                    >
                       Totales del Período / Saldo Final
                     </td>
                     <td className="py-3 px-3 text-right tabular-nums text-emerald-600 dark:text-emerald-400 border-r border-border/40">
@@ -1513,7 +2467,8 @@ function KardexContent() {
                       −{totalesKardex.totalSalidas.toLocaleString()}
                     </td>
                     <td className="py-3 px-3 text-right tabular-nums text-foreground border-r border-border/60">
-                      {totalesKardex.saldoUnidades.toLocaleString()} {articuloActual.unidad.toLowerCase()}
+                      {totalesKardex.saldoUnidades.toLocaleString()}{" "}
+                      {articuloActual.unidad.toLowerCase()}
                     </td>
                     <td className="py-3 px-3 text-right tabular-nums text-muted-foreground border-r border-border/60">
                       {formatoMoneda(totalesKardex.costoPromedioActual)}
@@ -1622,25 +2577,36 @@ function KardexContent() {
                       onChange={(e) => setCodigoSeleccionado(e.target.value)}
                       aria-label="Seleccionar cuenta contable"
                     >
-                      {!cuentasFiltradas.some((c) => c.codigo === codigoSeleccionado) && cuentaActual && (
-                        <optgroup label="Cuenta actualmente abierta">
-                          <option value={cuentaActual.codigo}>
-                            {cuentaActual.codigo} — {cuentaActual.nombre} (Actual)
-                          </option>
-                        </optgroup>
-                      )}
+                      {!cuentasFiltradas.some(
+                        (c) => c.codigo === codigoSeleccionado,
+                      ) &&
+                        cuentaActual && (
+                          <optgroup label="Cuenta actualmente abierta">
+                            <option value={cuentaActual.codigo}>
+                              {cuentaActual.codigo} — {cuentaActual.nombre}{" "}
+                              (Actual)
+                            </option>
+                          </optgroup>
+                        )}
                       {cuentasPorGrupo.map((g) => (
                         <optgroup key={g.id} label={g.nombre}>
                           {g.cuentas.map((c) => {
-                            const sm = saldoMayorMap.get(c.codigo)
-                            const tieneMovs = sm !== undefined && sm.movs > 0
-                            const saldoVal = sm ? (c.naturaleza === "deudora" ? sm.debe - sm.haber : sm.haber - sm.debe) : 0
+                            const sm = saldoMayorMap.get(c.codigo);
+                            const tieneMovs = sm !== undefined && sm.movs > 0;
+                            const saldoVal = sm
+                              ? c.naturaleza === "deudora"
+                                ? sm.debe - sm.haber
+                                : sm.haber - sm.debe
+                              : 0;
 
                             return (
                               <option key={c.codigo} value={c.codigo}>
-                                {c.codigo} — {c.nombre} {tieneMovs ? `(${formatoMoneda(Math.abs(saldoVal))})` : ""}
+                                {c.codigo} — {c.nombre}{" "}
+                                {tieneMovs
+                                  ? `(${formatoMoneda(Math.abs(saldoVal))})`
+                                  : ""}
                               </option>
-                            )
+                            );
                           })}
                         </optgroup>
                       ))}
@@ -1662,7 +2628,10 @@ function KardexContent() {
                     <button
                       type="button"
                       onClick={cuentaSiguiente}
-                      disabled={indiceActual < 0 || indiceActual >= cuentasNavegables.length - 1}
+                      disabled={
+                        indiceActual < 0 ||
+                        indiceActual >= cuentasNavegables.length - 1
+                      }
                       className="p-1 rounded text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
                       title="Siguiente cuenta (Alt + Flecha Derecha)"
                       aria-label="Siguiente cuenta"
@@ -1794,28 +2763,40 @@ function KardexContent() {
                   {/* Franja compacta de saldos: Saldo Anterior | Debe | Haber | Saldo Actual */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border bg-card border-t border-border text-center text-xs font-mono py-1.5">
                     <div className="py-1 px-3">
-                      <span className="text-[10px] uppercase font-sans text-muted-foreground block font-medium">Saldo Anterior</span>
+                      <span className="text-[10px] uppercase font-sans text-muted-foreground block font-medium">
+                        Saldo Anterior
+                      </span>
                       <span className="text-muted-foreground font-semibold tabular-nums text-sm">
                         {formatoMoneda(Math.abs(saldoInicialPeriodo))}
                       </span>
                     </div>
                     <div className="py-1 px-3">
-                      <span className="text-[10px] uppercase font-sans text-muted-foreground block font-medium">Debe (Cargos)</span>
+                      <span className="text-[10px] uppercase font-sans text-muted-foreground block font-medium">
+                        Debe (Cargos)
+                      </span>
                       <span className="font-semibold tabular-nums text-foreground text-sm">
                         +{formatoMoneda(totalDebe)}
                       </span>
                     </div>
                     <div className="py-1 px-3">
-                      <span className="text-[10px] uppercase font-sans text-muted-foreground block font-medium">Haber (Abonos)</span>
+                      <span className="text-[10px] uppercase font-sans text-muted-foreground block font-medium">
+                        Haber (Abonos)
+                      </span>
                       <span className="font-semibold tabular-nums text-foreground text-sm">
                         −{formatoMoneda(totalHaber)}
                       </span>
                     </div>
                     <div className="py-1 px-3 bg-muted/10 sm:bg-transparent">
-                      <span className="text-[10px] uppercase font-sans font-bold text-foreground block">Saldo Actual</span>
-                      <strong className={`text-sm tabular-nums font-bold ${
-                        esSaldoAnomalo ? "text-red-600 dark:text-red-400" : "text-foreground"
-                      }`}>
+                      <span className="text-[10px] uppercase font-sans font-bold text-foreground block">
+                        Saldo Actual
+                      </span>
+                      <strong
+                        className={`text-sm tabular-nums font-bold ${
+                          esSaldoAnomalo
+                            ? "text-red-600 dark:text-red-400"
+                            : "text-foreground"
+                        }`}
+                      >
                         {formatoMoneda(Math.abs(saldoFinalPeriodo))}
                       </strong>
                       <span className="ml-1 text-[10px] font-sans font-normal text-muted-foreground">
@@ -1834,7 +2815,8 @@ function KardexContent() {
                       Movimientos Registrados
                     </CardTitle>
                     <span className="text-xs font-mono text-muted-foreground">
-                      {movimientos.length} {movimientos.length === 1 ? "movimiento" : "movimientos"}
+                      {movimientos.length}{" "}
+                      {movimientos.length === 1 ? "movimiento" : "movimientos"}
                     </span>
                   </div>
                 </CardHeader>
@@ -1844,7 +2826,8 @@ function KardexContent() {
                     <div className="py-12 px-4 text-center">
                       <ClipboardList className="mx-auto size-9 text-muted-foreground/40 mb-2.5" />
                       <p className="text-sm font-semibold text-foreground">
-                        No hay movimientos en este período para la cuenta {cuentaActual?.codigo} — {cuentaActual?.nombre}.
+                        No hay movimientos en este período para la cuenta{" "}
+                        {cuentaActual?.codigo} — {cuentaActual?.nombre}.
                       </p>
                       <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
                         {mesFiltro !== "todos"
@@ -1857,12 +2840,33 @@ function KardexContent() {
                       <table className="w-full text-left text-xs border-collapse print-accounting-table">
                         <thead className="border-b border-border bg-muted/40 text-muted-foreground uppercase font-semibold text-[11px]">
                           <tr>
-                            <th className="py-2.5 px-3 whitespace-nowrap">Fecha</th>
-                            <th className="py-2.5 px-3 whitespace-nowrap">Partida / Ref</th>
-                            <th className="py-2.5 px-4 min-w-[280px]">Concepto / Glosa</th>
-                            <th className="py-2.5 px-3 text-right whitespace-nowrap" title="Cargos registrados en la cuenta">Debe (+)</th>
-                            <th className="py-2.5 px-3 text-right whitespace-nowrap" title="Abonos registrados en la cuenta">Haber (−)</th>
-                            <th className="py-2.5 px-3 text-right whitespace-nowrap font-bold" title="Saldo progresivo según la naturaleza contable">Saldo</th>
+                            <th className="py-2.5 px-3 whitespace-nowrap">
+                              Fecha
+                            </th>
+                            <th className="py-2.5 px-3 whitespace-nowrap">
+                              Partida / Ref
+                            </th>
+                            <th className="py-2.5 px-4 min-w-[280px]">
+                              Concepto / Glosa
+                            </th>
+                            <th
+                              className="py-2.5 px-3 text-right whitespace-nowrap"
+                              title="Cargos registrados en la cuenta"
+                            >
+                              Debe (+)
+                            </th>
+                            <th
+                              className="py-2.5 px-3 text-right whitespace-nowrap"
+                              title="Abonos registrados en la cuenta"
+                            >
+                              Haber (−)
+                            </th>
+                            <th
+                              className="py-2.5 px-3 text-right whitespace-nowrap font-bold"
+                              title="Saldo progresivo según la naturaleza contable"
+                            >
+                              Saldo
+                            </th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border/60">
@@ -1876,14 +2880,27 @@ function KardexContent() {
                                 TRASLADO INICIAL
                               </td>
                               <td className="py-2 px-4">
-                                Saldo anterior acumulado trasladado al inicio del período
+                                Saldo anterior acumulado trasladado al inicio
+                                del período
                               </td>
-                              <td className="py-2 px-3 text-right font-mono text-muted-foreground/50">-</td>
-                              <td className="py-2 px-3 text-right font-mono text-muted-foreground/50">-</td>
+                              <td className="py-2 px-3 text-right font-mono text-muted-foreground/50">
+                                -
+                              </td>
+                              <td className="py-2 px-3 text-right font-mono text-muted-foreground/50">
+                                -
+                              </td>
                               <td className="py-2 px-3 text-right font-mono font-bold text-foreground">
                                 {formatoMoneda(Math.abs(saldoInicialPeriodo))}
                                 <span className="ml-1 text-[10px] text-muted-foreground font-normal">
-                                  ({saldoInicialPeriodo >= 0 ? (cuentaActual?.naturaleza === "deudora" ? "D" : "A") : (cuentaActual?.naturaleza === "deudora" ? "A" : "D")})
+                                  (
+                                  {saldoInicialPeriodo >= 0
+                                    ? cuentaActual?.naturaleza === "deudora"
+                                      ? "D"
+                                      : "A"
+                                    : cuentaActual?.naturaleza === "deudora"
+                                      ? "A"
+                                      : "D"}
+                                  )
                                 </span>
                               </td>
                             </tr>
@@ -1891,8 +2908,15 @@ function KardexContent() {
 
                           {/* RENGLONES DE OPERACIONES CONTABLES */}
                           {movimientos.map((m, idx) => {
-                            const rowAnomalo = m.saldo < 0
-                            const tagNat = m.saldo >= 0 ? (cuentaActual?.naturaleza === "deudora" ? "D" : "A") : (cuentaActual?.naturaleza === "deudora" ? "A" : "D")
+                            const rowAnomalo = m.saldo < 0;
+                            const tagNat =
+                              m.saldo >= 0
+                                ? cuentaActual?.naturaleza === "deudora"
+                                  ? "D"
+                                  : "A"
+                                : cuentaActual?.naturaleza === "deudora"
+                                  ? "A"
+                                  : "D";
 
                             return (
                               <tr
@@ -1912,25 +2936,33 @@ function KardexContent() {
                                     {m.asientoOriginal ? (
                                       <button
                                         type="button"
-                                        onClick={() => setPartidaDetalle(m.asientoOriginal!)}
+                                        onClick={() =>
+                                          setPartidaDetalle(m.asientoOriginal!)
+                                        }
                                         className="inline-flex items-center gap-1 font-mono font-bold text-xs text-primary hover:underline bg-primary/10 hover:bg-primary/20 px-1.5 py-0.5 rounded transition-colors"
                                         title="Inspeccionar asiento contable"
                                       >
-                                        <Eye className="size-3" />
-                                        #{m.partidaNumero}
+                                        <Eye className="size-3" />#
+                                        {m.partidaNumero}
                                       </button>
                                     ) : (
-                                      <span className="font-mono font-bold text-xs text-muted-foreground">#{m.partidaNumero}</span>
+                                      <span className="font-mono font-bold text-xs text-muted-foreground">
+                                        #{m.partidaNumero}
+                                      </span>
                                     )}
                                     <span className="text-[10px] text-muted-foreground font-mono">
-                                      · {m.tipoPartida === "OPERACION" ? "Diario" : m.tipoPartida}
+                                      ·{" "}
+                                      {m.tipoPartida === "OPERACION"
+                                        ? "Diario"
+                                        : m.tipoPartida}
                                     </span>
                                   </div>
-                                  {m.referenciaDoc && m.referenciaDoc !== "-" && (
-                                    <span className="text-[10px] text-muted-foreground/80 font-mono block mt-0.5">
-                                      Ref: {m.referenciaDoc}
-                                    </span>
-                                  )}
+                                  {m.referenciaDoc &&
+                                    m.referenciaDoc !== "-" && (
+                                      <span className="text-[10px] text-muted-foreground/80 font-mono block mt-0.5">
+                                        Ref: {m.referenciaDoc}
+                                      </span>
+                                    )}
                                 </td>
 
                                 {/* Concepto / Glosa amplio */}
@@ -1941,39 +2973,58 @@ function KardexContent() {
                                 {/* Debe (Cargos) */}
                                 <td className="py-2.5 px-3 text-right font-mono tabular-nums whitespace-nowrap">
                                   {m.debe > 0 ? (
-                                    <span className="text-foreground font-semibold">+{formatoMoneda(m.debe)}</span>
+                                    <span className="text-foreground font-semibold">
+                                      +{formatoMoneda(m.debe)}
+                                    </span>
                                   ) : (
-                                    <span className="text-muted-foreground/30">-</span>
+                                    <span className="text-muted-foreground/30">
+                                      -
+                                    </span>
                                   )}
                                 </td>
 
                                 {/* Haber (Abonos) */}
                                 <td className="py-2.5 px-3 text-right font-mono tabular-nums whitespace-nowrap">
                                   {m.haber > 0 ? (
-                                    <span className="text-foreground font-semibold">−{formatoMoneda(m.haber)}</span>
+                                    <span className="text-foreground font-semibold">
+                                      −{formatoMoneda(m.haber)}
+                                    </span>
                                   ) : (
-                                    <span className="text-muted-foreground/30">-</span>
+                                    <span className="text-muted-foreground/30">
+                                      -
+                                    </span>
                                   )}
                                 </td>
 
                                 {/* Saldo Progresivo con Naturaleza */}
                                 <td className="py-2.5 px-3 text-right font-mono tabular-nums font-bold whitespace-nowrap">
-                                  <span className={rowAnomalo ? "text-red-600 dark:text-red-400 font-bold" : "text-foreground"}>
+                                  <span
+                                    className={
+                                      rowAnomalo
+                                        ? "text-red-600 dark:text-red-400 font-bold"
+                                        : "text-foreground"
+                                    }
+                                  >
                                     {formatoMoneda(Math.abs(m.saldo))}
                                   </span>
-                                  <span className={`ml-1 text-[10px] font-normal ${rowAnomalo ? "text-red-600 font-bold" : "text-muted-foreground"}`}>
+                                  <span
+                                    className={`ml-1 text-[10px] font-normal ${rowAnomalo ? "text-red-600 font-bold" : "text-muted-foreground"}`}
+                                  >
                                     ({tagNat})
                                   </span>
                                 </td>
                               </tr>
-                            )
+                            );
                           })}
                         </tbody>
 
                         {/* PIE DE TABLA: SUMAS Y SALDO FINAL CON DOBLE RAYA CONTABLE */}
                         <tfoot className="border-t-2 border-border bg-muted/40 font-semibold text-xs border-b-4 border-double border-foreground/30 print:bg-transparent print:border-black">
                           <tr>
-                            <td colSpan={3} className="py-2.5 px-3 uppercase text-muted-foreground print:text-black">
+                            <td
+                              colSpan={3}
+                              className="py-2.5 px-3 uppercase text-muted-foreground print:text-black"
+                            >
                               Sumas del Período
                             </td>
                             <td className="py-2.5 px-3 text-right font-mono tabular-nums text-foreground print:text-black whitespace-nowrap">
@@ -1992,289 +3043,396 @@ function KardexContent() {
                             </td>
                           </tr>
                         </tfoot>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-        </>
-      ) : (
-        /* ======================================================== */
-        /* 4. VISTA CONTINUA: TODAS LAS CUENTAS CON MOVIMIENTO     */
-        /* ======================================================== */
-        <div className="space-y-6">
-          {/* Tarjeta resumen consolidado del libro */}
-          <Card className="border-border bg-card shadow-xs print:hidden">
-            <CardHeader className="py-2.5 px-4 bg-muted/20 border-b border-border">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Libro Auxiliar General Consolidado · {ejercicioSeleccionado}
-                </CardTitle>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-xs font-mono">
-                    {libroContinuoData.length} cuentas con saldo o movimientos
-                  </Badge>
-                  {libroContinuoData.length > 0 && (
-                    <div className="flex items-center rounded-md border border-border bg-background p-0.5 text-[11px] font-medium shadow-2xs">
-                      <button
-                        type="button"
-                        onClick={plegarTodas}
-                        className="px-2 py-0.5 rounded text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                        title="Plegar todas las cuentas para ver solo resumen"
-                      >
-                        Plegar todas
-                      </button>
-                      <button
-                        type="button"
-                        onClick={expandirTodas}
-                        className="px-2 py-0.5 rounded text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                        title="Desplegar todas las tablas de movimientos"
-                      >
-                        Expandir todas
-                      </button>
+                      </table>
                     </div>
                   )}
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-3 grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs text-center">
-              <div className="rounded-lg border border-border/60 p-2.5 bg-background">
-                <span className="text-muted-foreground text-[11px] block uppercase">Período</span>
-                <span className="text-sm font-semibold text-foreground">
-                  {MESES.find((m) => m.valor === mesFiltro)?.label || "Todo el año"}
-                </span>
-              </div>
-              <div className="rounded-lg border border-border/60 p-2.5 bg-background">
-                <span className="text-muted-foreground text-[11px] block uppercase">Total Cargos (Debe)</span>
-                <span className="text-sm font-semibold font-mono text-foreground">
-                  {formatoMoneda(totalesLibroContinuo.debe)}
-                </span>
-              </div>
-              <div className="rounded-lg border border-border/60 p-2.5 bg-background">
-                <span className="text-muted-foreground text-[11px] block uppercase">Total Abonos (Haber)</span>
-                <span className="text-sm font-semibold font-mono text-foreground">
-                  {formatoMoneda(totalesLibroContinuo.haber)}
-                </span>
-              </div>
-              <div className="rounded-lg border border-border/60 p-2.5 bg-background">
-                <span className="text-muted-foreground text-[11px] block uppercase">Cuadre Global</span>
-                <span className="text-sm font-bold font-mono text-emerald-600 dark:text-emerald-400">
-                  {totalesLibroContinuo.debe === totalesLibroContinuo.haber ? "Cuadrado (D == H)" : "Diferencia"}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Listado secuencial de cada cuenta con su tabla de movimientos */}
-          {libroContinuoData.length === 0 ? (
-            <Card className="border-border shadow-xs p-12 text-center">
-              <ClipboardList className="mx-auto size-9 text-muted-foreground/40 mb-2" />
-              <p className="text-sm font-semibold text-muted-foreground">
-                No hay movimientos registrados en este período.
-              </p>
-            </Card>
+                </CardContent>
+              </Card>
+            </>
           ) : (
-            libroContinuoData.map(({ cuenta, movimientos: movs, saldoInicial, totalDebe: tDebe, totalHaber: tHaber, saldoFinal: sFinal }) => {
-              const esAnomalo = sFinal < 0
-              const tagNat = sFinal >= 0 ? (cuenta.naturaleza === "deudora" ? "D" : "A") : (cuenta.naturaleza === "deudora" ? "A" : "D")
-              const estaPlegada = !!cuentasColapsadas[cuenta.codigo]
-
-              return (
-                <div
-                  key={cuenta.codigo}
-                  className="rounded-xl border border-border bg-card shadow-xs overflow-hidden print:border print:border-foreground/30 print:shadow-none print:break-inside-avoid"
-                >
-                  {/* Cabecera de la cuenta (clickeable para alternar colapso) */}
-                  <div
-                    onClick={() => toggleCuenta(cuenta.codigo)}
-                    className="flex flex-wrap items-center justify-between gap-2 bg-muted/40 hover:bg-muted/60 transition-colors px-4 py-2 border-b border-border cursor-pointer select-none"
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault()
-                        toggleCuenta(cuenta.codigo)
-                      }
-                    }}
-                    title={estaPlegada ? "Clic para ver movimientos" : "Clic para plegar cuenta"}
-                  >
+            /* ======================================================== */
+            /* 4. VISTA CONTINUA: TODAS LAS CUENTAS CON MOVIMIENTO     */
+            /* ======================================================== */
+            <div className="space-y-6">
+              {/* Tarjeta resumen consolidado del libro */}
+              <Card className="border-border bg-card shadow-xs print:hidden">
+                <CardHeader className="py-2.5 px-4 bg-muted/20 border-b border-border">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Libro Auxiliar General Consolidado ·{" "}
+                      {ejercicioSeleccionado}
+                    </CardTitle>
                     <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          toggleCuenta(cuenta.codigo)
-                        }}
-                        className="text-muted-foreground hover:text-foreground print:hidden p-0.5 rounded cursor-pointer"
-                        aria-label={estaPlegada ? "Desplegar movimientos" : "Plegar movimientos"}
-                      >
-                        {estaPlegada ? (
-                          <ChevronRight className="size-4" />
-                        ) : (
-                          <ChevronDown className="size-4" />
-                        )}
-                      </button>
-                      <span className="font-mono font-bold text-xs bg-background px-2 py-0.5 rounded border border-border">
-                        {cuenta.codigo}
-                      </span>
-                      <h3 className="text-sm font-semibold text-foreground">
-                        {cuenta.nombre}
-                      </h3>
-                      <span className="text-xs text-muted-foreground capitalize hidden sm:inline">
-                        · {cuenta.tipo} ({cuenta.naturaleza})
-                      </span>
-                      <span className="text-[11px] font-mono text-muted-foreground">
-                        ({movs.length} {movs.length === 1 ? "mov" : "movs"})
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-3 text-xs font-mono">
-                      {estaPlegada && (
-                        <span className="text-muted-foreground hidden md:inline text-[11px]">
-                          Cargos: <strong className="text-foreground">+{formatoMoneda(tDebe)}</strong> · Abonos: <strong className="text-foreground">−{formatoMoneda(tHaber)}</strong> ·
-                        </span>
+                      <Badge variant="outline" className="text-xs font-mono">
+                        {libroContinuoData.length} cuentas con saldo o
+                        movimientos
+                      </Badge>
+                      {libroContinuoData.length > 0 && (
+                        <div className="flex items-center rounded-md border border-border bg-background p-0.5 text-[11px] font-medium shadow-2xs">
+                          <button
+                            type="button"
+                            onClick={plegarTodas}
+                            className="px-2 py-0.5 rounded text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                            title="Plegar todas las cuentas para ver solo resumen"
+                          >
+                            Plegar todas
+                          </button>
+                          <button
+                            type="button"
+                            onClick={expandirTodas}
+                            className="px-2 py-0.5 rounded text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                            title="Desplegar todas las tablas de movimientos"
+                          >
+                            Expandir todas
+                          </button>
+                        </div>
                       )}
-                      <span className="text-muted-foreground">
-                        Saldo Final: <strong className={esAnomalo ? "text-red-600" : "text-foreground"}>{formatoMoneda(Math.abs(sFinal))} ({tagNat})</strong>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setCodigoSeleccionado(cuenta.codigo)
-                          setModoVista("ficha")
-                        }}
-                        className="inline-flex items-center gap-1 text-[11px] font-sans text-primary hover:underline print:hidden ml-1 cursor-pointer"
-                        title="Abrir en ficha individual"
-                      >
-                        <span>Ver Ficha</span>
-                        <ArrowRight className="size-3" />
-                      </button>
                     </div>
                   </div>
+                </CardHeader>
+                <CardContent className="p-3 grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs text-center">
+                  <div className="rounded-lg border border-border/60 p-2.5 bg-background">
+                    <span className="text-muted-foreground text-[11px] block uppercase">
+                      Período
+                    </span>
+                    <span className="text-sm font-semibold text-foreground">
+                      {MESES.find((m) => m.valor === mesFiltro)?.label ||
+                        "Todo el año"}
+                    </span>
+                  </div>
+                  <div className="rounded-lg border border-border/60 p-2.5 bg-background">
+                    <span className="text-muted-foreground text-[11px] block uppercase">
+                      Total Cargos (Debe)
+                    </span>
+                    <span className="text-sm font-semibold font-mono text-foreground">
+                      {formatoMoneda(totalesLibroContinuo.debe)}
+                    </span>
+                  </div>
+                  <div className="rounded-lg border border-border/60 p-2.5 bg-background">
+                    <span className="text-muted-foreground text-[11px] block uppercase">
+                      Total Abonos (Haber)
+                    </span>
+                    <span className="text-sm font-semibold font-mono text-foreground">
+                      {formatoMoneda(totalesLibroContinuo.haber)}
+                    </span>
+                  </div>
+                  <div className="rounded-lg border border-border/60 p-2.5 bg-background">
+                    <span className="text-muted-foreground text-[11px] block uppercase">
+                      Cuadre Global
+                    </span>
+                    <span className="text-sm font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                      {totalesLibroContinuo.debe === totalesLibroContinuo.haber
+                        ? "Cuadrado (D == H)"
+                        : "Diferencia"}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
 
-                  {/* Tabla de movimientos */}
-                  <div className={`overflow-x-auto print:overflow-visible ${estaPlegada ? "hidden print:block" : "block"}`}>
-                    <table className="w-full text-left text-xs border-collapse print-accounting-table">
-                      <thead className="border-b border-border bg-muted/20 text-muted-foreground uppercase font-semibold text-[10px]">
-                        <tr>
-                          <th className="py-2 px-3 whitespace-nowrap">Fecha</th>
-                          <th className="py-2 px-3 whitespace-nowrap">Partida / Ref</th>
-                          <th className="py-2 px-3">Concepto</th>
-                          <th className="py-2 px-3 text-right whitespace-nowrap">Debe (+)</th>
-                          <th className="py-2 px-3 text-right whitespace-nowrap">Haber (−)</th>
-                          <th className="py-2 px-3 text-right whitespace-nowrap font-bold">Saldo</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border/60">
-                        {mesFiltro !== "todos" && saldoInicial !== 0 && (
-                          <tr className="bg-muted/20 italic text-muted-foreground">
-                            <td className="py-1.5 px-3 font-mono">{`${ejercicioSeleccionado}-${mesFiltro.padStart(2, "0")}-01`}</td>
-                            <td className="py-1.5 px-3 font-mono text-[10px] text-primary font-semibold">TRASLADO INICIAL</td>
-                            <td className="py-1.5 px-3">Saldo anterior acumulado trasladado</td>
-                            <td className="py-1.5 px-3 text-right font-mono">-</td>
-                            <td className="py-1.5 px-3 text-right font-mono">-</td>
-                            <td className="py-1.5 px-3 text-right font-mono font-semibold">
-                              {formatoMoneda(Math.abs(saldoInicial))}
-                            </td>
-                          </tr>
-                        )}
-                        {movs.map((m, mIdx) => (
-                          <tr key={mIdx} className="hover:bg-muted/20">
-                            <td className="py-1.5 px-3 font-mono text-muted-foreground whitespace-nowrap">{m.fecha}</td>
-                            <td className="py-1.5 px-3 whitespace-nowrap">
-                              <div className="flex items-center gap-1.5">
-                                {m.asientoOriginal ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => setPartidaDetalle(m.asientoOriginal!)}
-                                    className="font-mono font-bold text-primary hover:underline"
-                                  >
-                                    #{m.partidaNumero}
-                                  </button>
-                                ) : (
-                                  <span className="font-mono font-bold text-muted-foreground">#{m.partidaNumero}</span>
-                                )}
-                                {m.referenciaDoc && m.referenciaDoc !== "-" && (
-                                  <span className="text-[10px] text-muted-foreground font-mono">
-                                    · {m.referenciaDoc}
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="py-1.5 px-3 text-foreground/90 max-w-md leading-relaxed">{m.concepto}</td>
-                            <td className="py-1.5 px-3 text-right font-mono tabular-nums whitespace-nowrap">
-                              {m.debe > 0 ? `+${formatoMoneda(m.debe)}` : "-"}
-                            </td>
-                            <td className="py-1.5 px-3 text-right font-mono tabular-nums whitespace-nowrap">
-                              {m.haber > 0 ? `−${formatoMoneda(m.haber)}` : "-"}
-                            </td>
-                            <td className="py-1.5 px-3 text-right font-mono tabular-nums font-semibold whitespace-nowrap">
-                              {formatoMoneda(Math.abs(m.saldo))}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot className="border-t border-border bg-muted/30 font-semibold text-[11px] print:bg-transparent print:border-black">
-                        <tr>
-                          <td colSpan={3} className="py-2 px-3 uppercase text-muted-foreground print:text-black">
-                            Subtotal Cuenta {cuenta.codigo}
-                          </td>
-                          <td className="py-2 px-3 text-right font-mono tabular-nums whitespace-nowrap print:text-black">
-                            +{formatoMoneda(tDebe)}
-                          </td>
-                          <td className="py-2 px-3 text-right font-mono tabular-nums whitespace-nowrap print:text-black">
-                            −{formatoMoneda(tHaber)}
-                          </td>
-                          <td className="py-2 px-3 text-right font-mono tabular-nums font-bold whitespace-nowrap">
-                            <span className="saldo-doble-linea print:text-black">
-                              {formatoMoneda(Math.abs(sFinal))} ({tagNat})
+              {/* Listado secuencial de cada cuenta con su tabla de movimientos */}
+              {libroContinuoData.length === 0 ? (
+                <Card className="border-border shadow-xs p-12 text-center">
+                  <ClipboardList className="mx-auto size-9 text-muted-foreground/40 mb-2" />
+                  <p className="text-sm font-semibold text-muted-foreground">
+                    No hay movimientos registrados en este período.
+                  </p>
+                </Card>
+              ) : (
+                libroContinuoData.map(
+                  ({
+                    cuenta,
+                    movimientos: movs,
+                    saldoInicial,
+                    totalDebe: tDebe,
+                    totalHaber: tHaber,
+                    saldoFinal: sFinal,
+                  }) => {
+                    const esAnomalo = sFinal < 0;
+                    const tagNat =
+                      sFinal >= 0
+                        ? cuenta.naturaleza === "deudora"
+                          ? "D"
+                          : "A"
+                        : cuenta.naturaleza === "deudora"
+                          ? "A"
+                          : "D";
+                    const estaPlegada = !!cuentasColapsadas[cuenta.codigo];
+
+                    return (
+                      <div
+                        key={cuenta.codigo}
+                        className="rounded-xl border border-border bg-card shadow-xs overflow-hidden print:border print:border-foreground/30 print:shadow-none print:break-inside-avoid"
+                      >
+                        {/* Cabecera de la cuenta (clickeable para alternar colapso) */}
+                        <div
+                          onClick={() => toggleCuenta(cuenta.codigo)}
+                          className="flex flex-wrap items-center justify-between gap-2 bg-muted/40 hover:bg-muted/60 transition-colors px-4 py-2 border-b border-border cursor-pointer select-none"
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              toggleCuenta(cuenta.codigo);
+                            }
+                          }}
+                          title={
+                            estaPlegada
+                              ? "Clic para ver movimientos"
+                              : "Clic para plegar cuenta"
+                          }
+                        >
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleCuenta(cuenta.codigo);
+                              }}
+                              className="text-muted-foreground hover:text-foreground print:hidden p-0.5 rounded cursor-pointer"
+                              aria-label={
+                                estaPlegada
+                                  ? "Desplegar movimientos"
+                                  : "Plegar movimientos"
+                              }
+                            >
+                              {estaPlegada ? (
+                                <ChevronRight className="size-4" />
+                              ) : (
+                                <ChevronDown className="size-4" />
+                              )}
+                            </button>
+                            <span className="font-mono font-bold text-xs bg-background px-2 py-0.5 rounded border border-border">
+                              {cuenta.codigo}
                             </span>
-                          </td>
-                        </tr>
-                      </tfoot>
-                    </table>
+                            <h3 className="text-sm font-semibold text-foreground">
+                              {cuenta.nombre}
+                            </h3>
+                            <span className="text-xs text-muted-foreground capitalize hidden sm:inline">
+                              · {cuenta.tipo} ({cuenta.naturaleza})
+                            </span>
+                            <span className="text-[11px] font-mono text-muted-foreground">
+                              ({movs.length}{" "}
+                              {movs.length === 1 ? "mov" : "movs"})
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-3 text-xs font-mono">
+                            {estaPlegada && (
+                              <span className="text-muted-foreground hidden md:inline text-[11px]">
+                                Cargos:{" "}
+                                <strong className="text-foreground">
+                                  +{formatoMoneda(tDebe)}
+                                </strong>{" "}
+                                · Abonos:{" "}
+                                <strong className="text-foreground">
+                                  −{formatoMoneda(tHaber)}
+                                </strong>{" "}
+                                ·
+                              </span>
+                            )}
+                            <span className="text-muted-foreground">
+                              Saldo Final:{" "}
+                              <strong
+                                className={
+                                  esAnomalo ? "text-red-600" : "text-foreground"
+                                }
+                              >
+                                {formatoMoneda(Math.abs(sFinal))} ({tagNat})
+                              </strong>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCodigoSeleccionado(cuenta.codigo);
+                                setModoVista("ficha");
+                              }}
+                              className="inline-flex items-center gap-1 text-[11px] font-sans text-primary hover:underline print:hidden ml-1 cursor-pointer"
+                              title="Abrir en ficha individual"
+                            >
+                              <span>Ver Ficha</span>
+                              <ArrowRight className="size-3" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Tabla de movimientos */}
+                        <div
+                          className={`overflow-x-auto print:overflow-visible ${estaPlegada ? "hidden print:block" : "block"}`}
+                        >
+                          <table className="w-full text-left text-xs border-collapse print-accounting-table">
+                            <thead className="border-b border-border bg-muted/20 text-muted-foreground uppercase font-semibold text-[10px]">
+                              <tr>
+                                <th className="py-2 px-3 whitespace-nowrap">
+                                  Fecha
+                                </th>
+                                <th className="py-2 px-3 whitespace-nowrap">
+                                  Partida / Ref
+                                </th>
+                                <th className="py-2 px-3">Concepto</th>
+                                <th className="py-2 px-3 text-right whitespace-nowrap">
+                                  Debe (+)
+                                </th>
+                                <th className="py-2 px-3 text-right whitespace-nowrap">
+                                  Haber (−)
+                                </th>
+                                <th className="py-2 px-3 text-right whitespace-nowrap font-bold">
+                                  Saldo
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border/60">
+                              {mesFiltro !== "todos" && saldoInicial !== 0 && (
+                                <tr className="bg-muted/20 italic text-muted-foreground">
+                                  <td className="py-1.5 px-3 font-mono">{`${ejercicioSeleccionado}-${mesFiltro.padStart(2, "0")}-01`}</td>
+                                  <td className="py-1.5 px-3 font-mono text-[10px] text-primary font-semibold">
+                                    TRASLADO INICIAL
+                                  </td>
+                                  <td className="py-1.5 px-3">
+                                    Saldo anterior acumulado trasladado
+                                  </td>
+                                  <td className="py-1.5 px-3 text-right font-mono">
+                                    -
+                                  </td>
+                                  <td className="py-1.5 px-3 text-right font-mono">
+                                    -
+                                  </td>
+                                  <td className="py-1.5 px-3 text-right font-mono font-semibold">
+                                    {formatoMoneda(Math.abs(saldoInicial))}
+                                  </td>
+                                </tr>
+                              )}
+                              {movs.map((m, mIdx) => (
+                                <tr key={mIdx} className="hover:bg-muted/20">
+                                  <td className="py-1.5 px-3 font-mono text-muted-foreground whitespace-nowrap">
+                                    {m.fecha}
+                                  </td>
+                                  <td className="py-1.5 px-3 whitespace-nowrap">
+                                    <div className="flex items-center gap-1.5">
+                                      {m.asientoOriginal ? (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setPartidaDetalle(
+                                              m.asientoOriginal!,
+                                            )
+                                          }
+                                          className="font-mono font-bold text-primary hover:underline"
+                                        >
+                                          #{m.partidaNumero}
+                                        </button>
+                                      ) : (
+                                        <span className="font-mono font-bold text-muted-foreground">
+                                          #{m.partidaNumero}
+                                        </span>
+                                      )}
+                                      {m.referenciaDoc &&
+                                        m.referenciaDoc !== "-" && (
+                                          <span className="text-[10px] text-muted-foreground font-mono">
+                                            · {m.referenciaDoc}
+                                          </span>
+                                        )}
+                                    </div>
+                                  </td>
+                                  <td className="py-1.5 px-3 text-foreground/90 max-w-md leading-relaxed">
+                                    {m.concepto}
+                                  </td>
+                                  <td className="py-1.5 px-3 text-right font-mono tabular-nums whitespace-nowrap">
+                                    {m.debe > 0
+                                      ? `+${formatoMoneda(m.debe)}`
+                                      : "-"}
+                                  </td>
+                                  <td className="py-1.5 px-3 text-right font-mono tabular-nums whitespace-nowrap">
+                                    {m.haber > 0
+                                      ? `−${formatoMoneda(m.haber)}`
+                                      : "-"}
+                                  </td>
+                                  <td className="py-1.5 px-3 text-right font-mono tabular-nums font-semibold whitespace-nowrap">
+                                    {formatoMoneda(Math.abs(m.saldo))}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                            <tfoot className="border-t border-border bg-muted/30 font-semibold text-[11px] print:bg-transparent print:border-black">
+                              <tr>
+                                <td
+                                  colSpan={3}
+                                  className="py-2 px-3 uppercase text-muted-foreground print:text-black"
+                                >
+                                  Subtotal Cuenta {cuenta.codigo}
+                                </td>
+                                <td className="py-2 px-3 text-right font-mono tabular-nums whitespace-nowrap print:text-black">
+                                  +{formatoMoneda(tDebe)}
+                                </td>
+                                <td className="py-2 px-3 text-right font-mono tabular-nums whitespace-nowrap print:text-black">
+                                  −{formatoMoneda(tHaber)}
+                                </td>
+                                <td className="py-2 px-3 text-right font-mono tabular-nums font-bold whitespace-nowrap">
+                                  <span className="saldo-doble-linea print:text-black">
+                                    {formatoMoneda(Math.abs(sFinal))} ({tagNat})
+                                  </span>
+                                </td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  },
+                )
+              )}
+
+              {/* Gran Total del Libro Auxiliar al Final */}
+              {libroContinuoData.length > 0 && (
+                <div className="rounded-xl border border-border bg-card p-3.5 shadow-xs text-xs flex flex-wrap items-center justify-between gap-4 print:border-black print:bg-transparent print:rounded-none">
+                  <div>
+                    <span className="font-semibold text-sm text-foreground block print:text-black">
+                      Gran Total del Libro Auxiliar · {ejercicioSeleccionado}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground print:text-black">
+                      Balance consolidado de cargos y abonos del período
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-6 text-xs font-mono">
+                    <div>
+                      <span className="text-[10px] uppercase font-sans text-muted-foreground block print:text-black">
+                        Total Cargos
+                      </span>
+                      <span className="text-sm font-semibold tabular-nums text-foreground print:text-black">
+                        +{formatoMoneda(totalesLibroContinuo.debe)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase font-sans text-muted-foreground block print:text-black">
+                        Total Abonos
+                      </span>
+                      <span className="text-sm font-semibold tabular-nums text-foreground print:text-black">
+                        −{formatoMoneda(totalesLibroContinuo.haber)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase font-sans text-muted-foreground block print:text-black">
+                        Cuadre Global
+                      </span>
+                      <span
+                        className={`text-sm font-bold tabular-nums ${
+                          totalesLibroContinuo.debe ===
+                          totalesLibroContinuo.haber
+                            ? "text-emerald-600 dark:text-emerald-400 print:text-black"
+                            : "text-red-600 dark:text-red-400"
+                        }`}
+                      >
+                        {totalesLibroContinuo.debe ===
+                        totalesLibroContinuo.haber
+                          ? "Cuadrado (D == H)"
+                          : "Diferencia"}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              )
-            })
-          )}
-
-          {/* Gran Total del Libro Auxiliar al Final */}
-          {libroContinuoData.length > 0 && (
-            <div className="rounded-xl border border-border bg-card p-3.5 shadow-xs text-xs flex flex-wrap items-center justify-between gap-4 print:border-black print:bg-transparent print:rounded-none">
-              <div>
-                <span className="font-semibold text-sm text-foreground block print:text-black">
-                  Gran Total del Libro Auxiliar · {ejercicioSeleccionado}
-                </span>
-                <span className="text-[11px] text-muted-foreground print:text-black">
-                  Balance consolidado de cargos y abonos del período
-                </span>
-              </div>
-              <div className="flex items-center gap-6 text-xs font-mono">
-                <div>
-                  <span className="text-[10px] uppercase font-sans text-muted-foreground block print:text-black">Total Cargos</span>
-                  <span className="text-sm font-semibold tabular-nums text-foreground print:text-black">+{formatoMoneda(totalesLibroContinuo.debe)}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-sans text-muted-foreground block print:text-black">Total Abonos</span>
-                  <span className="text-sm font-semibold tabular-nums text-foreground print:text-black">−{formatoMoneda(totalesLibroContinuo.haber)}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-sans text-muted-foreground block print:text-black">Cuadre Global</span>
-                  <span className={`text-sm font-bold tabular-nums ${
-                    totalesLibroContinuo.debe === totalesLibroContinuo.haber
-                      ? "text-emerald-600 dark:text-emerald-400 print:text-black"
-                      : "text-red-600 dark:text-red-400"
-                  }`}>
-                    {totalesLibroContinuo.debe === totalesLibroContinuo.haber ? "Cuadrado (D == H)" : "Diferencia"}
-                  </span>
-                </div>
-              </div>
+              )}
             </div>
           )}
-        </div>
-      )}
         </div>
       )}
 
@@ -2304,7 +3462,11 @@ function KardexContent() {
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Fecha: <strong className="text-foreground">{partidaDetalle.fecha}</strong> · {partidaDetalle.ejercicio || ejercicioSeleccionado}
+                  Fecha:{" "}
+                  <strong className="text-foreground">
+                    {partidaDetalle.fecha}
+                  </strong>{" "}
+                  · {partidaDetalle.ejercicio || ejercicioSeleccionado}
                 </p>
               </div>
 
@@ -2341,19 +3503,27 @@ function KardexContent() {
                 </thead>
                 <tbody className="divide-y divide-border/60 font-mono">
                   {partidaDetalle.lineas.map((linea, lIdx) => {
-                    const esLaCuenta = linea.codigo === cuentaActual?.codigo
-                    const cuentaInfo = cuentas.find((c) => c.codigo === linea.codigo)
+                    const esLaCuenta = linea.codigo === cuentaActual?.codigo;
+                    const cuentaInfo = cuentas.find(
+                      (c) => c.codigo === linea.codigo,
+                    );
 
                     return (
                       <tr
                         key={lIdx}
-                        className={esLaCuenta ? "bg-primary/10 font-bold" : "hover:bg-muted/20"}
+                        className={
+                          esLaCuenta
+                            ? "bg-primary/10 font-bold"
+                            : "hover:bg-muted/20"
+                        }
                       >
                         <td className="py-2 px-3 text-primary">
                           {linea.codigo}
                         </td>
                         <td className="py-2 px-3 font-sans font-medium text-foreground">
-                          {cuentaInfo ? cuentaInfo.nombre : "Cuenta no encontrada"}
+                          {cuentaInfo
+                            ? cuentaInfo.nombre
+                            : "Cuenta no encontrada"}
                           {esLaCuenta && (
                             <span className="ml-2 text-[10px] font-sans font-semibold text-primary bg-primary/20 px-1.5 py-0.2 rounded">
                               Activa en este auxiliar
@@ -2361,25 +3531,36 @@ function KardexContent() {
                           )}
                         </td>
                         <td className="py-2 px-3 text-right">
-                          {Number(linea.debe) > 0 ? formatoMoneda(Number(linea.debe)) : "-"}
+                          {Number(linea.debe) > 0
+                            ? formatoMoneda(Number(linea.debe))
+                            : "-"}
                         </td>
                         <td className="py-2 px-3 text-right">
-                          {Number(linea.haber) > 0 ? formatoMoneda(Number(linea.haber)) : "-"}
+                          {Number(linea.haber) > 0
+                            ? formatoMoneda(Number(linea.haber))
+                            : "-"}
                         </td>
                       </tr>
-                    )
+                    );
                   })}
                 </tbody>
                 <tfoot className="border-t-2 border-border bg-muted/40 font-bold font-mono text-xs">
                   <tr>
-                    <td colSpan={2} className="py-2.5 px-3 font-sans text-muted-foreground uppercase text-[11px]">
+                    <td
+                      colSpan={2}
+                      className="py-2.5 px-3 font-sans text-muted-foreground uppercase text-[11px]"
+                    >
                       Totales de la Partida
                     </td>
                     <td className="py-2.5 px-3 text-right text-foreground">
-                      {formatoMoneda(totalesAsiento(partidaDetalle.lineas).debe)}
+                      {formatoMoneda(
+                        totalesAsiento(partidaDetalle.lineas).debe,
+                      )}
                     </td>
                     <td className="py-2.5 px-3 text-right text-foreground">
-                      {formatoMoneda(totalesAsiento(partidaDetalle.lineas).haber)}
+                      {formatoMoneda(
+                        totalesAsiento(partidaDetalle.lineas).haber,
+                      )}
                     </td>
                   </tr>
                 </tfoot>
@@ -2446,26 +3627,44 @@ function KardexContent() {
               </button>
             </div>
 
-            <form onSubmit={agregarMovimientoKardex} className="space-y-3.5 text-xs">
+            <form
+              onSubmit={agregarMovimientoKardex}
+              className="space-y-3.5 text-xs"
+            >
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="font-medium text-foreground">Tipo de Operación:</label>
+                  <label className="font-medium text-foreground">
+                    Tipo de Operación:
+                  </label>
                   <select
                     value={nuevoTipo}
                     onChange={(e) => {
-                      const t = e.target.value as "ENTRADA" | "SALIDA" | "DEVOLUCION_COMPRA" | "DEVOLUCION_VENTA" | "AJUSTE"
-                      setNuevoTipo(t)
+                      const t = e.target.value as
+                        | "ENTRADA"
+                        | "SALIDA"
+                        | "DEVOLUCION_COMPRA"
+                        | "DEVOLUCION_VENTA"
+                        | "AJUSTE";
+                      setNuevoTipo(t);
                       if (t === "SALIDA") {
-                        setNuevoCosto(totalesKardex.costoPromedioActual.toFixed(2))
+                        setNuevoCosto(
+                          totalesKardex.costoPromedioActual.toFixed(2),
+                        );
                       }
                     }}
                     className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs focus:ring-1 focus:ring-primary focus:outline-hidden"
                   >
                     <option value="ENTRADA">Entrada / Compra (CCF)</option>
                     <option value="SALIDA">Salida / Venta (Despacho)</option>
-                    <option value="DEVOLUCION_COMPRA">Devolución sobre Compra</option>
-                    <option value="DEVOLUCION_VENTA">Devolución sobre Venta</option>
-                    <option value="AJUSTE">Ajuste por Toma Física / Merma</option>
+                    <option value="DEVOLUCION_COMPRA">
+                      Devolución sobre Compra
+                    </option>
+                    <option value="DEVOLUCION_VENTA">
+                      Devolución sobre Venta
+                    </option>
+                    <option value="AJUSTE">
+                      Ajuste por Toma Física / Merma
+                    </option>
                   </select>
                 </div>
 
@@ -2483,7 +3682,9 @@ function KardexContent() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="font-medium text-foreground">Comprobante / Referencia:</label>
+                  <label className="font-medium text-foreground">
+                    Comprobante / Referencia:
+                  </label>
                   <input
                     type="text"
                     placeholder="Ej. CCF-4091, FAC-102"
@@ -2495,7 +3696,9 @@ function KardexContent() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="font-medium text-foreground">Unidades ({articuloActual.unidad}):</label>
+                  <label className="font-medium text-foreground">
+                    Unidades ({articuloActual.unidad}):
+                  </label>
                   <input
                     type="number"
                     min="1"
@@ -2509,7 +3712,9 @@ function KardexContent() {
               </div>
 
               <div className="space-y-1">
-                <label className="font-medium text-foreground">Concepto / Glosa:</label>
+                <label className="font-medium text-foreground">
+                  Concepto / Glosa:
+                </label>
                 <input
                   type="text"
                   placeholder="Detalle o descripción del movimiento"
@@ -2544,9 +3749,13 @@ function KardexContent() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="font-medium text-foreground">Total Valorado Estimado:</label>
+                  <label className="font-medium text-foreground">
+                    Total Valorado Estimado:
+                  </label>
                   <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs font-mono font-bold text-foreground">
-                    {formatoMoneda((Number(nuevoUnidades) || 0) * (Number(nuevoCosto) || 0))}
+                    {formatoMoneda(
+                      (Number(nuevoUnidades) || 0) * (Number(nuevoCosto) || 0),
+                    )}
                   </div>
                 </div>
               </div>
@@ -2561,11 +3770,7 @@ function KardexContent() {
                 >
                   Cancelar
                 </Button>
-                <Button
-                  type="submit"
-                  size="sm"
-                  className="h-8 text-xs gap-1.5"
-                >
+                <Button type="submit" size="sm" className="h-8 text-xs gap-1.5">
                   <CheckCircle2 className="size-3.5" />
                   Guardar en Kardex
                 </Button>
@@ -2585,11 +3790,14 @@ function KardexContent() {
             : "Libro Auxiliar emitido oficialmente por el Sistema de Información Contable."}
         </p>
         <p className="mt-1 text-[11px] text-neutral-600">
-          Certificación de saldos, existencias y operaciones según principios contables y normativa tributaria aplicable (Art. 143 C.T.).
+          Certificación de saldos, existencias y operaciones según principios
+          contables y normativa tributaria aplicable (Art. 143 C.T.).
         </p>
         <div className="mt-12 grid grid-cols-3 gap-8">
           <div className="border-t border-black pt-2 font-medium text-black">
-            {pestañaPrincipal === "kardex_inventario" ? "Encargado de Bodega / Almacén" : "Elaboró (Auxiliar Contable)"}
+            {pestañaPrincipal === "kardex_inventario"
+              ? "Encargado de Bodega / Almacén"
+              : "Elaboró (Auxiliar Contable)"}
           </div>
           <div className="border-t border-black pt-2 font-medium text-black">
             Revisó (Contador General - JVPCPA)
@@ -2600,7 +3808,7 @@ function KardexContent() {
         </div>
       </footer>
     </div>
-  )
+  );
 }
 
 export default function KardexPage() {
@@ -2614,5 +3822,5 @@ export default function KardexPage() {
     >
       <KardexContent />
     </Suspense>
-  )
+  );
 }
