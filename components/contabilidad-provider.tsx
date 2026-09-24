@@ -163,6 +163,7 @@ interface ContabilidadContextValue {
   cerrarCicloContable: (opciones?: { aperturarSiguiente?: boolean }) => Promise<{ success: boolean; error?: string; [key: string]: any } | void>
   recargarCierres: () => Promise<void>
   recargarAsientos: () => Promise<void>
+  recargarTodo: () => Promise<void>
   mayor: ReturnType<typeof calcularMayor>
   estadoResultados: ReturnType<typeof calcularEstadoResultados>
   balanceGeneral: ReturnType<typeof calcularBalanceGeneral>
@@ -227,6 +228,10 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
       console.error("Error al recargar asientos:", e)
     }
   }, [dbConnected, ejercicioSeleccionado])
+
+  const recargarTodo = useCallback(async () => {
+    await Promise.all([recargarAsientos(), recargarCierres()])
+  }, [recargarAsientos, recargarCierres])
 
   const recargarTomaFisica = useCallback(async (ej: number) => {
     if (!dbConnected) return
@@ -891,6 +896,7 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
     cerrarCicloContable,
     recargarCierres,
     recargarAsientos,
+    recargarTodo,
     mayor,
     estadoResultados,
     balanceGeneral,

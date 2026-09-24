@@ -11,13 +11,15 @@ import {
   LayoutDashboard,
   Menu,
   Home,
+  Sun,
+  Moon,
   Calendar,
   CalendarPlus,
   Lock,
   X,
   History,
 } from "lucide-react"
-import { useState, type ReactNode } from "react"
+import { useState, useEffect, type ReactNode } from "react"
 import { cn } from "@/lib/utils"
 import { useContabilidad } from "@/components/contabilidad-provider"
 
@@ -43,15 +45,41 @@ export function AppShell({ children }: { children: ReactNode }) {
     crearEjercicio,
   } = useContabilidad()
 
+  const [isDark, setIsDark] = useState<boolean>(true)
+  useEffect(() => {
+    const saved = localStorage.getItem("theme")
+    if (saved === "light") {
+      setIsDark(false)
+      document.documentElement.classList.remove("dark")
+    } else {
+      setIsDark(true)
+      document.documentElement.classList.add("dark")
+    }
+  }, [])
+
+  const toggleTheme = () => {
+    setIsDark((prev) => {
+      const next = !prev
+      if (next) {
+        document.documentElement.classList.add("dark")
+        localStorage.setItem("theme", "dark")
+      } else {
+        document.documentElement.classList.remove("dark")
+        localStorage.setItem("theme", "light")
+      }
+      return next
+    })
+  }
+
   const [mostrarCrear, setMostrarCrear] = useState(false)
-  const maxAnio = ejercicios.length > 0 ? Math.max(...ejercicios.map((e) => e.ejercicio)) : new Date().getFullYear()
+  const maxAnio = ejercicios && ejercicios.length > 0 ? Math.max(...ejercicios.map((e) => e.ejercicio)) : new Date().getFullYear()
   const [nuevoAnio, setNuevoAnio] = useState(maxAnio + 1)
   const [creando, setCreando] = useState(false)
   const [errorCrear, setErrorCrear] = useState("")
 
   const abrirModalCrear = () => {
     setErrorCrear("")
-    const sugerido = (ejercicios.length > 0 ? Math.max(...ejercicios.map((e) => e.ejercicio)) : new Date().getFullYear()) + 1
+    const sugerido = (ejercicios && ejercicios.length > 0 ? Math.max(...ejercicios.map((e) => e.ejercicio)) : new Date().getFullYear()) + 1
     setNuevoAnio(sugerido)
     setMostrarCrear(true)
   }
@@ -64,7 +92,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       setErrorCrear("Ingresa un año válido entre 2000 y 2100.")
       return
     }
-    if (ejercicios.some((ej) => ej.ejercicio === anioNum)) {
+    if (ejercicios && ejercicios.some((ej) => ej.ejercicio === anioNum)) {
       setErrorCrear(`El ejercicio fiscal ${anioNum} ya existe en el sistema.`)
       return
     }
@@ -153,7 +181,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               className="rounded border border-border bg-muted/60 px-2 py-1 text-xs font-bold text-foreground"
               aria-label="Seleccionar ejercicio fiscal"
             >
-              {ejercicios.map((ej) => (
+              {ejercicios && ejercicios.map((ej) => (
                 <option key={ej.ejercicio} value={ej.ejercicio}>
                   {ej.ejercicio} ({ej.estado === "ABIERTO" ? "Abierto" : "Cerrado"})
                 </option>
@@ -171,9 +199,14 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8 md:py-8 print:max-w-none print:p-0 print:m-0">
-          <div className="mb-5 hidden md:flex flex-wrap items-center justify-between gap-3 print:hidden">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 print:hidden">
             <div className="flex flex-wrap items-center gap-2.5">
-              {!dbConnected && (
+              {dbConnected ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                  <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Base de Datos Conectada
+                </span>
+              ) : (
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-300">
                   <span className="size-1.5 rounded-full bg-amber-500" />
                   Modo Navegador (Offline)
@@ -190,7 +223,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   className="bg-transparent font-bold text-foreground focus:outline-none cursor-pointer"
                   aria-label="Seleccionar ciclo contable"
                 >
-                  {ejercicios.map((ej) => (
+                  {ejercicios && ejercicios.map((ej) => (
                     <option key={ej.ejercicio} value={ej.ejercicio} className="bg-popover text-popover-foreground">
                       {ej.ejercicio} ({ej.estado === "ABIERTO" ? "Abierto" : "Cerrado"})
                     </option>
@@ -233,16 +266,28 @@ export function AppShell({ children }: { children: ReactNode }) {
               </div>
             </div>
 
-            {pathname !== "/" && (
-              <Link
-                href="/"
-                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2.5 py-1.5 rounded-lg border border-border bg-card shadow-2xs hover:bg-accent"
-                aria-label="Ir al inicio"
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent cursor-pointer"
+                title={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
               >
-                <Home className="size-3.5" />
-                <span>Inicio</span>
-              </Link>
-            )}
+                {isDark ? <Sun className="size-3.5 text-amber-400" /> : <Moon className="size-3.5 text-slate-400" />}
+                <span>{isDark ? "Claro" : "Oscuro"}</span>
+              </button>
+
+              {pathname !== "/" && (
+                <Link
+                  href="/"
+                  className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2.5 py-1.5 rounded-lg border border-border bg-card shadow-2xs hover:bg-accent"
+                  aria-label="Ir al inicio"
+                >
+                  <Home className="size-3.5" />
+                  <span>Inicio</span>
+                </Link>
+              )}
+            </div>
           </div>
 
           {/* Banner de alerta si el ciclo está cerrado */}
@@ -254,7 +299,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <strong>Ciclo {ejercicioSeleccionado} cerrado:</strong> Este periodo está en modo solo lectura de auditoría. Las cifras son definitivas.
                 </p>
               </div>
-              {ejercicios.some((ej) => ej.estado === "ABIERTO") && (
+              {ejercicios && ejercicios.some((ej) => ej.estado === "ABIERTO") && (
                 <button
                   type="button"
                   onClick={() => {

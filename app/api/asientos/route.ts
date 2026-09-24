@@ -59,7 +59,7 @@ export async function POST(req: Request) {
 
   const client = await pool.connect()
   try {
-    const { fecha, concepto, lineas, usuario_email } = await req.json()
+    const { fecha, concepto, lineas, tipo: tipoInput, documento_soporte, folio_diario_id, usuario_email } = await req.json()
     const email = usuario_email || "admin@contable.sv"
 
     if (!Array.isArray(lineas) || lineas.length < 2) {
@@ -73,15 +73,31 @@ export async function POST(req: Request) {
 
     await client.query("BEGIN")
 
-    // El número es asignado de forma única, atómica y segura por el trigger de PostgreSQL (trg_asiento_validar_numero)
-    // evitando el riesgo de doble incremento o condición de carrera (Split-Brain).
+    // Buscar folio abierto para la fecha si no vino en el body
+    let targetFolioId = folio_diario_id
+    if (!targetFolioId) {
+      const folioRes = await client.query(
+        "SELECT id FROM folio_diario WHERE fecha = $1 AND estado = 'ABIERTO' LIMIT 1",
+        [fecha]
+      )
+      if (folioRes.rows.length > 0) {
+        targetFolioId = folioRes.rows[0].id
+      }
+    }
+
+    // Obtener número consecutivo específico para este año fiscal
+    const numRes = await client.query("SELECT fn_proximo_numero_asiento($1) AS next_num", [ejercicio])
+    const numero = numRes.rows[0]?.next_num || 1
+    const tipo = tipoInput || "OPERACION"
+
     const resA = await client.query(
-      "INSERT INTO asiento (ejercicio, fecha, concepto, tipo, estado) VALUES ($1, $2, $3, 'OPERACION', 'APLICADO') RETURNING id, correlativo_global, numero, ejercicio",
-      [ejercicio, fecha, concepto]
+      `INSERT INTO asiento (ejercicio, numero, fecha, concepto, tipo, estado, documento_soporte, folio_diario_id) 
+       VALUES ($1, $2, $3, $4, $5, 'APLICADO', $6, $7) 
+       RETURNING id, correlativo_global, numero, ejercicio`,
+      [ejercicio, numero, fecha, concepto, tipo, documento_soporte || null, targetFolioId || null]
     )
     const asientoId = resA.rows[0].id
     const correlativo_global = resA.rows[0].correlativo_global
-    const numero = resA.rows[0].numero
 
     let totalDebe = 0
     let totalHaber = 0
@@ -112,5 +128,25 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: msg }, { status: 400 })
   } finally {
     client.release()
+  }
+}
+
+export async function DELETE(req: Request) {
+  const pool = getDbPool()
+  if (!pool) return NextResponse.json({ error: "No database configured" }, { status: 503 })
+  try {
+    const { searchParams } = new URL(req.url)
+    const id = searchParams.get("id")
+    const motivo = searchParams.get("motivo") || "Anulación contable por corrección/auditoría"
+
+    if (!id) {
+      return NextResponse.json({ error: "El ID del asiento es obligatorio." }, { status: 400 })
+    }
+
+    await pool.query("SELECT sp_anular_asiento($1, $2)", [id, motivo])
+    return NextResponse.json({ success: true, anulado: true })
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Error al anular asiento"
+    return NextResponse.json({ error: msg }, { status: 400 })
   }
 }

@@ -42,7 +42,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    <html lang="es" className="dark" suppressHydrationWarning>
       <body className="antialiased">
         <ContabilidadProvider>
           <AppShell>{children}</AppShell>
