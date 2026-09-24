@@ -702,13 +702,13 @@ function toggleTheme() {
       {/* SIDEBAR */}
 
       <aside
-        className={cn(
-          "fixed inset-y-0 left-0 z-40 flex w-64 flex-col bg-sidebar text-sidebar-foreground transition-transform md:static md:translate-x-0 print:hidden",
-          open
-            ? "translate-x-0"
-            : "-translate-x-full"
-        )}
-      >
+  className={cn(
+    "fixed inset-y-0 left-0 z-40 flex h-svh w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground transition-transform md:sticky md:top-0 md:translate-x-0 print:hidden",
+    open
+      ? "translate-x-0"
+      : "-translate-x-full"
+  )}
+>
 
         <div className="flex items-center gap-3 border-b border-sidebar-border px-5 py-5">
 
@@ -732,7 +732,7 @@ function toggleTheme() {
 
         </div>
 
-        <nav className="flex-1 space-y-1 px-3 py-4">
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4">
 
           {NAV.map((item) => {
             const active =
@@ -771,8 +771,7 @@ function toggleTheme() {
 
         </nav>
 
-        <div className="border-t border-sidebar-border p-3">
-
+        <div className="mt-auto shrink-0 border-t border-sidebar-border p-3">
           <div className="mb-2 flex items-center gap-3 rounded-lg bg-sidebar-accent/40 px-3 py-3">
 
             <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-sidebar-primary/10 text-sidebar-primary">
