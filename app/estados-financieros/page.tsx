@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   CalendarPlus,
   ArrowRight,
+  Layers,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -329,7 +330,7 @@ export default function EstadosFinancierosPage() {
                   </p>
                   {dbConnected && (
                     <Badge variant="success" className="border-emerald-500/40 text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 text-[10px]">
-                      Sincronizado con PostgreSQL
+                      Sincronizado en Libros
                     </Badge>
                   )}
                 </div>
@@ -382,11 +383,34 @@ export default function EstadosFinancierosPage() {
 
             <form onSubmit={guardarTomaFormulario} className="space-y-4 text-sm">
               <p className="text-xs text-muted-foreground">
-                En el <strong>Método Analítico</strong>, el Inventario Final físico determina directamente el Costo de Ventas y la Utilidad Bruta del ejercicio {ejercicioSeleccionado}.
+                El Inventario Final valorado determina directamente el Costo de Ventas y la Utilidad Bruta del ejercicio {ejercicioSeleccionado}.
               </p>
 
               <div className="space-y-1.5">
-                <Label htmlFor="valor_inventario">Valor del Inventario Final ($ USD):</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="valor_inventario">Valor del Inventario Final ($ USD):</Label>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(`/api/kardex?ejercicio=${ejercicioSeleccionado}`)
+                        if (res.ok) {
+                          const data = await res.json()
+                          if (data.totalInventarioValorado !== undefined && data.totalInventarioValorado > 0) {
+                            setValorToma(Number(data.totalInventarioValorado).toFixed(2))
+                            setObservacionesToma(`Conteo conciliado con saldo de Kardex CPP ($${Number(data.totalInventarioValorado).toFixed(2)})`)
+                          }
+                        }
+                      } catch (err) {
+                        console.error(err)
+                      }
+                    }}
+                    className="text-[11px] text-primary hover:underline font-medium inline-flex items-center gap-1 cursor-pointer"
+                  >
+                    <Layers className="size-3" />
+                    Cargar saldo actual de Kardex
+                  </button>
+                </div>
                 <Input
                   id="valor_inventario"
                   type="number"
@@ -437,7 +461,7 @@ export default function EstadosFinancierosPage() {
               {mensajeExitoToma && (
                 <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400 font-semibold bg-emerald-50 dark:bg-emerald-950/30 p-2 rounded">
                   <CheckCircle2 className="size-4" />
-                  Toma física guardada y sincronizada correctamente con PostgreSQL.
+                  Toma física guardada y sincronizada correctamente en los registros contables.
                 </div>
               )}
 

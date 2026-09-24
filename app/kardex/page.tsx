@@ -287,7 +287,7 @@ function normalizar(texto: string): string {
 }
 
 function KardexContent() {
-  const { cuentas, asientos, ejercicioSeleccionado, mayor, tomaFisica } = useContabilidad()
+  const { cuentas, asientos, ejercicioSeleccionado, mayor, tomaFisica, guardarTomaFisica, dbConnected } = useContabilidad()
   const searchParams = useSearchParams()
   const tabParam = searchParams.get("tab")
   const codigoParam = searchParams.get("codigo") || searchParams.get("cuenta")
@@ -321,6 +321,31 @@ function KardexContent() {
   const [nuevoConcepto, setNuevoConcepto] = useState("")
   const [nuevoUnidades, setNuevoUnidades] = useState<string>("100")
   const [nuevoCosto, setNuevoCosto] = useState<string>("5.00")
+  const [sincronizandoToma, setSincronizandoToma] = useState(false)
+  const [sincronizadoExitoso, setSincronizadoExitoso] = useState(false)
+
+  // Cargar movimientos persistentes desde base de datos central
+  useEffect(() => {
+    if (!dbConnected) return
+    let cancel = false
+    async function cargarKardexDb() {
+      try {
+        const res = await fetch(`/api/kardex?ejercicio=${ejercicioSeleccionado}&articulo=${articuloId}`)
+        if (res.ok) {
+          const data = await res.json()
+          if (!cancel && Array.isArray(data.movimientos) && data.movimientos.length > 0) {
+            setMovimientosKardex(data.movimientos)
+          }
+        }
+      } catch (err) {
+        console.error("Error al cargar kardex de base de datos:", err)
+      }
+    }
+    cargarKardexDb()
+    return () => {
+      cancel = true
+    }
+  }, [dbConnected, ejercicioSeleccionado, articuloId])
 
   const guardarMovimientosKardex = useCallback((nuevos: MovimientoKardexInventario[]) => {
     setMovimientosKardex(nuevos)
@@ -409,9 +434,66 @@ function KardexContent() {
 
     const recalculados = recalcularKardexMovimientos(raw)
     guardarMovimientosKardex(recalculados)
+
+    // Persistir en servidor contable si hay conexión
+    if (dbConnected) {
+      fetch("/api/kardex", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ejercicio: ejercicioSeleccionado,
+          articuloCodigo: articuloId,
+          fecha: nuevoFecha,
+          comprobante: nuevoComprobante.trim() || (esEntrada ? "CCF-PROV" : "FAC-CLI"),
+          concepto: nuevoConcepto.trim() || (esEntrada ? "Ingreso de existencias a bodega" : "Despacho de existencias por venta"),
+          tipo: nuevoTipo,
+          unidadesEntrada: esEntrada ? u : 0,
+          unidadesSalida: esSalida ? u : 0,
+          costoUnitario: c,
+        }),
+      }).catch((err) => console.error("Error al persistir movimiento en servidor contable:", err))
+    }
+
     setModalNuevoMovimiento(false)
     setNuevoComprobante("")
     setNuevoConcepto("")
+  }
+
+  async function handleSincronizarConTomaFisica() {
+    setSincronizandoToma(true)
+    try {
+      if (dbConnected) {
+        const res = await fetch("/api/kardex", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "sincronizar_toma",
+            ejercicio: ejercicioSeleccionado,
+            responsable: "Comité de Auditoría y Control de Inventarios",
+            observaciones: `Inventario final conciliado directamente desde las tarjetas de Kardex (CPP) ($${totalesKardex.saldoFinal.toFixed(2)})`,
+          }),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          if (data.tomaFisica) {
+            await guardarTomaFisica(data.tomaFisica)
+          }
+        }
+      } else {
+        await guardarTomaFisica({
+          ejercicio: ejercicioSeleccionado,
+          valor_inventario_final: totalesKardex.saldoFinal,
+          responsable: "Control de Almacén y Auditoría",
+          observaciones: `Inventario final valorado según tarjeta de Kardex (CPP) ($${totalesKardex.saldoFinal.toFixed(2)})`,
+        })
+      }
+      setSincronizadoExitoso(true)
+      setTimeout(() => setSincronizadoExitoso(false), 5000)
+    } catch (e) {
+      console.error("Error al sincronizar kardex con toma física:", e)
+    } finally {
+      setSincronizandoToma(false)
+    }
   }
 
   // ----------------------------------------------------
@@ -1167,6 +1249,99 @@ function KardexContent() {
               <span>·</span>
               <span>Unidad: <strong className="text-foreground font-medium">{articuloActual.unidad}</strong></span>
             </div>
+          </div>
+
+          {/* Panel de Auditoría y Conciliación con el Método Analítico */}
+          <div className="rounded-xl border border-border bg-card p-4 shadow-xs print:hidden space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div
+                  className={`p-2 rounded-lg ${
+                    Math.abs(totalesKardex.saldoFinal - (tomaFisica?.valor_inventario_final ?? 0)) < 0.01
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                  }`}
+                >
+                  <Layers className="size-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
+                      Auditoría y Conciliación de Inventario Final
+                    </h4>
+                    {Math.abs(totalesKardex.saldoFinal - (tomaFisica?.valor_inventario_final ?? 0)) < 0.01 ? (
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] text-emerald-600 border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/20"
+                      >
+                        <CheckCircle2 className="size-3 mr-1 inline" /> Conciliado 100%
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] text-amber-600 border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20"
+                      >
+                        Discrepancia detectada
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Conciliación de existencias en almacén para la determinación del Costo de Ventas:{" "}
+                    <span className="font-mono text-foreground font-medium">
+                      Costo de Ventas = Inv. Inicial + Compras Netas − Inv. Final
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={sincronizandoToma}
+                  onClick={handleSincronizarConTomaFisica}
+                  className="h-8 gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer"
+                >
+                  <RotateCcw className={`size-3.5 ${sincronizandoToma ? "animate-spin" : ""}`} />
+                  {sincronizandoToma ? "Sincronizando..." : "Sincronizar Kardex con Toma Física"}
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-border/60 text-xs font-mono">
+              <div className="flex items-center justify-between p-2 rounded-lg bg-muted/40 border border-border/50">
+                <span className="text-muted-foreground font-sans text-[11px]">Saldo Kardex (Bodega CPP):</span>
+                <span className="font-bold text-foreground">{formatoMoneda(totalesKardex.saldoFinal)}</span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-muted/40 border border-border/50">
+                <span className="text-muted-foreground font-sans text-[11px]">Toma Física Registrada:</span>
+                <span className="font-bold text-foreground">
+                  {formatoMoneda(tomaFisica?.valor_inventario_final ?? 0)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-muted/40 border border-border/50">
+                <span className="text-muted-foreground font-sans text-[11px]">Diferencia de Auditoría:</span>
+                <span
+                  className={`font-bold ${
+                    Math.abs(totalesKardex.saldoFinal - (tomaFisica?.valor_inventario_final ?? 0)) < 0.01
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-amber-600 dark:text-amber-400"
+                  }`}
+                >
+                  {formatoMoneda(Math.abs(totalesKardex.saldoFinal - (tomaFisica?.valor_inventario_final ?? 0)))}
+                </span>
+              </div>
+            </div>
+
+            {sincronizadoExitoso && (
+              <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs flex items-center gap-2">
+                <CheckCircle2 className="size-4 shrink-0" />
+                <span>
+                  ¡Inventario Final sincronizado con éxito en los registros contables! El Estado de Resultados y Costo de Ventas ya
+                  reflejan los {formatoMoneda(totalesKardex.saldoFinal)} calculados por el Kardex.
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Resumen Compacto de Existencias y Valores */}
