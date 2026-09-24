@@ -470,7 +470,7 @@ function KardexContent() {
             action: "sincronizar_toma",
             ejercicio: ejercicioSeleccionado,
             responsable: "Comité de Auditoría y Control de Inventarios",
-            observaciones: `Inventario final conciliado directamente desde las tarjetas de Kardex (CPP) para el Método Analítico ($${totalesKardex.saldoFinal.toFixed(2)})`,
+            observaciones: `Inventario final conciliado directamente desde las tarjetas de Kardex (CPP) ($${totalesKardex.saldoFinal.toFixed(2)})`,
           }),
         })
         if (res.ok) {
@@ -484,7 +484,7 @@ function KardexContent() {
           ejercicio: ejercicioSeleccionado,
           valor_inventario_final: totalesKardex.saldoFinal,
           responsable: "Control de Almacén y Auditoría",
-          observaciones: `Inventario final valorado según tarjeta de Kardex (CPP) para el Método Analítico ($${totalesKardex.saldoFinal.toFixed(2)})`,
+          observaciones: `Inventario final valorado según tarjeta de Kardex (CPP) ($${totalesKardex.saldoFinal.toFixed(2)})`,
         })
       }
       setSincronizadoExitoso(true)
@@ -1267,7 +1267,7 @@ function KardexContent() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
-                      Auditoría de Inventario Final (Método Analítico)
+                      Auditoría y Conciliación de Inventario Final
                     </h4>
                     {Math.abs(totalesKardex.saldoFinal - (tomaFisica?.valor_inventario_final ?? 0)) < 0.01 ? (
                       <Badge
@@ -1286,7 +1286,7 @@ function KardexContent() {
                     )}
                   </div>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
-                    En el Método Analítico, el Costo de Ventas depende de la Toma Física respaldada por el Kardex:{" "}
+                    Conciliación de existencias en almacén para la determinación del Costo de Ventas:{" "}
                     <span className="font-mono text-foreground font-medium">
                       Costo de Ventas = Inv. Inicial + Compras Netas − Inv. Final
                     </span>

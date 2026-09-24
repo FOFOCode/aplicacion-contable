@@ -383,7 +383,7 @@ export default function EstadosFinancierosPage() {
 
             <form onSubmit={guardarTomaFormulario} className="space-y-4 text-sm">
               <p className="text-xs text-muted-foreground">
-                En el <strong>Método Analítico</strong>, el Inventario Final físico determina directamente el Costo de Ventas y la Utilidad Bruta del ejercicio {ejercicioSeleccionado}.
+                El Inventario Final valorado determina directamente el Costo de Ventas y la Utilidad Bruta del ejercicio {ejercicioSeleccionado}.
               </p>
 
               <div className="space-y-1.5">
