@@ -1,34 +1,54 @@
-"use client";
+"use client"
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
   useState,
   type ReactNode,
-  useCallback,
-} from "react";
-import { CATALOGO_CUENTAS, enriquecerJerarquia } from "@/lib/catalogo";
+} from "react"
+
+import { CATALOGO_CUENTAS } from "@/lib/catalogo"
+
 import {
   calcularBalanceGeneral,
   calcularEstadoResultados,
   calcularMayor,
-} from "@/lib/contabilidad";
-import type {
-  Asiento,
-  CierreContable,
-  Cuenta,
-  EjercicioFiscal,
-  InventarioTomaFisica,
-  ReporteEstadosFinancieros,
-} from "@/lib/types";
+} from "@/lib/contabilidad"
 
-const STORAGE_ASIENTOS = "modulo-contable:asientos";
-const STORAGE_CUENTAS = "modulo-contable:cuentas";
-const STORAGE_CIERRES = "modulo-contable:cierres";
-const STORAGE_EJERCICIO = "modulo-contable:ejercicio_seleccionado";
-const STORAGE_TOMA = "modulo-contable:toma_fisica";
+import {
+  grupoPorDigito,
+  type Asiento,
+  type CierreContable,
+  type Cuenta,
+  type EjercicioFiscal,
+  type InventarioTomaFisica,
+} from "@/lib/types"
+
+// ============================================================
+// STORAGE
+// ============================================================
+
+const STORAGE_ASIENTOS =
+  "modulo-contable:asientos"
+
+const STORAGE_CUENTAS =
+  "modulo-contable:cuentas"
+
+const STORAGE_CIERRES =
+  "modulo-contable:cierres"
+
+const STORAGE_EJERCICIO =
+  "modulo-contable:ejercicio_seleccionado"
+
+const STORAGE_TOMA =
+  "modulo-contable:toma_fisica"
+
+// ============================================================
+// DATOS LOCALES DE RESPALDO
+// ============================================================
 
 const EJERCICIOS_DEFECTO: EjercicioFiscal[] = [
   {
@@ -38,16 +58,17 @@ const EJERCICIOS_DEFECTO: EjercicioFiscal[] = [
     ultimo_numero: 7,
     estado: "ABIERTO",
   },
-];
+]
 
 const TOMA_FISICA_DEFECTO: InventarioTomaFisica = {
   ejercicio: 2026,
   fecha_toma: "2026-12-31",
-  valor_inventario_final: 6500.0,
-  responsable: "Comité de Auditoría y Control de Inventarios",
+  valor_inventario_final: 6500,
+  responsable:
+    "Comité de Auditoría y Control de Inventarios",
   observaciones:
     "Toma física de existencias y conteo al cierre del ejercicio 2026 (Método Analítico)",
-};
+}
 
 const ASIENTOS_EJEMPLO: Asiento[] = [
   {
@@ -60,12 +81,29 @@ const ASIENTOS_EJEMPLO: Asiento[] = [
     tipo: "APERTURA",
     estado: "APLICADO",
     lineas: [
-      { codigo: "1101", debe: 10000, haber: 0 },
-      { codigo: "1102", debe: 5000, haber: 0 },
-      { codigo: "1104", debe: 5000, haber: 0 },
-      { codigo: "3101", debe: 0, haber: 20000 },
+      {
+        codigo: "1101",
+        debe: 10000,
+        haber: 0,
+      },
+      {
+        codigo: "1102",
+        debe: 5000,
+        haber: 0,
+      },
+      {
+        codigo: "1104",
+        debe: 5000,
+        haber: 0,
+      },
+      {
+        codigo: "3101",
+        debe: 0,
+        haber: 20000,
+      },
     ],
   },
+
   {
     id: "a2",
     ejercicio: 2026,
@@ -76,11 +114,24 @@ const ASIENTOS_EJEMPLO: Asiento[] = [
     tipo: "OPERACION",
     estado: "APLICADO",
     lineas: [
-      { codigo: "4101", debe: 4000, haber: 0 },
-      { codigo: "1105", debe: 520, haber: 0 },
-      { codigo: "1102", debe: 0, haber: 4520 },
+      {
+        codigo: "4101",
+        debe: 4000,
+        haber: 0,
+      },
+      {
+        codigo: "1105",
+        debe: 520,
+        haber: 0,
+      },
+      {
+        codigo: "1102",
+        debe: 0,
+        haber: 4520,
+      },
     ],
   },
+
   {
     id: "a3",
     ejercicio: 2026,
@@ -91,11 +142,24 @@ const ASIENTOS_EJEMPLO: Asiento[] = [
     tipo: "OPERACION",
     estado: "APLICADO",
     lineas: [
-      { codigo: "4102", debe: 300, haber: 0 },
-      { codigo: "1105", debe: 39, haber: 0 },
-      { codigo: "1101", debe: 0, haber: 339 },
+      {
+        codigo: "4102",
+        debe: 300,
+        haber: 0,
+      },
+      {
+        codigo: "1105",
+        debe: 39,
+        haber: 0,
+      },
+      {
+        codigo: "1101",
+        debe: 0,
+        haber: 339,
+      },
     ],
   },
+
   {
     id: "a4",
     ejercicio: 2026,
@@ -106,11 +170,24 @@ const ASIENTOS_EJEMPLO: Asiento[] = [
     tipo: "OPERACION",
     estado: "APLICADO",
     lineas: [
-      { codigo: "1102", debe: 452, haber: 0 },
-      { codigo: "5102", debe: 0, haber: 400 },
-      { codigo: "1105", debe: 0, haber: 52 },
+      {
+        codigo: "1102",
+        debe: 452,
+        haber: 0,
+      },
+      {
+        codigo: "5102",
+        debe: 0,
+        haber: 400,
+      },
+      {
+        codigo: "1105",
+        debe: 0,
+        haber: 52,
+      },
     ],
   },
+
   {
     id: "a5",
     ejercicio: 2026,
@@ -121,11 +198,24 @@ const ASIENTOS_EJEMPLO: Asiento[] = [
     tipo: "OPERACION",
     estado: "APLICADO",
     lineas: [
-      { codigo: "1102", debe: 9040, haber: 0 },
-      { codigo: "5101", debe: 0, haber: 8000 },
-      { codigo: "2103", debe: 0, haber: 1040 },
+      {
+        codigo: "1102",
+        debe: 9040,
+        haber: 0,
+      },
+      {
+        codigo: "5101",
+        debe: 0,
+        haber: 8000,
+      },
+      {
+        codigo: "2103",
+        debe: 0,
+        haber: 1040,
+      },
     ],
   },
+
   {
     id: "a6",
     ejercicio: 2026,
@@ -136,11 +226,24 @@ const ASIENTOS_EJEMPLO: Asiento[] = [
     tipo: "OPERACION",
     estado: "APLICADO",
     lineas: [
-      { codigo: "4103", debe: 500, haber: 0 },
-      { codigo: "2103", debe: 65, haber: 0 },
-      { codigo: "1102", debe: 0, haber: 565 },
+      {
+        codigo: "4103",
+        debe: 500,
+        haber: 0,
+      },
+      {
+        codigo: "2103",
+        debe: 65,
+        haber: 0,
+      },
+      {
+        codigo: "1102",
+        debe: 0,
+        haber: 565,
+      },
     ],
   },
+
   {
     id: "a7",
     ejercicio: 2026,
@@ -151,297 +254,877 @@ const ASIENTOS_EJEMPLO: Asiento[] = [
     tipo: "OPERACION",
     estado: "APLICADO",
     lineas: [
-      { codigo: "4201", debe: 800, haber: 0 },
-      { codigo: "1102", debe: 0, haber: 800 },
+      {
+        codigo: "4201",
+        debe: 800,
+        haber: 0,
+      },
+      {
+        codigo: "1102",
+        debe: 0,
+        haber: 800,
+      },
     ],
   },
-];
+]
 
-interface ContabilidadContextValue {
-  cuentas: Cuenta[];
-  asientos: Asiento[];
-  cierres: CierreContable[];
-  ejercicios: EjercicioFiscal[];
-  ejercicioSeleccionado: number;
-  setEjercicioSeleccionado: (e: number) => void;
-  ejercicioActual: EjercicioFiscal | undefined;
-  esEjercicioCerrado: boolean;
-  tomaFisica: InventarioTomaFisica | null;
-  guardarTomaFisica: (toma: Partial<InventarioTomaFisica>) => Promise<boolean>;
-  cambiarEstadoEjercicio: (
-    ejercicio: number,
-    nuevoEstado: "ABIERTO" | "CERRADO" | "BLOQUEADO",
-  ) => Promise<boolean>;
-  crearEjercicio: (ejercicio: number) => Promise<boolean>;
-  generarPartidaApertura: (
-    origen: number,
-    destino: number,
-  ) => Promise<{ success: boolean; error?: string }>;
-  dbConnected: boolean;
-  cargando: boolean;
-  agregarAsiento: (
-    a: Omit<Asiento, "id" | "numero">,
-  ) => Promise<{ success: boolean; error?: string }>;
-  eliminarAsiento: (id: string, motivo?: string) => Promise<void>;
-  anularAsiento: (
-    id: string,
-    motivo?: string,
-  ) => Promise<{ success: boolean; error?: string }>;
-  agregarCuenta: (c: Cuenta) => Promise<void>;
-  renombrarCuenta: (codigo: string, nombre: string) => Promise<void>;
-  eliminarCuenta: (codigo: string) => { softDeleted: boolean };
-  reactivarCuenta: (codigo: string) => Promise<void>;
-  cuentaEnUso: (codigo: string) => boolean;
-  reiniciarEjemplo: () => void;
-  limpiarTodo: () => void;
-  cerrarCicloContable: (opciones?: {
-    aperturarSiguiente?: boolean;
-  }) => Promise<{
-    success: boolean;
-    error?: string;
-    [key: string]: any;
-  } | void>;
-  recargarCierres: () => Promise<void>;
-  recargarAsientos: () => Promise<void>;
-  recargarTodo: () => Promise<void>;
-  recargarReporteAnaliticoSql: (ejercicio: number) => Promise<void>;
-  mayor: ReturnType<typeof calcularMayor>;
-  estadoResultados: ReturnType<typeof calcularEstadoResultados>;
-  balanceGeneral: ReturnType<typeof calcularBalanceGeneral>;
+// ============================================================
+// TIPOS
+// ============================================================
+
+type ResultadoOperacion = {
+  success: boolean
+  error?: string
 }
 
-const ContabilidadContext = createContext<ContabilidadContextValue | null>(
-  null,
-);
+type ResultadoCierre = {
+  success: boolean
+  error?: string
+  siguienteEjercicio?: number
+  [key: string]: unknown
+}
 
-export function ContabilidadProvider({ children }: { children: ReactNode }) {
-  const [cuentas, setCuentas] = useState<Cuenta[]>(CATALOGO_CUENTAS);
-  const [asientos, setAsientos] = useState<Asiento[]>(ASIENTOS_EJEMPLO);
-  const [cierres, setCierres] = useState<CierreContable[]>([]);
-  const [ejercicios, setEjercicios] =
-    useState<EjercicioFiscal[]>(EJERCICIOS_DEFECTO);
-  const [ejercicioSeleccionado, setEjercicioSeleccionadoState] =
-    useState<number>(2026);
-  const [tomaFisica, setTomaFisica] = useState<InventarioTomaFisica | null>(
-    TOMA_FISICA_DEFECTO,
-  );
-  const [reporteAnaliticoSql, setReporteAnaliticoSql] =
-    useState<ReporteEstadosFinancieros | null>(null);
-  const [hidratado, setHidratado] = useState(false);
-  const [dbConnected, setDbConnected] = useState(false);
-  const [cargando, setCargando] = useState(true);
+interface ContabilidadContextValue {
+  cuentas: Cuenta[]
+  asientos: Asiento[]
+  cierres: CierreContable[]
 
-  const ejercicioActual = useMemo(() => {
-    return (
-      ejercicios.find((e) => e.ejercicio === ejercicioSeleccionado) || {
-        ejercicio: ejercicioSeleccionado,
-        fecha_inicio: `${ejercicioSeleccionado}-01-01`,
-        fecha_fin: `${ejercicioSeleccionado}-12-31`,
+  ejercicios: EjercicioFiscal[]
+
+  ejercicioSeleccionado: number
+
+  setEjercicioSeleccionado: (
+    ejercicio: number
+  ) => void
+
+  ejercicioActual:
+    | EjercicioFiscal
+    | undefined
+
+  esEjercicioCerrado: boolean
+
+  tomaFisica:
+    | InventarioTomaFisica
+    | null
+
+  guardarTomaFisica: (
+    toma: Partial<InventarioTomaFisica>
+  ) => Promise<boolean>
+
+  cambiarEstadoEjercicio: (
+    ejercicio: number,
+    nuevoEstado:
+      | "ABIERTO"
+      | "CERRADO"
+      | "BLOQUEADO"
+  ) => Promise<boolean>
+
+  crearEjercicio: (
+    ejercicio: number
+  ) => Promise<boolean>
+
+  generarPartidaApertura: (
+    origen: number,
+    destino: number
+  ) => Promise<ResultadoOperacion>
+
+  dbConnected: boolean
+  cargando: boolean
+
+  agregarAsiento: (
+    asiento: Omit<
+      Asiento,
+      "id" | "numero"
+    >
+  ) => Promise<ResultadoOperacion>
+
+  eliminarAsiento: (
+    id: string,
+    motivo?: string
+  ) => Promise<void>
+
+  anularAsiento: (
+    id: string,
+    motivo?: string
+  ) => Promise<ResultadoOperacion>
+
+  agregarCuenta: (
+    cuenta: Cuenta
+  ) => Promise<void>
+
+  renombrarCuenta: (
+    codigoActual: string,
+    codigoNuevo: string,
+    nombre: string
+  ) => Promise<ResultadoOperacion>
+
+  eliminarCuenta: (
+    codigo: string
+  ) => Promise<ResultadoOperacion>
+
+  reactivarCuenta: (
+    codigo: string
+  ) => Promise<void>
+
+  cuentaEnUso: (
+    codigo: string
+  ) => boolean
+
+  reiniciarEjemplo: () => void
+
+  limpiarTodo: () => void
+
+  cerrarCicloContable: (
+    opciones?: {
+      aperturarSiguiente?: boolean
+    }
+  ) => Promise<
+    ResultadoCierre | void
+  >
+
+  recargarCierres: () => Promise<void>
+
+  recargarAsientos: () => Promise<void>
+
+  recargarTodo: () => Promise<void>
+
+  mayor: ReturnType<
+    typeof calcularMayor
+  >
+
+  estadoResultados: ReturnType<
+    typeof calcularEstadoResultados
+  >
+
+  balanceGeneral: ReturnType<
+    typeof calcularBalanceGeneral
+  >
+}
+
+// ============================================================
+// CONTEXTO
+// ============================================================
+
+const ContabilidadContext =
+  createContext<
+    ContabilidadContextValue | null
+  >(null)
+
+// ============================================================
+// PROVIDER
+// ============================================================
+
+export function ContabilidadProvider({
+  children,
+}: {
+  children: ReactNode
+}) {
+  // ============================================================
+  // ESTADOS
+  // ============================================================
+
+  const [
+    cuentas,
+    setCuentas,
+  ] = useState<Cuenta[]>(
+    CATALOGO_CUENTAS
+  )
+
+  const [
+    asientos,
+    setAsientos,
+  ] = useState<Asiento[]>(
+    ASIENTOS_EJEMPLO
+  )
+
+  const [
+    cierres,
+    setCierres,
+  ] = useState<CierreContable[]>(
+    []
+  )
+
+  const [
+    ejercicios,
+    setEjercicios,
+  ] = useState<
+    EjercicioFiscal[]
+  >(EJERCICIOS_DEFECTO)
+
+  const [
+    ejercicioSeleccionado,
+    setEjercicioSeleccionadoState,
+  ] = useState<number>(2026)
+
+  const [
+    tomaFisica,
+    setTomaFisica,
+  ] =
+    useState<InventarioTomaFisica | null>(
+      TOMA_FISICA_DEFECTO
+    )
+
+  const [
+    reporteAnaliticoSql,
+    setReporteAnaliticoSql,
+  ] =
+    useState<Record<
+      string,
+      unknown
+    > | null>(null)
+
+  const [
+    hidratado,
+    setHidratado,
+  ] = useState(false)
+
+  const [
+    dbConnected,
+    setDbConnected,
+  ] = useState(false)
+
+  const [
+    cargando,
+    setCargando,
+  ] = useState(true)
+
+  // ============================================================
+  // EJERCICIO ACTUAL
+  // ============================================================
+
+  const ejercicioActual =
+    useMemo(() => {
+      const encontrado =
+        ejercicios.find(
+          (e) =>
+            e.ejercicio ===
+            ejercicioSeleccionado
+        )
+
+      if (encontrado) {
+        return encontrado
+      }
+
+      return {
+        ejercicio:
+          ejercicioSeleccionado,
+
+        fecha_inicio:
+          `${ejercicioSeleccionado}-01-01`,
+
+        fecha_fin:
+          `${ejercicioSeleccionado}-12-31`,
+
         ultimo_numero: 0,
-        estado: "ABIERTO" as const,
+
+        estado:
+          "ABIERTO" as const,
       }
-    );
-  }, [ejercicios, ejercicioSeleccionado]);
+    }, [
+      ejercicios,
+      ejercicioSeleccionado,
+    ])
 
-  const esEjercicioCerrado = useMemo(() => {
-    return ejercicioActual.estado !== "ABIERTO";
-  }, [ejercicioActual]);
+  const esEjercicioCerrado =
+    useMemo(() => {
+      return (
+        ejercicioActual.estado !==
+        "ABIERTO"
+      )
+    }, [ejercicioActual])
 
-  const setEjercicioSeleccionado = (ej: number) => {
-    setEjercicioSeleccionadoState(ej);
-    if (typeof window !== "undefined") {
-      localStorage.setItem(STORAGE_EJERCICIO, ej.toString());
-    }
-  };
+  // ============================================================
+  // CAMBIAR EJERCICIO
+  // ============================================================
 
-  const recargarCierres = async () => {
-    try {
-      const res = await fetch("/api/cierres");
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) setCierres(data);
+  const setEjercicioSeleccionado =
+    useCallback(
+      (ejercicio: number) => {
+        setEjercicioSeleccionadoState(
+          ejercicio
+        )
+
+        if (
+          typeof window !==
+          "undefined"
+        ) {
+          localStorage.setItem(
+            STORAGE_EJERCICIO,
+            ejercicio.toString()
+          )
+        }
+      },
+      []
+    )
+
+  // ============================================================
+  // RECARGAR CIERRES
+  // ============================================================
+
+  const recargarCierres =
+    useCallback(async () => {
+      if (!dbConnected) {
+        return
       }
-    } catch (e) {
-      console.error("Error al cargar cierres:", e);
-    }
-  };
 
-  const recargarAsientos = useCallback(async () => {
-    if (!dbConnected) return;
-    try {
-      const res = await fetch(
-        `/api/asientos?ejercicio=${ejercicioSeleccionado}`,
-      );
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) setAsientos(data);
-      }
-    } catch (e) {
-      console.error("Error al recargar asientos:", e);
-    }
-  }, [dbConnected, ejercicioSeleccionado]);
-
-  const recargarTodo = useCallback(async () => {
-    await Promise.all([recargarAsientos(), recargarCierres()]);
-  }, [recargarAsientos, recargarCierres]);
-
-  const recargarTomaFisica = useCallback(
-    async (ej: number) => {
-      if (!dbConnected) return;
       try {
-        const res = await fetch(`/api/inventario?ejercicio=${ej}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.existe) {
-            setTomaFisica(data);
+        const respuesta =
+          await fetch(
+            "/api/cierres",
+            {
+              cache: "no-store",
+            }
+          )
+
+        if (!respuesta.ok) {
+          return
+        }
+
+        const data =
+          await respuesta.json()
+
+        if (
+          Array.isArray(data)
+        ) {
+          setCierres(data)
+        }
+      } catch (error) {
+        console.error(
+          "Error al cargar cierres:",
+          error
+        )
+      }
+    }, [dbConnected])
+
+  // ============================================================
+  // RECARGAR ASIENTOS
+  // ============================================================
+
+  const recargarAsientos =
+    useCallback(async () => {
+      if (!dbConnected) {
+        return
+      }
+
+      try {
+        const respuesta =
+          await fetch(
+            `/api/asientos?ejercicio=${ejercicioSeleccionado}`,
+            {
+              cache: "no-store",
+            }
+          )
+
+        if (!respuesta.ok) {
+          return
+        }
+
+        const data =
+          await respuesta.json()
+
+        if (
+          Array.isArray(data)
+        ) {
+          setAsientos(data)
+        }
+      } catch (error) {
+        console.error(
+          "Error al recargar asientos:",
+          error
+        )
+      }
+    }, [
+      dbConnected,
+      ejercicioSeleccionado,
+    ])
+
+  // ============================================================
+  // RECARGAR TOMA FÍSICA
+  // ============================================================
+
+  const recargarTomaFisica =
+    useCallback(
+      async (
+        ejercicio: number
+      ) => {
+        if (!dbConnected) {
+          return
+        }
+
+        try {
+          const respuesta =
+            await fetch(
+              `/api/inventario?ejercicio=${ejercicio}`,
+              {
+                cache: "no-store",
+              }
+            )
+
+          if (!respuesta.ok) {
+            return
+          }
+
+          const data =
+            await respuesta.json()
+
+          if (
+            data &&
+            data.existe
+          ) {
+            setTomaFisica(
+              data
+            )
           } else {
             setTomaFisica({
-              ejercicio: ej,
-              fecha_toma: `${ej}-12-31`,
-              valor_inventario_final: 0,
+              ejercicio,
+
+              fecha_toma:
+                `${ejercicio}-12-31`,
+
+              valor_inventario_final:
+                0,
+
               responsable: "",
+
               observaciones: "",
-            });
+            })
           }
+        } catch (error) {
+          console.error(
+            "Error al cargar toma física:",
+            error
+          )
         }
-      } catch (e) {
-        console.error("Error al cargar toma física de inventarios:", e);
-      }
-    },
-    [dbConnected],
-  );
+      },
+      [dbConnected]
+    )
 
-  const recargarReporteAnaliticoSql = useCallback(
-    async (ej: number) => {
-      if (!dbConnected) return;
-      try {
-        const res = await fetch(
-          `/api/reportes/estados-financieros?ejercicio=${ej}`,
-        );
-        if (res.ok) {
-          const data = await res.json();
-          setReporteAnaliticoSql(data as ReporteEstadosFinancieros);
-        } else {
-          setReporteAnaliticoSql(null);
+  // ============================================================
+  // RECARGAR REPORTE ANALÍTICO
+  // ============================================================
+
+  const recargarReporteAnaliticoSql =
+    useCallback(
+      async (
+        ejercicio: number
+      ) => {
+        if (!dbConnected) {
+          return
         }
-      } catch {
-        setReporteAnaliticoSql(null);
-      }
-    },
-    [dbConnected],
-  );
 
-  // Carga inicial sincronizada con la base de datos
+        try {
+          const respuesta =
+            await fetch(
+              `/api/reportes/analitico?ejercicio=${ejercicio}`,
+              {
+                cache: "no-store",
+              }
+            )
+
+          if (
+            respuesta.ok
+          ) {
+            setReporteAnaliticoSql(
+              await respuesta.json()
+            )
+          } else {
+            setReporteAnaliticoSql(
+              null
+            )
+          }
+        } catch {
+          setReporteAnaliticoSql(
+            null
+          )
+        }
+      },
+      [dbConnected]
+    )
+
+  // ============================================================
+  // RECARGAR TODO
+  // ============================================================
+
+  const recargarTodo =
+    useCallback(async () => {
+      await Promise.all([
+        recargarAsientos(),
+        recargarCierres(),
+        recargarTomaFisica(
+          ejercicioSeleccionado
+        ),
+        recargarReporteAnaliticoSql(
+          ejercicioSeleccionado
+        ),
+      ])
+    }, [
+      recargarAsientos,
+      recargarCierres,
+      recargarTomaFisica,
+      recargarReporteAnaliticoSql,
+      ejercicioSeleccionado,
+    ])
+
+  // ============================================================
+  // CARGA INICIAL
+  // ============================================================
+
   useEffect(() => {
     async function inicializar() {
       try {
-        const resStatus = await fetch("/api/status").catch(() => null);
+        const statusRes =
+          await fetch(
+            "/api/status",
+            {
+              cache:
+                "no-store",
+            }
+          ).catch(
+            () => null
+          )
+
         const statusData =
-          resStatus && resStatus.ok ? await resStatus.json() : null;
+          statusRes &&
+          statusRes.ok
+            ? await statusRes.json()
+            : null
 
-        if (statusData?.connected) {
-          setDbConnected(true);
-          const [cRes, ejRes, cierresRes] = await Promise.all([
-            fetch("/api/cuentas"),
-            fetch("/api/ejercicios").catch(() => null),
-            fetch("/api/cierres").catch(() => null),
-          ]);
+        if (
+          statusData?.connected
+        ) {
+          setDbConnected(
+            true
+          )
 
-          if (cRes.ok) {
-            const dbCuentas = await cRes.json();
-            if (Array.isArray(dbCuentas) && dbCuentas.length > 0) {
-              setCuentas(dbCuentas);
+          const [
+            cuentasRes,
+            ejerciciosRes,
+            cierresRes,
+          ] =
+            await Promise.all([
+              fetch(
+                "/api/cuentas",
+                {
+                  cache:
+                    "no-store",
+                }
+              ),
+
+              fetch(
+                "/api/ejercicios",
+                {
+                  cache:
+                    "no-store",
+                }
+              ).catch(
+                () => null
+              ),
+
+              fetch(
+                "/api/cierres",
+                {
+                  cache:
+                    "no-store",
+                }
+              ).catch(
+                () => null
+              ),
+            ])
+
+          // CUENTAS
+
+          if (
+            cuentasRes.ok
+          ) {
+            const dbCuentas =
+              await cuentasRes.json()
+
+            if (
+              Array.isArray(
+                dbCuentas
+              )
+            ) {
+              setCuentas(
+                dbCuentas
+              )
             }
           }
 
-          let ejActivo = 2026;
-          if (ejRes && ejRes.ok) {
-            const dbEjercicios = await ejRes.json();
-            if (Array.isArray(dbEjercicios) && dbEjercicios.length > 0) {
-              setEjercicios(dbEjercicios);
-              // Seleccionar el ejercicio guardado en localStorage o el primer ejercicio abierto
+          // EJERCICIOS
+
+          let ejercicioActivo =
+            2026
+
+          if (
+            ejerciciosRes &&
+            ejerciciosRes.ok
+          ) {
+            const dbEjercicios =
+              await ejerciciosRes.json()
+
+            if (
+              Array.isArray(
+                dbEjercicios
+              ) &&
+              dbEjercicios.length >
+                0
+            ) {
+              setEjercicios(
+                dbEjercicios
+              )
+
               const guardado =
-                typeof window !== "undefined"
-                  ? localStorage.getItem(STORAGE_EJERCICIO)
-                  : null;
-              const parsedGuardado = guardado ? parseInt(guardado, 10) : null;
-              const encontrado = dbEjercicios.find(
-                (x: EjercicioFiscal) => x.ejercicio === parsedGuardado,
-              );
-              if (encontrado) {
-                ejActivo = encontrado.ejercicio;
+                localStorage.getItem(
+                  STORAGE_EJERCICIO
+                )
+
+              const guardadoNumero =
+                guardado
+                  ? Number(
+                      guardado
+                    )
+                  : null
+
+              const existeGuardado =
+                dbEjercicios.find(
+                  (
+                    ejercicio: EjercicioFiscal
+                  ) =>
+                    ejercicio.ejercicio ===
+                    guardadoNumero
+                )
+
+              if (
+                existeGuardado
+              ) {
+                ejercicioActivo =
+                  existeGuardado.ejercicio
               } else {
-                const abierto = dbEjercicios.find(
-                  (x: EjercicioFiscal) => x.estado === "ABIERTO",
-                );
-                ejActivo = abierto
-                  ? abierto.ejercicio
-                  : dbEjercicios[0].ejercicio;
+                const abierto =
+                  dbEjercicios.find(
+                    (
+                      ejercicio: EjercicioFiscal
+                    ) =>
+                      ejercicio.estado ===
+                      "ABIERTO"
+                  )
+
+                ejercicioActivo =
+                  abierto
+                    ?.ejercicio ??
+                  dbEjercicios[0]
+                    .ejercicio
               }
-              setEjercicioSeleccionadoState(ejActivo);
+
+              setEjercicioSeleccionadoState(
+                ejercicioActivo
+              )
             }
           }
 
-          // Cargar asientos, toma física y cálculo analítico SQL para el ejercicio seleccionado
-          const [aRes, invRes, repSqlRes] = await Promise.all([
-            fetch(`/api/asientos?ejercicio=${ejActivo}`),
-            fetch(`/api/inventario?ejercicio=${ejActivo}`).catch(() => null),
-            fetch(
-              `/api/reportes/estados-financieros?ejercicio=${ejActivo}`,
-            ).catch(() => null),
-          ]);
+          // ASIENTOS, INVENTARIO Y REPORTE
 
-          if (aRes.ok) {
-            const dbAsientos = await aRes.json();
-            if (Array.isArray(dbAsientos)) setAsientos(dbAsientos);
+          const [
+            asientosRes,
+            inventarioRes,
+            reporteRes,
+          ] =
+            await Promise.all([
+              fetch(
+                `/api/asientos?ejercicio=${ejercicioActivo}`,
+                {
+                  cache:
+                    "no-store",
+                }
+              ),
+
+              fetch(
+                `/api/inventario?ejercicio=${ejercicioActivo}`,
+                {
+                  cache:
+                    "no-store",
+                }
+              ).catch(
+                () => null
+              ),
+
+              fetch(
+                `/api/reportes/analitico?ejercicio=${ejercicioActivo}`,
+                {
+                  cache:
+                    "no-store",
+                }
+              ).catch(
+                () => null
+              ),
+            ])
+
+          if (
+            asientosRes.ok
+          ) {
+            const dbAsientos =
+              await asientosRes.json()
+
+            if (
+              Array.isArray(
+                dbAsientos
+              )
+            ) {
+              setAsientos(
+                dbAsientos
+              )
+            }
           }
 
-          if (invRes && invRes.ok) {
-            const dbToma = await invRes.json();
-            if (dbToma && dbToma.existe) setTomaFisica(dbToma);
+          if (
+            inventarioRes &&
+            inventarioRes.ok
+          ) {
+            const inventario =
+              await inventarioRes.json()
+
+            if (
+              inventario &&
+              inventario.existe
+            ) {
+              setTomaFisica(
+                inventario
+              )
+            }
           }
 
-          if (repSqlRes && repSqlRes.ok) {
-            const repData = await repSqlRes.json();
-            setReporteAnaliticoSql(repData as ReporteEstadosFinancieros);
+          if (
+            reporteRes &&
+            reporteRes.ok
+          ) {
+            setReporteAnaliticoSql(
+              await reporteRes.json()
+            )
           }
 
-          if (cierresRes && cierresRes.ok) {
-            const dbCierres = await cierresRes.json();
-            if (Array.isArray(dbCierres)) setCierres(dbCierres);
+          if (
+            cierresRes &&
+            cierresRes.ok
+          ) {
+            const dbCierres =
+              await cierresRes.json()
+
+            if (
+              Array.isArray(
+                dbCierres
+              )
+            ) {
+              setCierres(
+                dbCierres
+              )
+            }
           }
         } else {
-          // Fallback a localStorage si la base de datos no está disponible
-          setDbConnected(false);
-          const rawA = localStorage.getItem(STORAGE_ASIENTOS);
-          const rawC = localStorage.getItem(STORAGE_CUENTAS);
-          const rawCierres = localStorage.getItem(STORAGE_CIERRES);
-          const rawToma = localStorage.getItem(STORAGE_TOMA);
-          if (rawA) setAsientos(JSON.parse(rawA));
-          if (rawC) setCuentas(JSON.parse(rawC));
-          if (rawCierres) setCierres(JSON.parse(rawCierres));
-          if (rawToma) setTomaFisica(JSON.parse(rawToma));
+          // ================================================
+          // MODO LOCAL
+          // ================================================
+
+          setDbConnected(
+            false
+          )
+
+          const rawAsientos =
+            localStorage.getItem(
+              STORAGE_ASIENTOS
+            )
+
+          const rawCuentas =
+            localStorage.getItem(
+              STORAGE_CUENTAS
+            )
+
+          const rawCierres =
+            localStorage.getItem(
+              STORAGE_CIERRES
+            )
+
+          const rawToma =
+            localStorage.getItem(
+              STORAGE_TOMA
+            )
+
+          if (rawAsientos) {
+            setAsientos(
+              JSON.parse(
+                rawAsientos
+              )
+            )
+          }
+
+          if (rawCuentas) {
+            setCuentas(
+              JSON.parse(
+                rawCuentas
+              )
+            )
+          }
+
+          if (rawCierres) {
+            setCierres(
+              JSON.parse(
+                rawCierres
+              )
+            )
+          }
+
+          if (rawToma) {
+            setTomaFisica(
+              JSON.parse(
+                rawToma
+              )
+            )
+          }
         }
-      } catch (err) {
-        console.error("Error durante inicialización contable:", err);
-        setDbConnected(false);
+      } catch (error) {
+        console.error(
+          "Error al inicializar el sistema:",
+          error
+        )
+
+        setDbConnected(
+          false
+        )
       } finally {
-        setHidratado(true);
-        setCargando(false);
+        setHidratado(
+          true
+        )
+
+        setCargando(
+          false
+        )
       }
     }
 
-    inicializar();
-  }, []);
+    inicializar()
+  }, [])
 
-  // Al cambiar de ejercicio fiscal, sincronizar asientos, toma física y reporte SQL
+  // ============================================================
+  // AL CAMBIAR EJERCICIO
+  // ============================================================
+
   useEffect(() => {
-    if (!hidratado) return;
-    if (dbConnected) {
-      recargarAsientos();
-      recargarTomaFisica(ejercicioSeleccionado);
-      recargarReporteAnaliticoSql(ejercicioSeleccionado);
+    if (!hidratado) {
+      return
     }
+
+    if (!dbConnected) {
+      return
+    }
+
+    void recargarAsientos()
+
+    void recargarTomaFisica(
+      ejercicioSeleccionado
+    )
+
+    void recargarReporteAnaliticoSql(
+      ejercicioSeleccionado
+    )
   }, [
     ejercicioSeleccionado,
     dbConnected,
@@ -449,616 +1132,1565 @@ export function ContabilidadProvider({ children }: { children: ReactNode }) {
     recargarAsientos,
     recargarTomaFisica,
     recargarReporteAnaliticoSql,
-  ]);
+  ])
 
-  // Persistir en local storage si no hay base de datos conectada
+  // ============================================================
+  // PERSISTENCIA LOCAL
+  // ============================================================
+
   useEffect(() => {
-    if (!hidratado || dbConnected) return;
-    localStorage.setItem(STORAGE_ASIENTOS, JSON.stringify(asientos));
-    localStorage.setItem(STORAGE_CUENTAS, JSON.stringify(cuentas));
-    localStorage.setItem(STORAGE_CIERRES, JSON.stringify(cierres));
-    if (tomaFisica)
-      localStorage.setItem(STORAGE_TOMA, JSON.stringify(tomaFisica));
-  }, [asientos, cuentas, cierres, tomaFisica, hidratado, dbConnected]);
+    if (
+      !hidratado ||
+      dbConnected
+    ) {
+      return
+    }
 
-  const guardarTomaFisica = async (
-    toma: Partial<InventarioTomaFisica>,
-  ): Promise<boolean> => {
-    const nuevaToma: InventarioTomaFisica = {
-      ejercicio: toma.ejercicio || ejercicioSeleccionado,
-      fecha_toma: toma.fecha_toma || new Date().toISOString().slice(0, 10),
-      valor_inventario_final: Number(toma.valor_inventario_final) || 0,
-      responsable: toma.responsable || "Auditoría Interna",
-      observaciones: toma.observaciones || "Toma física de existencias",
-      es_manual: toma.es_manual ?? true,
-      origen: toma.origen || "MANUAL",
-    };
+    localStorage.setItem(
+      STORAGE_ASIENTOS,
+      JSON.stringify(
+        asientos
+      )
+    )
+
+    localStorage.setItem(
+      STORAGE_CUENTAS,
+      JSON.stringify(
+        cuentas
+      )
+    )
+
+    localStorage.setItem(
+      STORAGE_CIERRES,
+      JSON.stringify(
+        cierres
+      )
+    )
+
+    if (tomaFisica) {
+      localStorage.setItem(
+        STORAGE_TOMA,
+        JSON.stringify(
+          tomaFisica
+        )
+      )
+    }
+  }, [
+    asientos,
+    cuentas,
+    cierres,
+    tomaFisica,
+    hidratado,
+    dbConnected,
+  ])
+
+  // ============================================================
+  // GUARDAR TOMA FÍSICA
+  // ============================================================
+
+  async function guardarTomaFisica(
+    toma: Partial<InventarioTomaFisica>
+  ): Promise<boolean> {
+    const nuevaToma: InventarioTomaFisica =
+      {
+        ejercicio:
+          toma.ejercicio ??
+          ejercicioSeleccionado,
+
+        fecha_toma:
+          toma.fecha_toma ??
+          new Date()
+            .toISOString()
+            .slice(0, 10),
+
+        valor_inventario_final:
+          Number(
+            toma.valor_inventario_final
+          ) || 0,
+
+        responsable:
+          toma.responsable ??
+          "Auditoría Interna",
+
+        observaciones:
+          toma.observaciones ??
+          "Toma física de existencias",
+      }
 
     if (dbConnected) {
       try {
-        const res = await fetch("/api/inventario", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(nuevaToma),
-        });
-        if (res.ok) {
-          const guardada = await res.json();
-          setTomaFisica(guardada);
-          await recargarReporteAnaliticoSql(nuevaToma.ejercicio);
-          return true;
+        const respuesta =
+          await fetch(
+            "/api/inventario",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+              body: JSON.stringify(
+                nuevaToma
+              ),
+            }
+          )
+
+        if (
+          !respuesta.ok
+        ) {
+          return false
         }
-        return false;
-      } catch (e) {
-        console.error("Error al guardar toma física en base de datos:", e);
-        return false;
+
+        const guardada =
+          await respuesta.json()
+
+        setTomaFisica(
+          guardada
+        )
+
+        await recargarReporteAnaliticoSql(
+          nuevaToma.ejercicio
+        )
+
+        return true
+      } catch (error) {
+        console.error(
+          "Error al guardar inventario:",
+          error
+        )
+
+        return false
       }
     }
 
-    setTomaFisica(nuevaToma);
-    return true;
-  };
+    setTomaFisica(
+      nuevaToma
+    )
 
-  const cambiarEstadoEjercicio = async (
+    return true
+  }
+
+  // ============================================================
+  // CAMBIAR ESTADO DEL EJERCICIO
+  // ============================================================
+
+  async function cambiarEstadoEjercicio(
     ejercicio: number,
-    nuevoEstado: "ABIERTO" | "CERRADO" | "BLOQUEADO",
-  ): Promise<boolean> => {
+    nuevoEstado:
+      | "ABIERTO"
+      | "CERRADO"
+      | "BLOQUEADO"
+  ): Promise<boolean> {
     if (dbConnected) {
       try {
-        const res = await fetch("/api/ejercicios", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ejercicio, estado: nuevoEstado }),
-        });
-        if (res.ok) {
-          const actualizado = await res.json();
-          setEjercicios((prev) =>
-            prev.map((e) =>
-              e.ejercicio === ejercicio ? { ...e, ...actualizado } : e,
-            ),
-          );
-          return true;
+        const respuesta =
+          await fetch(
+            "/api/ejercicios",
+            {
+              method: "PATCH",
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+              body: JSON.stringify({
+                ejercicio,
+                estado:
+                  nuevoEstado,
+              }),
+            }
+          )
+
+        if (
+          !respuesta.ok
+        ) {
+          return false
         }
-        return false;
-      } catch (e) {
-        console.error("Error al actualizar ejercicio:", e);
-        return false;
+
+        const actualizado =
+          await respuesta.json()
+
+        setEjercicios(
+          (prev) =>
+            prev.map(
+              (item) =>
+                item.ejercicio ===
+                ejercicio
+                  ? {
+                      ...item,
+                      ...actualizado,
+                    }
+                  : item
+            )
+        )
+
+        return true
+      } catch (error) {
+        console.error(
+          "Error al actualizar ejercicio:",
+          error
+        )
+
+        return false
       }
     }
 
-    setEjercicios((prev) =>
-      prev.map((e) =>
-        e.ejercicio === ejercicio ? { ...e, estado: nuevoEstado } : e,
-      ),
-    );
-    return true;
-  };
+    setEjercicios(
+      (prev) =>
+        prev.map(
+          (item) =>
+            item.ejercicio ===
+            ejercicio
+              ? {
+                  ...item,
+                  estado:
+                    nuevoEstado,
+                }
+              : item
+        )
+    )
 
-  const crearEjercicio = async (ejercicio: number): Promise<boolean> => {
+    return true
+  }
+
+  // ============================================================
+  // CREAR EJERCICIO
+  // ============================================================
+
+  async function crearEjercicio(
+    ejercicio: number
+  ): Promise<boolean> {
     if (dbConnected) {
       try {
-        const res = await fetch("/api/ejercicios", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ejercicio }),
-        });
-        if (res.ok) {
-          const nuevo = await res.json();
-          setEjercicios((prev) => [
+        const respuesta =
+          await fetch(
+            "/api/ejercicios",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+              body: JSON.stringify({
+                ejercicio,
+              }),
+            }
+          )
+
+        if (
+          !respuesta.ok
+        ) {
+          return false
+        }
+
+        const nuevo =
+          await respuesta.json()
+
+        setEjercicios(
+          (prev) => [
             nuevo,
-            ...prev.filter((e) => e.ejercicio !== ejercicio),
-          ]);
-          setEjercicioSeleccionado(ejercicio);
-          return true;
-        }
-        return false;
-      } catch (e) {
-        console.error("Error al crear ejercicio:", e);
-        return false;
+            ...prev.filter(
+              (item) =>
+                item.ejercicio !==
+                ejercicio
+            ),
+          ]
+        )
+
+        setEjercicioSeleccionado(
+          ejercicio
+        )
+
+        return true
+      } catch (error) {
+        console.error(
+          "Error al crear ejercicio:",
+          error
+        )
+
+        return false
       }
     }
 
-    const nuevo: EjercicioFiscal = {
-      ejercicio,
-      fecha_inicio: `${ejercicio}-01-01`,
-      fecha_fin: `${ejercicio}-12-31`,
-      ultimo_numero: 0,
-      estado: "ABIERTO",
-    };
-    setEjercicios((prev) => [
-      nuevo,
-      ...prev.filter((e) => e.ejercicio !== ejercicio),
-    ]);
-    setEjercicioSeleccionado(ejercicio);
-    return true;
-  };
+    const nuevo: EjercicioFiscal =
+      {
+        ejercicio,
 
-  const generarPartidaApertura = async (
+        fecha_inicio:
+          `${ejercicio}-01-01`,
+
+        fecha_fin:
+          `${ejercicio}-12-31`,
+
+        ultimo_numero: 0,
+
+        estado: "ABIERTO",
+      }
+
+    setEjercicios(
+      (prev) => [
+        nuevo,
+        ...prev.filter(
+          (item) =>
+            item.ejercicio !==
+            ejercicio
+        ),
+      ]
+    )
+
+    setEjercicioSeleccionado(
+      ejercicio
+    )
+
+    return true
+  }
+
+  // ============================================================
+  // GENERAR APERTURA
+  // ============================================================
+
+  async function generarPartidaApertura(
     origen: number,
-    destino: number,
-  ): Promise<{ success: boolean; error?: string }> => {
+    destino: number
+  ): Promise<ResultadoOperacion> {
     if (!dbConnected) {
       return {
         success: false,
+
         error:
           "La generación de apertura requiere conexión activa a la base de datos.",
-      };
+      }
     }
+
     try {
-      const res = await fetch("/api/ejercicios/apertura", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ejercicio_origen: origen,
-          ejercicio_destino: destino,
-        }),
-      });
-      if (res.ok) {
-        const ejRes = await fetch("/api/ejercicios");
-        if (ejRes.ok) {
-          setEjercicios(await ejRes.json());
-        }
-        setEjercicioSeleccionado(destino);
-        return { success: true };
-      }
-      const err = await res.json().catch(() => ({}));
-      return {
-        success: false,
-        error: err.error || "Error al generar partida de apertura",
-      };
-    } catch (e: unknown) {
-      return {
-        success: false,
-        error: e instanceof Error ? e.message : "Error inesperado de red",
-      };
-    }
-  };
+      const respuesta =
+        await fetch(
+          "/api/ejercicios/apertura",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+            body: JSON.stringify({
+              ejercicio_origen:
+                origen,
 
-  const agregarAsiento = async (
-    a: Omit<Asiento, "id" | "numero">,
-  ): Promise<{ success: boolean; error?: string }> => {
-    if (esEjercicioCerrado) {
-      return {
-        success: false,
-        error: `El ejercicio fiscal ${ejercicioSeleccionado} está CERRADO o BLOQUEADO. No se admiten nuevas partidas.`,
-      };
-    }
+              ejercicio_destino:
+                destino,
+            }),
+          }
+        )
 
-    if (dbConnected) {
-      try {
-        const res = await fetch("/api/asientos", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...a, usuario_email: "admin@contable.sv" }),
-        });
-        if (res.ok) {
-          await recargarAsientos();
-          await recargarReporteAnaliticoSql(ejercicioSeleccionado);
-          return { success: true };
-        }
-        const errJson = await res.json().catch(() => null);
-        return {
-          success: false,
-          error: errJson?.error || "Error al registrar asiento",
-        };
-      } catch (e) {
-        const msg =
-          e instanceof Error
-            ? e.message
-            : "Error al guardar asiento en base de datos";
-        return { success: false, error: msg };
-      }
-    }
-
-    setAsientos((prev) => {
-      const ej = a.fecha
-        ? new Date(a.fecha).getFullYear()
-        : ejercicioSeleccionado;
-      const asientosDelAnio = prev.filter(
-        (x) =>
-          (x.ejercicio || (x.fecha ? new Date(x.fecha).getFullYear() : ej)) ===
-          ej,
-      );
-      const numero =
-        asientosDelAnio.reduce((max, x) => Math.max(max, x.numero), 0) + 1;
-      const correlativo_global =
-        prev.reduce((max, x) => Math.max(max, x.correlativo_global || 0), 0) +
-        1;
-      return [
-        {
-          ...a,
-          id: crypto.randomUUID(),
-          correlativo_global,
-          ejercicio: ej,
-          numero,
-          estado: "APLICADO",
-        },
-        ...prev,
-      ];
-    });
-    return { success: true };
-  };
-
-  const anularAsiento = async (
-    id: string,
-    motivo: string = "Anulación contable por corrección/auditoría",
-  ): Promise<{ success: boolean; error?: string }> => {
-    if (esEjercicioCerrado) {
-      return {
-        success: false,
-        error: `No es posible anular partidas en el ejercicio fiscal ${ejercicioSeleccionado} porque está CERRADO o BLOQUEADO.`,
-      };
-    }
-
-    if (dbConnected) {
-      try {
-        const res = await fetch(`/api/asientos/${id}`, {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ motivo, usuario_email: "admin@contable.sv" }),
-        });
-        if (res.ok) {
-          await recargarAsientos();
-          await recargarReporteAnaliticoSql(ejercicioSeleccionado);
-          return { success: true };
-        }
-        const errJson = await res.json().catch(() => null);
-        return {
-          success: false,
-          error: errJson?.error || "Error al anular partida",
-        };
-      } catch (e) {
-        const msg =
-          e instanceof Error
-            ? e.message
-            : "Error al anular partida en base de datos";
-        return { success: false, error: msg };
-      }
-    }
-
-    // En memoria / localStorage: Marcar como ANULADO preservando los renglones (sin DELETE en cascada)
-    setAsientos((prev) =>
-      prev.map((a) =>
-        a.id === id
-          ? {
-              ...a,
-              estado: "ANULADO",
-              anulado_en: new Date().toISOString(),
-              motivo_anulacion: motivo,
+      if (
+        respuesta.ok
+      ) {
+        const ejerciciosRes =
+          await fetch(
+            "/api/ejercicios",
+            {
+              cache:
+                "no-store",
             }
-          : a,
-      ),
-    );
-    return { success: true };
-  };
+          )
 
-  const eliminarAsiento = async (id: string, motivo?: string) => {
-    await anularAsiento(id, motivo);
-  };
+        if (
+          ejerciciosRes.ok
+        ) {
+          setEjercicios(
+            await ejerciciosRes.json()
+          )
+        }
 
-  const agregarCuenta = async (c: Cuenta) => {
-    if (dbConnected) {
-      fetch("/api/cuentas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(c),
-      }).catch((e) =>
-        console.error("Error al guardar cuenta en base de datos:", e),
-      );
+        setEjercicioSeleccionado(
+          destino
+        )
+
+        return {
+          success: true,
+        }
+      }
+
+      const error =
+        await respuesta
+          .json()
+          .catch(
+            () => ({})
+          )
+
+      return {
+        success: false,
+
+        error:
+          error.error ??
+          "Error al generar la partida de apertura.",
+      }
+    } catch (error) {
+      return {
+        success: false,
+
+        error:
+          error instanceof Error
+            ? error.message
+            : "Error inesperado de red.",
+      }
     }
-    setCuentas((prev) =>
-      prev.some((x) => x.codigo === c.codigo)
-        ? prev
-        : [...prev, { ...c, activa: true }].sort((a, b) =>
-            a.codigo.localeCompare(b.codigo),
-          ),
-    );
-  };
+  }
 
-  const cuentaEnUso = (codigo: string) =>
-    asientos.some((a) => a.lineas.some((l) => l.codigo === codigo));
+  // ============================================================
+  // AGREGAR ASIENTO
+  // ============================================================
 
-  const renombrarCuenta = async (codigo: string, nombre: string) => {
-    if (dbConnected) {
-      fetch(`/api/cuentas/${codigo}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombre }),
-      }).catch((e) =>
-        console.error("Error al renombrar cuenta en base de datos:", e),
-      );
+  async function agregarAsiento(
+    asiento: Omit<
+      Asiento,
+      "id" | "numero"
+    >
+  ): Promise<ResultadoOperacion> {
+    if (
+      esEjercicioCerrado
+    ) {
+      return {
+        success: false,
+
+        error:
+          `El ejercicio fiscal ${ejercicioSeleccionado} está cerrado o bloqueado.`,
+      }
     }
-    setCuentas((prev) =>
-      prev.map((c) => (c.codigo === codigo ? { ...c, nombre } : c)),
-    );
-  };
 
-  const eliminarCuenta = (codigo: string) => {
-    const enUso = asientos.some((a) =>
-      a.lineas.some((l) => l.codigo === codigo),
-    );
-    if (dbConnected) {
-      fetch(`/api/cuentas/${codigo}`, { method: "DELETE" }).catch((e) =>
-        console.error("Error al eliminar cuenta en base de datos:", e),
-      );
-    }
-    if (enUso) {
-      setCuentas((prev) =>
-        prev.map((c) => (c.codigo === codigo ? { ...c, activa: false } : c)),
-      );
-      return { softDeleted: true };
-    }
-    setCuentas((prev) => prev.filter((c) => c.codigo !== codigo));
-    return { softDeleted: false };
-  };
-
-  const reactivarCuenta = async (codigo: string) => {
-    if (dbConnected) {
-      fetch(`/api/cuentas/${codigo}`, { method: "PATCH" }).catch((e) =>
-        console.error("Error al reactivar cuenta en base de datos:", e),
-      );
-    }
-    setCuentas((prev) =>
-      prev.map((c) => (c.codigo === codigo ? { ...c, activa: true } : c)),
-    );
-  };
-
-  const reiniciarEjemplo = () => {
-    setCuentas(CATALOGO_CUENTAS);
-    setAsientos(ASIENTOS_EJEMPLO);
-    setTomaFisica(TOMA_FISICA_DEFECTO);
-  };
-
-  const limpiarTodo = () => setAsientos([]);
-
-  const cerrarCicloContable = async (opciones?: {
-    aperturarSiguiente?: boolean;
-  }) => {
     if (dbConnected) {
       try {
-        const res = await fetch("/api/cierre", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ejercicio: ejercicioSeleccionado,
-            aperturar_siguiente: Boolean(opciones?.aperturarSiguiente),
-          }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const ejRes = await fetch("/api/ejercicios");
-          if (ejRes.ok) {
-            const list = await ejRes.json();
-            setEjercicios(list);
-          }
-          if (opciones?.aperturarSiguiente && data.siguienteEjercicio) {
-            setEjercicioSeleccionado(data.siguienteEjercicio);
-          } else {
-            await Promise.all([
-              recargarAsientos(),
-              recargarCierres(),
-              recargarReporteAnaliticoSql(ejercicioSeleccionado),
-            ]);
-          }
-          return { success: true, ...data };
-        } else {
-          const err = await res.json().catch(() => ({}));
+        const respuesta =
+          await fetch(
+            "/api/asientos",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+              body: JSON.stringify(
+                asiento
+              ),
+            }
+          )
+
+        const data =
+          await respuesta
+            .json()
+            .catch(
+              () => ({})
+            )
+
+        if (
+          !respuesta.ok
+        ) {
           return {
             success: false,
-            error: err.error || "Error al liquidar ejercicio",
-          };
+
+            error:
+              data.error ??
+              "No se pudo registrar el asiento.",
+          }
         }
-      } catch (e) {
-        console.error("Error al invocar cierre contable en base de datos:", e);
-        return { success: false, error: "Error de red o conexión" };
+
+        await recargarAsientos()
+
+        await recargarReporteAnaliticoSql(
+          ejercicioSeleccionado
+        )
+
+        return {
+          success: true,
+        }
+      } catch (error) {
+        return {
+          success: false,
+
+          error:
+            error instanceof Error
+              ? error.message
+              : "Error al guardar el asiento.",
+        }
       }
     }
 
-    // Modo local / Fallback
-    const m = calcularMayor(cuentas, asientos, ejercicioSeleccionado, false);
-    const er = calcularEstadoResultados(m, tomaFisica?.valor_inventario_final);
-    const cuentaCapital =
-      cuentas.find(
-        (cuenta) =>
-          cuenta.tipo === "capital" &&
-          cuenta.activa &&
-          cuenta.codigo === "3102",
-      ) || cuentas.find((cuenta) => cuenta.tipo === "capital" && cuenta.activa);
+    setAsientos(
+      (prev) => {
+        const ejercicio =
+          asiento.ejercicio ??
+          ejercicioSeleccionado
 
-    if (!cuentaCapital) return;
+        const delEjercicio =
+          prev.filter(
+            (item) =>
+              item.ejercicio ===
+              ejercicio
+          )
 
-    const lineasCierre: Asiento["lineas"] = [];
-    // 1. Cancelar ingresos (cargos al Debe)
-    for (const item of m.filter((s) => s.cuenta.tipo === "ingreso")) {
-      const saldo = item.haber - item.debe;
-      if (saldo > 0) {
-        lineasCierre.push({
-          codigo: item.cuenta.codigo,
-          debe: saldo,
-          haber: 0,
-        });
+        const numero =
+          delEjercicio.reduce(
+            (
+              max,
+              item
+            ) =>
+              Math.max(
+                max,
+                item.numero
+              ),
+            0
+          ) + 1
+
+        const correlativoGlobal =
+          prev.reduce(
+            (
+              max,
+              item
+            ) =>
+              Math.max(
+                max,
+                item.correlativo_global ??
+                  0
+              ),
+            0
+          ) + 1
+
+        const nuevo: Asiento =
+          {
+            ...asiento,
+
+            id:
+              crypto.randomUUID(),
+
+            numero,
+
+            ejercicio,
+
+            correlativo_global:
+              correlativoGlobal,
+
+            estado:
+              asiento.estado ??
+              "APLICADO",
+          }
+
+        return [
+          nuevo,
+          ...prev,
+        ]
       }
-    }
-    // 2. Cancelar gastos (abonos al Haber)
-    for (const item of m.filter((s) => s.cuenta.tipo === "gasto")) {
-      const saldo = item.debe - item.haber;
-      if (saldo > 0) {
-        lineasCierre.push({
-          codigo: item.cuenta.codigo,
-          debe: 0,
-          haber: saldo,
-        });
-      }
-    }
-    // 3. Imputar utilidad o pérdida a Capital
-    if (er.utilidad > 0) {
-      lineasCierre.push({
-        codigo: cuentaCapital.codigo,
-        debe: 0,
-        haber: er.utilidad,
-      });
-    } else if (er.utilidad < 0) {
-      lineasCierre.push({
-        codigo: cuentaCapital.codigo,
-        debe: Math.abs(er.utilidad),
-        haber: 0,
-      });
-    }
-
-    if (lineasCierre.length === 0) return;
-
-    const nextNum = asientos.reduce((max, a) => Math.max(max, a.numero), 0) + 1;
-    const nuevoAsiento: Asiento = {
-      id: crypto.randomUUID(),
-      ejercicio: ejercicioSeleccionado,
-      numero: nextNum,
-      fecha: new Date().toISOString().slice(0, 10),
-      concepto: "Asiento de liquidación y cierre del ejercicio contable",
-      tipo: "CIERRE",
-      estado: "APLICADO",
-      lineas: lineasCierre,
-    };
-
-    const nuevoCierre: CierreContable = {
-      id: crypto.randomUUID(),
-      ejercicio: ejercicioSeleccionado,
-      fecha_cierre: nuevoAsiento.fecha,
-      concepto: nuevoAsiento.concepto,
-      total_ingresos: er.totalIngresos,
-      total_gastos: er.totalGastos,
-      utilidad: er.utilidad,
-      cuenta_capital_codigo: cuentaCapital.codigo,
-      cuenta_capital_nombre: cuentaCapital.nombre,
-      asiento_cierre_id: nuevoAsiento.id,
-      asiento_numero: nuevoAsiento.numero,
-      creado_en: new Date().toISOString(),
-    };
-
-    setAsientos((prev) => [...prev, nuevoAsiento]);
-    setCierres((prev) => [nuevoCierre, ...prev]);
-  };
-
-  // Cálculos contables sincronizados con aislamiento de ejercicio y exclusión de partida de cierre
-  const mayor = useMemo(() => {
-    if (
-      dbConnected &&
-      reporteAnaliticoSql?.ejercicio === ejercicioSeleccionado
-    ) {
-      return reporteAnaliticoSql.mayor.map((saldo) => ({
-        ...saldo,
-        cuenta: enriquecerJerarquia(saldo.cuenta),
-      }));
-    }
-    return calcularMayor(
-      cuentas.map(enriquecerJerarquia),
-      asientos,
-      ejercicioSeleccionado,
-      false,
-    );
-  }, [
-    cuentas,
-    asientos,
-    ejercicioSeleccionado,
-    dbConnected,
-    reporteAnaliticoSql,
-  ]);
-
-  const estadoResultados = useMemo(() => {
-    if (
-      dbConnected &&
-      reporteAnaliticoSql?.ejercicio === ejercicioSeleccionado
-    ) {
-      return reporteAnaliticoSql.estadoResultados;
-    }
-
-    const baseEr = calcularEstadoResultados(
-      mayor,
-      tomaFisica?.valor_inventario_final,
-      tomaFisica
-        ? { fecha: tomaFisica.fecha_toma, responsable: tomaFisica.responsable }
-        : undefined,
-    );
+    )
 
     return {
-      ...baseEr,
-      calculadoPorSql: false,
-    };
-  }, [
-    mayor,
-    tomaFisica,
-    dbConnected,
-    reporteAnaliticoSql,
-    ejercicioSeleccionado,
-  ]);
-
-  const balanceGeneral = useMemo(() => {
-    if (
-      dbConnected &&
-      reporteAnaliticoSql?.ejercicio === ejercicioSeleccionado
-    ) {
-      return reporteAnaliticoSql.balanceGeneral;
+      success: true,
     }
-    return calcularBalanceGeneral(
-      mayor,
-      estadoResultados.utilidad,
-      estadoResultados.analitico.valorInventarioFinal,
-    );
-  }, [
-    mayor,
-    estadoResultados.utilidad,
-    estadoResultados.analitico.valorInventarioFinal,
-    dbConnected,
-    reporteAnaliticoSql,
-    ejercicioSeleccionado,
-  ]);
+  }
 
-  const value: ContabilidadContextValue = {
-    cuentas,
-    asientos,
-    cierres,
-    ejercicios,
-    ejercicioSeleccionado,
-    setEjercicioSeleccionado,
-    ejercicioActual,
-    esEjercicioCerrado,
-    tomaFisica,
-    guardarTomaFisica,
-    cambiarEstadoEjercicio,
-    crearEjercicio,
-    generarPartidaApertura,
-    dbConnected,
-    cargando,
-    agregarAsiento,
-    eliminarAsiento,
-    anularAsiento,
-    agregarCuenta,
-    renombrarCuenta,
-    eliminarCuenta,
-    reactivarCuenta,
-    cuentaEnUso,
-    reiniciarEjemplo,
-    limpiarTodo,
-    cerrarCicloContable,
-    recargarCierres,
-    recargarAsientos,
-    recargarTodo,
-    recargarReporteAnaliticoSql,
-    mayor,
-    estadoResultados,
-    balanceGeneral,
-  };
+  // ============================================================
+  // ANULAR ASIENTO
+  // ============================================================
+
+  async function anularAsiento(
+    id: string,
+    motivo =
+      "Anulación contable por corrección/auditoría"
+  ): Promise<ResultadoOperacion> {
+    if (
+      esEjercicioCerrado
+    ) {
+      return {
+        success: false,
+
+        error:
+          `No es posible anular partidas del ejercicio ${ejercicioSeleccionado} porque está cerrado o bloqueado.`,
+      }
+    }
+
+    if (dbConnected) {
+      try {
+        const respuesta =
+          await fetch(
+            `/api/asientos/${id}`,
+            {
+              method: "DELETE",
+
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+
+              body: JSON.stringify({
+                motivo,
+              }),
+            }
+          )
+
+        const data =
+          await respuesta
+            .json()
+            .catch(
+              () => ({})
+            )
+
+        if (
+          !respuesta.ok
+        ) {
+          return {
+            success: false,
+
+            error:
+              data.error ??
+              "No se pudo anular la partida.",
+          }
+        }
+
+        await recargarAsientos()
+
+        await recargarReporteAnaliticoSql(
+          ejercicioSeleccionado
+        )
+
+        return {
+          success: true,
+        }
+      } catch (error) {
+        return {
+          success: false,
+
+          error:
+            error instanceof Error
+              ? error.message
+              : "Error al anular la partida.",
+        }
+      }
+    }
+
+    setAsientos(
+      (prev) =>
+        prev.map(
+          (asiento) =>
+            asiento.id === id
+              ? {
+                  ...asiento,
+
+                  estado:
+                    "ANULADO",
+
+                  anulado_en:
+                    new Date().toISOString(),
+
+                  motivo_anulacion:
+                    motivo,
+                }
+              : asiento
+        )
+    )
+
+    return {
+      success: true,
+    }
+  }
+
+  async function eliminarAsiento(
+    id: string,
+    motivo?: string
+  ) {
+    await anularAsiento(
+      id,
+      motivo
+    )
+  }
+
+  // ============================================================
+  // AGREGAR CUENTA
+  // ============================================================
+
+  async function agregarCuenta(
+    cuenta: Cuenta
+  ) {
+    if (dbConnected) {
+      try {
+        const respuesta =
+          await fetch(
+            "/api/cuentas",
+            {
+              method: "POST",
+
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+
+              body: JSON.stringify(
+                cuenta
+              ),
+            }
+          )
+
+        const data =
+          await respuesta
+            .json()
+            .catch(
+              () => ({})
+            )
+
+        if (
+          !respuesta.ok
+        ) {
+          console.warn(
+            data.error ??
+              "No se pudo guardar la cuenta."
+          )
+
+          return
+        }
+
+        const nuevaCuenta =
+          data.cuenta ??
+          cuenta
+
+        setCuentas(
+          (prev) =>
+            prev.some(
+              (item) =>
+                item.codigo ===
+                nuevaCuenta.codigo
+            )
+              ? prev
+              : [
+                  ...prev,
+                  nuevaCuenta,
+                ].sort(
+                  (
+                    a,
+                    b
+                  ) =>
+                    a.codigo.localeCompare(
+                      b.codigo
+                    )
+                )
+        )
+
+        return
+      } catch (error) {
+        console.error(
+          "Error al guardar cuenta:",
+          error
+        )
+
+        return
+      }
+    }
+
+    setCuentas(
+      (prev) =>
+        prev.some(
+          (item) =>
+            item.codigo ===
+            cuenta.codigo
+        )
+          ? prev
+          : [
+              ...prev,
+              {
+                ...cuenta,
+                activa: true,
+              },
+            ].sort(
+              (
+                a,
+                b
+              ) =>
+                a.codigo.localeCompare(
+                  b.codigo
+                )
+            )
+    )
+  }
+
+  // ============================================================
+  // CUENTA EN USO
+  // ============================================================
+
+  function cuentaEnUso(
+    codigo: string
+  ) {
+    return asientos.some(
+      (asiento) =>
+        asiento.estado !==
+          "ANULADO" &&
+        asiento.lineas.some(
+          (linea) =>
+            linea.codigo ===
+            codigo
+        )
+    )
+  }
+
+  // ============================================================
+  // MODIFICAR CUENTA
+  // ============================================================
+
+  async function renombrarCuenta(
+    codigoActual: string,
+    codigoNuevo: string,
+    nombre: string
+  ): Promise<ResultadoOperacion> {
+    const codigoLimpio =
+      codigoNuevo.trim()
+
+    const nombreLimpio =
+      nombre.trim()
+
+    if (
+      cuentaEnUso(
+        codigoActual
+      )
+    ) {
+      return {
+        success: false,
+
+        error:
+          "No se puede modificar esta cuenta porque posee movimientos contables registrados.",
+      }
+    }
+
+    if (
+      !/^\d{3,}$/.test(
+        codigoLimpio
+      )
+    ) {
+      return {
+        success: false,
+
+        error:
+          "El código debe tener al menos 3 dígitos numéricos.",
+      }
+    }
+
+    const tipo =
+      grupoPorDigito(
+        codigoLimpio
+      )
+
+    if (!tipo) {
+      return {
+        success: false,
+
+        error:
+          "El primer dígito debe ser 1, 2, 3, 4 o 5.",
+      }
+    }
+
+    if (!nombreLimpio) {
+      return {
+        success: false,
+
+        error:
+          "El nombre de la cuenta es obligatorio.",
+      }
+    }
+
+    const codigoDuplicado =
+      cuentas.some(
+        (cuenta) =>
+          cuenta.codigo ===
+            codigoLimpio &&
+          cuenta.codigo !==
+            codigoActual
+      )
+
+    if (
+      codigoDuplicado
+    ) {
+      return {
+        success: false,
+
+        error:
+          "Ya existe otra cuenta con ese código.",
+      }
+    }
+
+    const nombreDuplicado =
+      cuentas.some(
+        (cuenta) =>
+          cuenta.codigo !==
+            codigoActual &&
+          cuenta.nombre
+            .trim()
+            .toLowerCase() ===
+            nombreLimpio.toLowerCase()
+      )
+
+    if (
+      nombreDuplicado
+    ) {
+      return {
+        success: false,
+
+        error:
+          "Ya existe otra cuenta con ese nombre.",
+      }
+    }
+
+    if (dbConnected) {
+      try {
+        const respuesta =
+          await fetch(
+            `/api/cuentas/${encodeURIComponent(
+              codigoActual
+            )}`,
+            {
+              method: "PUT",
+
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+
+              body: JSON.stringify({
+                codigo:
+                  codigoLimpio,
+
+                nombre:
+                  nombreLimpio,
+              }),
+            }
+          )
+
+        const data =
+          await respuesta
+            .json()
+            .catch(
+              () => ({})
+            )
+
+        if (
+          !respuesta.ok
+        ) {
+          return {
+            success: false,
+
+            error:
+              data.error ??
+              "No se pudo modificar la cuenta.",
+          }
+        }
+
+        const actualizada: Cuenta =
+          data.cuenta ?? {
+            ...cuentas.find(
+              (cuenta) =>
+                cuenta.codigo ===
+                codigoActual
+            )!,
+
+            codigo:
+              codigoLimpio,
+
+            nombre:
+              nombreLimpio,
+
+            tipo,
+
+            naturaleza:
+              tipo ===
+                "activo" ||
+              tipo ===
+                "gasto"
+                ? "deudora"
+                : "acreedora",
+          }
+
+        setCuentas(
+          (prev) =>
+            prev
+              .map(
+                (cuenta) =>
+                  cuenta.codigo ===
+                  codigoActual
+                    ? actualizada
+                    : cuenta
+              )
+              .sort(
+                (
+                  a,
+                  b
+                ) =>
+                  a.codigo.localeCompare(
+                    b.codigo
+                  )
+              )
+        )
+
+        return {
+          success: true,
+        }
+      } catch (error) {
+        console.error(
+          error
+        )
+
+        return {
+          success: false,
+
+          error:
+            "No se pudo conectar con la base de datos.",
+        }
+      }
+    }
+
+    const naturaleza: Cuenta["naturaleza"] =
+      tipo === "activo" ||
+      tipo === "gasto"
+        ? "deudora"
+        : "acreedora"
+
+    setCuentas(
+      (prev) =>
+        prev
+          .map(
+            (cuenta): Cuenta =>
+              cuenta.codigo ===
+              codigoActual
+                ? {
+                    ...cuenta,
+
+                    codigo:
+                      codigoLimpio,
+
+                    nombre:
+                      nombreLimpio,
+
+                    tipo,
+
+                    naturaleza,
+                  }
+                : cuenta
+          )
+          .sort(
+            (
+              a,
+              b
+            ) =>
+              a.codigo.localeCompare(
+                b.codigo
+              )
+          )
+    )
+
+    return {
+      success: true,
+    }
+  }
+
+  // ============================================================
+  // ELIMINAR CUENTA
+  // ============================================================
+
+  async function eliminarCuenta(
+    codigo: string
+  ): Promise<ResultadoOperacion> {
+    if (
+      cuentaEnUso(codigo)
+    ) {
+      return {
+        success: false,
+
+        error:
+          "No se puede eliminar esta cuenta porque posee movimientos contables registrados.",
+      }
+    }
+
+    if (dbConnected) {
+      try {
+        const respuesta =
+          await fetch(
+            `/api/cuentas/${encodeURIComponent(
+              codigo
+            )}`,
+            {
+              method: "DELETE",
+            }
+          )
+
+        const data =
+          await respuesta
+            .json()
+            .catch(
+              () => ({})
+            )
+
+        if (
+          !respuesta.ok
+        ) {
+          return {
+            success: false,
+
+            error:
+              data.error ??
+              "No se pudo eliminar la cuenta.",
+          }
+        }
+      } catch (error) {
+        console.error(
+          error
+        )
+
+        return {
+          success: false,
+
+          error:
+            "No se pudo conectar con la base de datos.",
+        }
+      }
+    }
+
+    setCuentas(
+      (prev) =>
+        prev.filter(
+          (cuenta) =>
+            cuenta.codigo !==
+            codigo
+        )
+    )
+
+    return {
+      success: true,
+    }
+  }
+
+  // ============================================================
+  // REACTIVAR CUENTA
+  // ============================================================
+
+  async function reactivarCuenta(
+    codigo: string
+  ) {
+    if (dbConnected) {
+      try {
+        const respuesta =
+          await fetch(
+            `/api/cuentas/${encodeURIComponent(
+              codigo
+            )}`,
+            {
+              method: "PATCH",
+            }
+          )
+
+        if (
+          !respuesta.ok
+        ) {
+          return
+        }
+      } catch (error) {
+        console.error(
+          "Error al reactivar cuenta:",
+          error
+        )
+
+        return
+      }
+    }
+
+    setCuentas(
+      (prev) =>
+        prev.map(
+          (cuenta) =>
+            cuenta.codigo ===
+            codigo
+              ? {
+                  ...cuenta,
+                  activa: true,
+                }
+              : cuenta
+        )
+    )
+  }
+
+  // ============================================================
+  // DATOS DE PRUEBA
+  // ============================================================
+
+  function reiniciarEjemplo() {
+    setCuentas(
+      CATALOGO_CUENTAS
+    )
+
+    setAsientos(
+      ASIENTOS_EJEMPLO
+    )
+
+    setTomaFisica(
+      TOMA_FISICA_DEFECTO
+    )
+  }
+
+  function limpiarTodo() {
+    setAsientos([])
+  }
+
+  // ============================================================
+  // CERRAR CICLO
+  // ============================================================
+
+  async function cerrarCicloContable(
+    opciones?: {
+      aperturarSiguiente?: boolean
+    }
+  ): Promise<
+    ResultadoCierre | void
+  > {
+    if (dbConnected) {
+      try {
+        const respuesta =
+          await fetch(
+            "/api/cierre",
+            {
+              method: "POST",
+
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+
+              body: JSON.stringify({
+                ejercicio:
+                  ejercicioSeleccionado,
+
+                aperturar_siguiente:
+                  Boolean(
+                    opciones?.aperturarSiguiente
+                  ),
+              }),
+            }
+          )
+
+        const data =
+          await respuesta
+            .json()
+            .catch(
+              () => ({})
+            )
+
+        if (
+          !respuesta.ok
+        ) {
+          return {
+            success: false,
+
+            error:
+              data.error ??
+              "Error al cerrar el ejercicio.",
+          }
+        }
+
+        const ejerciciosRes =
+          await fetch(
+            "/api/ejercicios",
+            {
+              cache:
+                "no-store",
+            }
+          )
+
+        if (
+          ejerciciosRes.ok
+        ) {
+          setEjercicios(
+            await ejerciciosRes.json()
+          )
+        }
+
+        if (
+          opciones?.aperturarSiguiente &&
+          data.siguienteEjercicio
+        ) {
+          setEjercicioSeleccionado(
+            data.siguienteEjercicio
+          )
+        } else {
+          await recargarTodo()
+        }
+
+        return {
+          success: true,
+          ...data,
+        }
+      } catch (error) {
+        console.error(
+          "Error al cerrar ejercicio:",
+          error
+        )
+
+        return {
+          success: false,
+
+          error:
+            "Error de red o conexión.",
+        }
+      }
+    }
+
+    // MODO LOCAL
+
+    setEjercicios(
+      (prev) =>
+        prev.map(
+          (ejercicio) =>
+            ejercicio.ejercicio ===
+            ejercicioSeleccionado
+              ? {
+                  ...ejercicio,
+
+                  estado:
+                    "CERRADO",
+                }
+              : ejercicio
+        )
+    )
+
+    return {
+      success: true,
+    }
+  }
+
+  // ============================================================
+  // CÁLCULOS
+  // ============================================================
+
+  const mayor =
+    useMemo(
+      () =>
+        calcularMayor(
+          cuentas,
+          asientos,
+          ejercicioSeleccionado,
+          false
+        ),
+      [
+        cuentas,
+        asientos,
+        ejercicioSeleccionado,
+      ]
+    )
+
+  const estadoResultados =
+    useMemo(() => {
+      const resultado =
+        calcularEstadoResultados(
+          mayor,
+          tomaFisica
+            ?.valor_inventario_final,
+          tomaFisica
+            ? {
+                fecha:
+                  tomaFisica.fecha_toma,
+
+                responsable:
+                  tomaFisica.responsable,
+              }
+            : undefined
+        )
+
+      if (
+        !dbConnected ||
+        !reporteAnaliticoSql ||
+        Number(
+          reporteAnaliticoSql.ejercicio
+        ) !==
+          ejercicioSeleccionado
+      ) {
+        return resultado
+      }
+
+      const sql =
+        reporteAnaliticoSql as {
+          ventasTotales?: number
+          devolucionesSobreVentas?: number
+          rebajasSobreVentas?: number
+          ventasNetas?: number
+          inventarioInicial?: number
+          compras?: number
+          gastosSobreCompras?: number
+          comprasTotales?: number
+          devolucionesSobreCompras?: number
+          rebajasSobreCompras?: number
+          comprasNetas?: number
+          totalMercancias?: number
+          inventarioFinal?: number
+          fechaInventarioFinal?:
+            | string
+            | null
+          costoVentas?: number
+          utilidadBruta?: number
+          gastosOperacion?: number
+          utilidadOperacion?: number
+          productosFinancieros?: number
+          gastosFinancieros?: number
+          otrosIngresos?: number
+          utilidadNeta?: number
+        }
+
+      return {
+        ...resultado,
+
+        calculadoPorSql: true,
+
+        totalVentas:
+          sql.ventasNetas ??
+          resultado.totalVentas,
+
+        totalCostoVentas:
+          sql.costoVentas ??
+          resultado.totalCostoVentas,
+
+        utilidadBruta:
+          sql.utilidadBruta ??
+          resultado.utilidadBruta,
+
+        totalGastosOperacion:
+          sql.gastosOperacion ??
+          resultado.totalGastosOperacion,
+
+        utilidadOperacion:
+          sql.utilidadOperacion ??
+          resultado.utilidadOperacion,
+
+        totalIngresosFinancieros:
+          sql.productosFinancieros ??
+          resultado.totalIngresosFinancieros,
+
+        totalGastosFinancieros:
+          sql.gastosFinancieros ??
+          resultado.totalGastosFinancieros,
+
+        utilidad:
+          sql.utilidadNeta ??
+          resultado.utilidad,
+      }
+    }, [
+      mayor,
+      tomaFisica,
+      dbConnected,
+      reporteAnaliticoSql,
+      ejercicioSeleccionado,
+    ])
+
+  const balanceGeneral =
+    useMemo(
+      () =>
+        calcularBalanceGeneral(
+          mayor,
+
+          estadoResultados.utilidad,
+
+          estadoResultados
+            .analitico
+            ?.valorInventarioFinal ??
+            tomaFisica
+              ?.valor_inventario_final ??
+            0
+        ),
+      [
+        mayor,
+        estadoResultados,
+        tomaFisica,
+      ]
+    )
+
+  // ============================================================
+  // VALUE
+  // ============================================================
+
+  const value: ContabilidadContextValue =
+    {
+      cuentas,
+      asientos,
+      cierres,
+
+      ejercicios,
+
+      ejercicioSeleccionado,
+
+      setEjercicioSeleccionado,
+
+      ejercicioActual,
+
+      esEjercicioCerrado,
+
+      tomaFisica,
+
+      guardarTomaFisica,
+
+      cambiarEstadoEjercicio,
+
+      crearEjercicio,
+
+      generarPartidaApertura,
+
+      dbConnected,
+
+      cargando,
+
+      agregarAsiento,
+
+      eliminarAsiento,
+
+      anularAsiento,
+
+      agregarCuenta,
+
+      renombrarCuenta,
+
+      eliminarCuenta,
+
+      reactivarCuenta,
+
+      cuentaEnUso,
+
+      reiniciarEjemplo,
+
+      limpiarTodo,
+
+      cerrarCicloContable,
+
+      recargarCierres,
+
+      recargarAsientos,
+
+      recargarTodo,
+
+      mayor,
+
+      estadoResultados,
+
+      balanceGeneral,
+    }
 
   return (
-    <ContabilidadContext.Provider value={value}>
+    <ContabilidadContext.Provider
+      value={value}
+    >
       {children}
     </ContabilidadContext.Provider>
-  );
+  )
 }
 
+// ============================================================
+// HOOK
+// ============================================================
+
 export function useContabilidad() {
-  const ctx = useContext(ContabilidadContext);
-  if (!ctx)
+  const contexto =
+    useContext(
+      ContabilidadContext
+    )
+
+  if (!contexto) {
     throw new Error(
-      "useContabilidad debe usarse dentro de ContabilidadProvider",
-    );
-  return ctx;
+      "useContabilidad debe usarse dentro de ContabilidadProvider"
+    )
+  }
+
+  return contexto
 }
