@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   CalendarPlus,
   ArrowRight,
+  Layers,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -386,7 +387,30 @@ export default function EstadosFinancierosPage() {
               </p>
 
               <div className="space-y-1.5">
-                <Label htmlFor="valor_inventario">Valor del Inventario Final ($ USD):</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="valor_inventario">Valor del Inventario Final ($ USD):</Label>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(`/api/kardex?ejercicio=${ejercicioSeleccionado}`)
+                        if (res.ok) {
+                          const data = await res.json()
+                          if (data.totalInventarioValorado !== undefined && data.totalInventarioValorado > 0) {
+                            setValorToma(Number(data.totalInventarioValorado).toFixed(2))
+                            setObservacionesToma(`Conteo conciliado con saldo de Kardex CPP ($${Number(data.totalInventarioValorado).toFixed(2)})`)
+                          }
+                        }
+                      } catch (err) {
+                        console.error(err)
+                      }
+                    }}
+                    className="text-[11px] text-primary hover:underline font-medium inline-flex items-center gap-1 cursor-pointer"
+                  >
+                    <Layers className="size-3" />
+                    Cargar saldo actual de Kardex
+                  </button>
+                </div>
                 <Input
                   id="valor_inventario"
                   type="number"
