@@ -1242,7 +1242,7 @@ export default function LibroDiarioPage() {
           <div className="py-24 text-center bg-card rounded-xl border border-border shadow-xs">
             <div className="size-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
             <p className="text-sm font-semibold text-foreground">Verificando estado del folio contable...</p>
-            <p className="text-xs text-muted-foreground mt-1">Conectando con base de datos PostgreSQL 16</p>
+            <p className="text-xs text-muted-foreground mt-1">Cargando folios y registros contables...</p>
           </div>
         ) : estadoFolio === "NO_INICIADO" ? (
           /* ========================================================================= */

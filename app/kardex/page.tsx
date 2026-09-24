@@ -324,7 +324,7 @@ function KardexContent() {
   const [sincronizandoToma, setSincronizandoToma] = useState(false)
   const [sincronizadoExitoso, setSincronizadoExitoso] = useState(false)
 
-  // Cargar movimientos persistentes desde Supabase
+  // Cargar movimientos persistentes desde base de datos central
   useEffect(() => {
     if (!dbConnected) return
     let cancel = false
@@ -435,7 +435,7 @@ function KardexContent() {
     const recalculados = recalcularKardexMovimientos(raw)
     guardarMovimientosKardex(recalculados)
 
-    // Persistir en Supabase si hay conexión
+    // Persistir en servidor contable si hay conexión
     if (dbConnected) {
       fetch("/api/kardex", {
         method: "POST",
@@ -451,7 +451,7 @@ function KardexContent() {
           unidadesSalida: esSalida ? u : 0,
           costoUnitario: c,
         }),
-      }).catch((err) => console.error("Error al persistir movimiento en Supabase:", err))
+      }).catch((err) => console.error("Error al persistir movimiento en servidor contable:", err))
     }
 
     setModalNuevoMovimiento(false)
@@ -1314,7 +1314,7 @@ function KardexContent() {
                 <span className="font-bold text-foreground">{formatoMoneda(totalesKardex.saldoFinal)}</span>
               </div>
               <div className="flex items-center justify-between p-2 rounded-lg bg-muted/40 border border-border/50">
-                <span className="text-muted-foreground font-sans text-[11px]">Toma Física Oficial (Supabase):</span>
+                <span className="text-muted-foreground font-sans text-[11px]">Toma Física Registrada:</span>
                 <span className="font-bold text-foreground">
                   {formatoMoneda(tomaFisica?.valor_inventario_final ?? 0)}
                 </span>
@@ -1337,7 +1337,7 @@ function KardexContent() {
               <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs flex items-center gap-2">
                 <CheckCircle2 className="size-4 shrink-0" />
                 <span>
-                  ¡Inventario Final sincronizado con éxito en Supabase! El Estado de Resultados y Costo de Ventas ya
+                  ¡Inventario Final sincronizado con éxito en los registros contables! El Estado de Resultados y Costo de Ventas ya
                   reflejan los {formatoMoneda(totalesKardex.saldoFinal)} calculados por el Kardex.
                 </span>
               </div>

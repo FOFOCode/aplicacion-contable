@@ -330,7 +330,7 @@ export default function EstadosFinancierosPage() {
                   </p>
                   {dbConnected && (
                     <Badge variant="success" className="border-emerald-500/40 text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 text-[10px]">
-                      Sincronizado con PostgreSQL
+                      Sincronizado en Libros
                     </Badge>
                   )}
                 </div>
@@ -461,7 +461,7 @@ export default function EstadosFinancierosPage() {
               {mensajeExitoToma && (
                 <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400 font-semibold bg-emerald-50 dark:bg-emerald-950/30 p-2 rounded">
                   <CheckCircle2 className="size-4" />
-                  Toma física guardada y sincronizada correctamente con PostgreSQL.
+                  Toma física guardada y sincronizada correctamente en los registros contables.
                 </div>
               )}
 
