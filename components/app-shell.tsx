@@ -156,56 +156,53 @@ export function AppShell({
   // TEMA
   // ============================================================
 
-  const [isDark, setIsDark] =
-    useState(true)
+  const [isDark, setIsDark] = useState(true)
 
-  useEffect(() => {
-    const saved =
-      localStorage.getItem("theme")
+useEffect(() => {
+  const temaGuardado =
+    localStorage.getItem("finexa-theme")
 
-    if (saved === "light") {
-      setIsDark(false)
+  const usarOscuro =
+    temaGuardado !== "light"
 
-      document.documentElement.classList.remove(
-        "dark"
-      )
-    } else {
-      setIsDark(true)
+  setIsDark(usarOscuro)
 
-      document.documentElement.classList.add(
-        "dark"
-      )
-    }
-  }, [])
+  document.documentElement.classList.toggle(
+    "dark",
+    usarOscuro
+  )
 
-  function toggleTheme() {
-    setIsDark((prev) => {
-      const next = !prev
+  document.documentElement.style.colorScheme =
+    usarOscuro
+      ? "dark"
+      : "light"
+}, [])
 
-      if (next) {
-        document.documentElement.classList.add(
-          "dark"
-        )
+function toggleTheme() {
+  setIsDark((actual) => {
+    const nuevoTemaOscuro =
+      !actual
 
-        localStorage.setItem(
-          "theme",
-          "dark"
-        )
-      } else {
-        document.documentElement.classList.remove(
-          "dark"
-        )
+    document.documentElement.classList.toggle(
+      "dark",
+      nuevoTemaOscuro
+    )
 
-        localStorage.setItem(
-          "theme",
-          "light"
-        )
-      }
+    document.documentElement.style.colorScheme =
+      nuevoTemaOscuro
+        ? "dark"
+        : "light"
 
-      return next
-    })
-  }
+    localStorage.setItem(
+      "finexa-theme",
+      nuevoTemaOscuro
+        ? "dark"
+        : "light"
+    )
 
+    return nuevoTemaOscuro
+  })
+}
   // ============================================================
   // CREAR EJERCICIO
   // ============================================================
