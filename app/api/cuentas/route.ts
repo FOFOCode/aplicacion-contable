@@ -65,6 +65,7 @@ export async function GET() {
         c.nombre,
         c.tipo,
         c.naturaleza,
+        c.permite_movimiento,
         c.activa,
 
         EXISTS (
@@ -126,6 +127,9 @@ export async function POST(req: Request) {
     const nombre = String(
       body.nombre ?? ""
     ).trim()
+
+    const permiteMovimiento =
+      body.permite_movimiento !== false
 
     // ========================================================
     // VALIDAR CÓDIGO
@@ -249,6 +253,7 @@ export async function POST(req: Request) {
           nombre,
           tipo,
           naturaleza,
+          permite_movimiento,
           activa
         )
         VALUES
@@ -257,6 +262,7 @@ export async function POST(req: Request) {
           $2,
           $3,
           $4,
+          $5,
           TRUE
         )
 
@@ -265,6 +271,7 @@ export async function POST(req: Request) {
           nombre,
           tipo,
           naturaleza,
+          permite_movimiento,
           activa
         `,
         [
@@ -272,13 +279,17 @@ export async function POST(req: Request) {
           nombre,
           clasificacion.tipo,
           clasificacion.naturaleza,
+          permiteMovimiento,
         ]
       )
 
     return NextResponse.json(
       {
         success: true,
-        cuenta: resultado.rows[0],
+        cuenta: {
+          ...resultado.rows[0],
+          enUso: false,
+        },
       },
       {
         status: 201,

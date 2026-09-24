@@ -1,125 +1,174 @@
 -- =============================================================================
--- DATOS SEMILLA (data.sql)
--- Proyecto: Sistema Contable Automatizado
--- Inicialización con Catálogo de Cuentas oficial y Asientos de Ejemplo
+-- DATOS SEMILLA (data.sql) - SISTEMA CONTABLE AUTOMATIZADO
+-- Inicialización del Catálogo Completo, Ejercicio 2026, Toma Física y 7 Partidas
 -- =============================================================================
 
--- Constantes de UUID para reproducibilidad exacta
+-- 1. Catálogo Completo de Cuentas (Método Analítico & Clasificación Estricta)
+INSERT INTO catalogo_cuentas (codigo, nombre, tipo, naturaleza, permite_movimiento, activa) VALUES
+-- 1. Activo
+('1101', 'Caja general', 'activo', 'deudora', TRUE, TRUE),
+('1102', 'Bancos', 'activo', 'deudora', TRUE, TRUE),
+('1103', 'Cuentas por cobrar', 'activo', 'deudora', TRUE, TRUE),
+('1104', 'Inventario de mercadería (Inicial)', 'activo', 'deudora', TRUE, TRUE),
+('1105', 'IVA crédito fiscal', 'activo', 'deudora', TRUE, TRUE),
+('1106', 'Deudores diversos', 'activo', 'deudora', TRUE, TRUE),
+('1107', 'Papelería y útiles', 'activo', 'deudora', TRUE, TRUE),
+('1108', 'Pagos anticipados', 'activo', 'deudora', TRUE, TRUE),
+('1201', 'Mobiliario y equipo', 'activo', 'deudora', TRUE, TRUE),
+('1202', 'Equipo de transporte', 'activo', 'deudora', TRUE, TRUE),
+('1203', 'Equipo de cómputo', 'activo', 'deudora', TRUE, TRUE),
+('1204', 'Edificios', 'activo', 'deudora', TRUE, TRUE),
+('1205', 'Terrenos', 'activo', 'deudora', TRUE, TRUE),
+('1206', 'Depreciación acumulada', 'activo', 'acreedora', TRUE, TRUE),
+
+-- 2. Pasivo
+('2101', 'Cuentas por pagar', 'pasivo', 'acreedora', TRUE, TRUE),
+('2102', 'Préstamos bancarios por pagar', 'pasivo', 'acreedora', TRUE, TRUE),
+('2103', 'IVA débito fiscal', 'pasivo', 'acreedora', TRUE, TRUE),
+('2104', 'Impuestos por pagar', 'pasivo', 'acreedora', TRUE, TRUE),
+('2105', 'Acreedores diversos', 'pasivo', 'acreedora', TRUE, TRUE),
+('2106', 'Sueldos y salarios por pagar', 'pasivo', 'acreedora', TRUE, TRUE),
+('2107', 'Retenciones por pagar', 'pasivo', 'acreedora', TRUE, TRUE),
+('2201', 'Préstamos bancarios a largo plazo', 'pasivo', 'acreedora', TRUE, TRUE),
+('2202', 'Hipotecas por pagar', 'pasivo', 'acreedora', TRUE, TRUE),
+
+-- 3. Capital Contable
+('3101', 'Capital social', 'capital', 'acreedora', TRUE, TRUE),
+('3102', 'Utilidades acumuladas', 'capital', 'acreedora', TRUE, TRUE),
+('3103', 'Reserva legal', 'capital', 'acreedora', TRUE, TRUE),
+('3104', 'Pérdidas acumuladas', 'capital', 'deudora', TRUE, TRUE),
+('3105', 'Donaciones', 'capital', 'acreedora', TRUE, TRUE),
+
+-- 4. Costos y Gastos (Método Analítico)
+('4101', 'Compras', 'gasto', 'deudora', TRUE, TRUE),
+('4102', 'Gastos sobre compras', 'gasto', 'deudora', TRUE, TRUE),
+('4103', 'Devoluciones sobre ventas', 'gasto', 'deudora', TRUE, TRUE),
+('4104', 'Rebajas y descuentos sobre ventas', 'gasto', 'deudora', TRUE, TRUE),
+('4105', 'Costo de servicios', 'gasto', 'deudora', TRUE, TRUE),
+('4201', 'Gastos de administración', 'gasto', 'deudora', TRUE, TRUE),
+('4202', 'Gastos de venta', 'gasto', 'deudora', TRUE, TRUE),
+('4203', 'Gastos de depreciación', 'gasto', 'deudora', TRUE, TRUE),
+('4204', 'Gastos de alquiler', 'gasto', 'deudora', TRUE, TRUE),
+('4205', 'Gastos de servicios básicos', 'gasto', 'deudora', TRUE, TRUE),
+('4206', 'Gastos de sueldos y salarios', 'gasto', 'deudora', TRUE, TRUE),
+('4207', 'Gastos de papelería y útiles', 'gasto', 'deudora', TRUE, TRUE),
+('4208', 'Gastos de publicidad', 'gasto', 'deudora', TRUE, TRUE),
+('4301', 'Gastos financieros', 'gasto', 'deudora', TRUE, TRUE),
+('4302', 'Intereses pagados', 'gasto', 'deudora', TRUE, TRUE),
+('4303', 'Comisiones bancarias', 'gasto', 'deudora', TRUE, TRUE),
+
+-- Cuentas analíticas complementarias de compras (clasificadas como GASTO ACREEDOR)
+('5102', 'Devoluciones sobre compras', 'gasto', 'acreedora', TRUE, TRUE),
+('5103', 'Rebajas y descuentos sobre compras', 'gasto', 'acreedora', TRUE, TRUE),
+
+-- 5. Ingresos
+('5101', 'Ventas', 'ingreso', 'acreedora', TRUE, TRUE),
+('5104', 'Otros ingresos operativos', 'ingreso', 'acreedora', TRUE, TRUE),
+('5105', 'Ingresos por servicios', 'ingreso', 'acreedora', TRUE, TRUE),
+('5201', 'Productos financieros', 'ingreso', 'acreedora', TRUE, TRUE),
+('5202', 'Intereses cobrados', 'ingreso', 'acreedora', TRUE, TRUE),
+('5203', 'Utilidad en venta de activos', 'ingreso', 'acreedora', TRUE, TRUE)
+ON CONFLICT (codigo) DO UPDATE 
+SET nombre = EXCLUDED.nombre,
+    tipo = EXCLUDED.tipo,
+    naturaleza = EXCLUDED.naturaleza,
+    permite_movimiento = EXCLUDED.permite_movimiento,
+    activa = EXCLUDED.activa;
+
+-- 2. Ejercicio Fiscal 2026
+INSERT INTO ejercicio_fiscal (ejercicio, fecha_inicio, fecha_fin, ultimo_numero, estado)
+VALUES (2026, '2026-01-01', '2026-12-31', 7, 'ABIERTO')
+ON CONFLICT (ejercicio) DO UPDATE SET ultimo_numero = GREATEST(ejercicio_fiscal.ultimo_numero, 7);
+
+-- 3. Toma Física de Inventario Final 2026 ($6,500.00)
+INSERT INTO inventario_toma_fisica (ejercicio, fecha_toma, valor_inventario_final, responsable, observaciones)
+VALUES (
+    2026,
+    '2026-12-31',
+    6500.00,
+    'Comité de Auditoría y Control de Inventarios',
+    'Toma física de existencias y conteo al cierre del ejercicio 2026 (Método Analítico)'
+) ON CONFLICT (ejercicio) DO UPDATE
+SET valor_inventario_final = EXCLUDED.valor_inventario_final,
+    responsable = EXCLUDED.responsable;
+
+-- 4. Partidas Iniciales de Ejemplo (Método Analítico)
 DO $$
 DECLARE
-    v_empresa_id UUID := '00000000-0000-0000-0000-000000000001'::UUID;
-    v_periodo_id UUID := '00000000-0000-0000-0000-000000002026'::UUID;
-
-    -- IDs de cuentas
-    v_c_1101 UUID; v_c_1102 UUID; v_c_1103 UUID; v_c_1104 UUID; v_c_1105 UUID;
-    v_c_1201 UUID; v_c_1202 UUID;
-    v_c_2101 UUID; v_c_2102 UUID; v_c_2103 UUID; v_c_2104 UUID;
-    v_c_3101 UUID; v_c_3102 UUID; v_c_3103 UUID;
-    v_c_4101 UUID; v_c_4201 UUID; v_c_4202 UUID; v_c_4301 UUID;
-    v_c_5101 UUID; v_c_5102 UUID; v_c_5201 UUID;
-
-    -- IDs de asientos
-    v_asiento1_id UUID; v_asiento2_id UUID; v_asiento3_id UUID;
-    v_asiento4_id UUID; v_asiento5_id UUID;
+    v1 UUID; v2 UUID; v3 UUID; v4 UUID; v5 UUID; v6 UUID; v7 UUID;
 BEGIN
-    -- 1. Insertar Empresa
-    INSERT INTO empresa (id, nombre, numero_registro, nit, moneda, simbolo_moneda, pais)
-    VALUES (v_empresa_id, 'Comercializadora y Servicios del Sur, S.A. de C.V.', 'NRC-123456-7', '0614-010126-101-1', 'USD', '$', 'El Salvador')
-    ON CONFLICT (id) DO NOTHING;
+    IF EXISTS (SELECT 1 FROM asiento WHERE ejercicio = 2026) THEN
+        RETURN;
+    END IF;
 
-    -- 2. Insertar Período Fiscal 2026
-    INSERT INTO periodo_contable (id, empresa_id, anio, numero_periodo, nombre, fecha_inicio, fecha_fin, estado)
-    VALUES (v_periodo_id, v_empresa_id, 2026, 1, 'Ejercicio Fiscal 2026', '2026-01-01', '2026-12-31', 'ABIERTO')
-    ON CONFLICT (id) DO NOTHING;
+    -- Partida 1: Apertura con Inventario Inicial ($5,000.00)
+    INSERT INTO asiento (ejercicio, numero, fecha, concepto, tipo, estado) 
+    VALUES (2026, 1, '2026-01-02', 'Aportación inicial de los socios en efectivo, banco e inventario inicial de mercaderías.', 'APERTURA', 'APLICADO') 
+    RETURNING id INTO v1;
+    INSERT INTO asiento_linea (asiento_id, linea_numero, cuenta_codigo, debe, haber) VALUES
+    (v1, 1, '1101', 10000.00, 0.00),
+    (v1, 2, '1102', 5000.00, 0.00),
+    (v1, 3, '1104', 5000.00, 0.00),
+    (v1, 4, '3101', 0.00, 20000.00);
 
-    -- 3. Catálogo de Cuentas (21 cuentas base de la aplicación)
-    -- Activo (1)
-    INSERT INTO catalogo_cuentas (empresa_id, codigo, nombre, tipo, naturaleza, activa) VALUES
-    (v_empresa_id, '1101', 'Caja general', 'activo', 'deudora', TRUE),
-    (v_empresa_id, '1102', 'Bancos', 'activo', 'deudora', TRUE),
-    (v_empresa_id, '1103', 'Cuentas por cobrar', 'activo', 'deudora', TRUE),
-    (v_empresa_id, '1104', 'Inventario de mercadería', 'activo', 'deudora', TRUE),
-    (v_empresa_id, '1105', 'IVA crédito fiscal', 'activo', 'deudora', TRUE),
-    (v_empresa_id, '1201', 'Mobiliario y equipo', 'activo', 'deudora', TRUE),
-    (v_empresa_id, '1202', 'Equipo de transporte', 'activo', 'deudora', TRUE),
-    -- Pasivo (2)
-    (v_empresa_id, '2101', 'Cuentas por pagar', 'pasivo', 'acreedora', TRUE),
-    (v_empresa_id, '2102', 'Préstamos bancarios por pagar', 'pasivo', 'acreedora', TRUE),
-    (v_empresa_id, '2103', 'IVA débito fiscal', 'pasivo', 'acreedora', TRUE),
-    (v_empresa_id, '2104', 'Impuestos por pagar', 'pasivo', 'acreedora', TRUE),
-    -- Capital contable (3)
-    (v_empresa_id, '3101', 'Capital social', 'capital', 'acreedora', TRUE),
-    (v_empresa_id, '3102', 'Utilidades acumuladas', 'capital', 'acreedora', TRUE),
-    (v_empresa_id, '3103', 'Reserva legal', 'capital', 'acreedora', TRUE),
-    -- Costos y gastos (4)
-    (v_empresa_id, '4101', 'Costo de venta', 'gasto', 'deudora', TRUE),
-    (v_empresa_id, '4201', 'Gastos de administración', 'gasto', 'deudora', TRUE),
-    (v_empresa_id, '4202', 'Gastos de venta', 'gasto', 'deudora', TRUE),
-    (v_empresa_id, '4301', 'Gastos financieros', 'gasto', 'deudora', TRUE),
-    -- Ingresos (5)
-    (v_empresa_id, '5101', 'Ventas', 'ingreso', 'acreedora', TRUE),
-    (v_empresa_id, '5102', 'Otros ingresos operativos', 'ingreso', 'acreedora', TRUE),
-    (v_empresa_id, '5201', 'Productos financieros', 'ingreso', 'acreedora', TRUE)
-    ON CONFLICT (empresa_id, codigo) DO NOTHING;
+    -- Partida 2: Compra de mercadería al contado según factura (Método Analítico: Compras)
+    INSERT INTO asiento (ejercicio, numero, fecha, concepto, tipo, estado) 
+    VALUES (2026, 2, '2026-01-05', 'Compra de mercadería al contado según factura de proveedor (Método Analítico).', 'OPERACION', 'APLICADO') 
+    RETURNING id INTO v2;
+    INSERT INTO asiento_linea (asiento_id, linea_numero, cuenta_codigo, debe, haber) VALUES
+    (v2, 1, '4101', 4000.00, 0.00),
+    (v2, 2, '1105', 520.00, 0.00),
+    (v2, 3, '1102', 0.00, 4520.00);
 
-    -- Obtener referencias a los IDs de las cuentas
-    SELECT id INTO v_c_1101 FROM catalogo_cuentas WHERE empresa_id = v_empresa_id AND codigo = '1101';
-    SELECT id INTO v_c_1102 FROM catalogo_cuentas WHERE empresa_id = v_empresa_id AND codigo = '1102';
-    SELECT id INTO v_c_1104 FROM catalogo_cuentas WHERE empresa_id = v_empresa_id AND codigo = '1104';
-    SELECT id INTO v_c_1105 FROM catalogo_cuentas WHERE empresa_id = v_empresa_id AND codigo = '1105';
-    SELECT id INTO v_c_2103 FROM catalogo_cuentas WHERE empresa_id = v_empresa_id AND codigo = '2103';
-    SELECT id INTO v_c_3101 FROM catalogo_cuentas WHERE empresa_id = v_empresa_id AND codigo = '3101';
-    SELECT id INTO v_c_4101 FROM catalogo_cuentas WHERE empresa_id = v_empresa_id AND codigo = '4101';
-    SELECT id INTO v_c_4201 FROM catalogo_cuentas WHERE empresa_id = v_empresa_id AND codigo = '4201';
-    SELECT id INTO v_c_5101 FROM catalogo_cuentas WHERE empresa_id = v_empresa_id AND codigo = '5101';
+    -- Partida 3: Gastos sobre compras por fletes y transporte (Método Analítico)
+    INSERT INTO asiento (ejercicio, numero, fecha, concepto, tipo, estado) 
+    VALUES (2026, 3, '2026-01-07', 'Pago de fletes y transporte de mercadería comprada (Método Analítico).', 'OPERACION', 'APLICADO') 
+    RETURNING id INTO v3;
+    INSERT INTO asiento_linea (asiento_id, linea_numero, cuenta_codigo, debe, haber) VALUES
+    (v3, 1, '4102', 300.00, 0.00),
+    (v3, 2, '1105', 39.00, 0.00),
+    (v3, 3, '1101', 0.00, 339.00);
 
-    -- 4. Insertar Asientos de Ejemplo (Libro Diario)
-    -- Partida 1: Aportación inicial
-    INSERT INTO asiento_contable (empresa_id, periodo_id, numero, fecha, concepto, tipo, estado)
-    VALUES (v_empresa_id, v_periodo_id, 1, '2026-01-02', 'Aportación inicial de los socios en efectivo y banco.', 'APERTURA', 'APLICADO')
-    RETURNING id INTO v_asiento1_id;
+    -- Partida 4: Devolución de mercadería sobre compras al proveedor (Método Analítico)
+    INSERT INTO asiento (ejercicio, numero, fecha, concepto, tipo, estado) 
+    VALUES (2026, 4, '2026-01-09', 'Devolución de mercadería dañada al proveedor según nota de crédito bancaria (Método Analítico).', 'OPERACION', 'APLICADO') 
+    RETURNING id INTO v4;
+    INSERT INTO asiento_linea (asiento_id, linea_numero, cuenta_codigo, debe, haber) VALUES
+    (v4, 1, '1102', 452.00, 0.00),
+    (v4, 2, '5102', 0.00, 400.00),
+    (v4, 3, '1105', 0.00, 52.00);
 
-    INSERT INTO asiento_linea (asiento_id, linea_numero, cuenta_id, debe, haber, referencia) VALUES
-    (v_asiento1_id, 1, v_c_1101, 10000.00, 0.00, 'Aporte en efectivo'),
-    (v_asiento1_id, 2, v_c_1102, 5000.00, 0.00, 'Aporte depósito bancario'),
-    (v_asiento1_id, 3, v_c_3101, 0.00, 15000.00, 'Suscripción y pago de capital');
+    -- Partida 5: Venta de mercaderías con IVA débito fiscal (Método Analítico)
+    INSERT INTO asiento (ejercicio, numero, fecha, concepto, tipo, estado) 
+    VALUES (2026, 5, '2026-01-12', 'Venta de mercaderías al contado con IVA débito fiscal (Método Analítico).', 'OPERACION', 'APLICADO') 
+    RETURNING id INTO v5;
+    INSERT INTO asiento_linea (asiento_id, linea_numero, cuenta_codigo, debe, haber) VALUES
+    (v5, 1, '1102', 9040.00, 0.00),
+    (v5, 2, '5101', 0.00, 8000.00),
+    (v5, 3, '2103', 0.00, 1040.00);
 
-    -- Partida 2: Compra de mercadería con IVA crédito fiscal
-    INSERT INTO asiento_contable (empresa_id, periodo_id, numero, fecha, concepto, tipo, estado)
-    VALUES (v_empresa_id, v_periodo_id, 2, '2026-01-05', 'Compra de mercadería al crédito fiscal, pagada con banco.', 'OPERACION', 'APLICADO')
-    RETURNING id INTO v_asiento2_id;
+    -- Partida 6: Devolución de mercadería sobre ventas por cliente (Método Analítico)
+    INSERT INTO asiento (ejercicio, numero, fecha, concepto, tipo, estado) 
+    VALUES (2026, 6, '2026-01-15', 'Cliente devuelve mercadería por no cumplir especificaciones técnicas (Método Analítico).', 'OPERACION', 'APLICADO') 
+    RETURNING id INTO v6;
+    INSERT INTO asiento_linea (asiento_id, linea_numero, cuenta_codigo, debe, haber) VALUES
+    (v6, 1, '4103', 500.00, 0.00),
+    (v6, 2, '2103', 65.00, 0.00),
+    (v6, 3, '1102', 0.00, 565.00);
 
-    INSERT INTO asiento_linea (asiento_id, linea_numero, cuenta_id, debe, haber, referencia) VALUES
-    (v_asiento2_id, 1, v_c_1104, 4000.00, 0.00, 'Mercadería para reventa'),
-    (v_asiento2_id, 2, v_c_1105, 520.00, 0.00, 'IVA 13% crédito fiscal'),
-    (v_asiento2_id, 3, v_c_1102, 0.00, 4520.00, 'Pago con transferencia bancaria');
+    -- Partida 7: Gastos de administración ($800.00)
+    INSERT INTO asiento (ejercicio, numero, fecha, concepto, tipo, estado) 
+    VALUES (2026, 7, '2026-01-20', 'Pago de servicios contables y gastos administrativos con cheque bancario.', 'OPERACION', 'APLICADO') 
+    RETURNING id INTO v7;
+    INSERT INTO asiento_linea (asiento_id, linea_numero, cuenta_codigo, debe, haber) VALUES
+    (v7, 1, '4201', 800.00, 0.00),
+    (v7, 2, '1102', 0.00, 800.00);
 
-    -- Partida 3: Venta de mercadería con IVA débito fiscal
-    INSERT INTO asiento_contable (empresa_id, periodo_id, numero, fecha, concepto, tipo, estado)
-    VALUES (v_empresa_id, v_periodo_id, 3, '2026-01-12', 'Venta de mercadería con IVA débito fiscal, cobrada en banco.', 'OPERACION', 'APLICADO')
-    RETURNING id INTO v_asiento3_id;
-
-    INSERT INTO asiento_linea (asiento_id, linea_numero, cuenta_id, debe, haber, referencia) VALUES
-    (v_asiento3_id, 1, v_c_1102, 6780.00, 0.00, 'Cobro total depositado en banco'),
-    (v_asiento3_id, 2, v_c_5101, 0.00, 6000.00, 'Ingreso por venta de mercadería'),
-    (v_asiento3_id, 3, v_c_2103, 0.00, 780.00, 'IVA 13% débito fiscal');
-
-    -- Partida 4: Registro del costo de la mercadería vendida
-    INSERT INTO asiento_contable (empresa_id, periodo_id, numero, fecha, concepto, tipo, estado)
-    VALUES (v_empresa_id, v_periodo_id, 4, '2026-01-12', 'Registro del costo de la mercadería vendida.', 'OPERACION', 'APLICADO')
-    RETURNING id INTO v_asiento4_id;
-
-    INSERT INTO asiento_linea (asiento_id, linea_numero, cuenta_id, debe, haber, referencia) VALUES
-    (v_asiento4_id, 1, v_c_4101, 3000.00, 0.00, 'Costo de ventas devengado'),
-    (v_asiento4_id, 2, v_c_1104, 0.00, 3000.00, 'Salida de inventario');
-
-    -- Partida 5: Pago de gastos de administración
-    INSERT INTO asiento_contable (empresa_id, periodo_id, numero, fecha, concepto, tipo, estado)
-    VALUES (v_empresa_id, v_periodo_id, 5, '2026-01-20', 'Pago de gastos de administración con banco.', 'OPERACION', 'APLICADO')
-    RETURNING id INTO v_asiento5_id;
-
-    INSERT INTO asiento_linea (asiento_id, linea_numero, cuenta_id, debe, haber, referencia) VALUES
-    (v_asiento5_id, 1, v_c_4201, 800.00, 0.00, 'Servicios administrativos y suministros'),
-    (v_asiento5_id, 2, v_c_1102, 0.00, 800.00, 'Cheque / transferencia bancaria');
-
+    -- Trazabilidad en asiento_historial
+    INSERT INTO asiento_historial (asiento_id, accion, ejercicio, numero, concepto, total_debe, total_haber, motivo)
+    SELECT a.id, 'CREACION', a.ejercicio, a.numero, a.concepto, SUM(al.debe), SUM(al.haber), 'Partida inicial cargada bajo el Método Analítico'
+    FROM asiento a
+    JOIN asiento_linea al ON a.id = al.asiento_id
+    WHERE a.ejercicio = 2026
+    GROUP BY a.id, a.ejercicio, a.numero, a.concepto;
 END $$;

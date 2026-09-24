@@ -7,6 +7,8 @@ export interface Cuenta {
   nombre: string
   tipo: TipoCuenta
   naturaleza: Naturaleza
+  /** Indica si la cuenta permite asientos directos o es de título/acumulación. */
+  permite_movimiento?: boolean
   /** Cuenta activa. Una cuenta usada en asientos no se borra: se marca como eliminada (activa=false). */
   activa: boolean
 }
@@ -39,14 +41,122 @@ export interface AsientoLinea {
   codigo: string
   debe: number
   haber: number
+  parcial?: number
 }
 
 export interface Asiento {
   id: string
+  correlativo_global?: number
+  ejercicio?: number
   numero: number
   fecha: string
   concepto: string
+  tipo?: "APERTURA" | "OPERACION" | "AJUSTE" | "CIERRE" | "REVERSION"
+  estado?: "BORRADOR" | "APLICADO" | "ANULADO"
+  asiento_reversion_id?: string | null
+  documento_soporte?: string | null
+  anulado_en?: string | null
+  motivo_anulacion?: string | null
+  lote_id?: string | null
+  lote_numero?: number | null
+  folio_diario_id?: string | null
+  numero_folio?: number | null
+  usuario_id?: string | null
   lineas: AsientoLinea[]
+}
+
+export interface FolioDiario {
+  id: string
+  ejercicio: number
+  numero_folio: number
+  fecha: string
+  estado: "ABIERTO" | "CERRADO"
+  total_debe: number
+  total_haber: number
+  cerrado_en?: string | null
+  cerrado_por?: string | null
+  creado_en?: string
+  cantidad_partidas?: number
+}
+
+export interface LoteContable {
+  id: string
+  numero: number
+  ejercicio: number
+  mes: string
+  estado: "EN_PROCESO" | "CERRADO" | "FOLIADO"
+  fecha_apertura: string
+  fecha_cierre?: string | null
+  usuario?: string
+  observaciones?: string
+  total_debe: number
+  total_haber: number
+  cantidad_partidas: number
+  partidas_ids?: string[]
+}
+
+export type TipoUsuario = "contador"
+
+export interface Usuario {
+  id: string
+  nombre: string
+  email: string
+  tipo: TipoUsuario
+  activo: boolean
+  ultimo_acceso?: string | null
+  creado_en?: string
+  actualizado_en?: string
+}
+
+export interface AsientoHistorial {
+  id: string
+  asiento_id: string
+  accion: "CREACION" | "MODIFICACION" | "ANULACION" | "CIERRE"
+  ejercicio: number
+  numero: number
+  concepto?: string
+  total_debe: number
+  total_haber: number
+  motivo?: string
+  usuario_email?: string
+  usuario_id?: string | null
+  creado_en?: string
+}
+
+export interface EjercicioFiscal {
+  ejercicio: number
+  fecha_inicio: string
+  fecha_fin: string
+  ultimo_numero: number
+  estado: "ABIERTO" | "CERRADO" | "BLOQUEADO"
+  cerrado_en?: string | null
+  creado_en?: string
+}
+
+export interface InventarioTomaFisica {
+  id?: string
+  ejercicio: number
+  fecha_toma: string
+  valor_inventario_final: number
+  responsable?: string
+  observaciones?: string
+  creado_en?: string
+  actualizado_en?: string
+}
+
+export interface CierreContable {
+  id: string
+  ejercicio: number
+  fecha_cierre: string
+  concepto: string
+  total_ingresos: number
+  total_gastos: number
+  utilidad: number
+  cuenta_capital_codigo: string
+  cuenta_capital_nombre?: string
+  asiento_cierre_id: string
+  asiento_numero?: number
+  creado_en?: string
 }
 
 export interface SaldoCuenta {

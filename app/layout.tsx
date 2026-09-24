@@ -65,22 +65,22 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="es">
+    <html
+      lang="es"
+      className="dark"
+      suppressHydrationWarning
+    >
       <body className="antialiased">
-
         <ContabilidadProvider>
-
           <AppShell>
             {children}
           </AppShell>
-
         </ContabilidadProvider>
 
         {process.env.NODE_ENV ===
           "production" && (
           <Analytics />
         )}
-
       </body>
     </html>
   )

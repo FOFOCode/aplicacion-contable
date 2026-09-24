@@ -6,58 +6,100 @@ declare global {
 }
 
 export function getDbPool(): Pool | null {
-  const rawConnectionString = process.env.DATABASE_URL
+  const rawConnectionString =
+    process.env.DATABASE_URL
 
   if (!rawConnectionString) {
     return null
   }
 
   if (!global.__pgPool) {
-    let connectionString = rawConnectionString
+    let connectionString =
+      rawConnectionString
 
-    const isSupabase =
-      connectionString.includes("supabase.co") ||
-      connectionString.includes("supabase.com")
+    const isCloud =
+      connectionString.includes(
+        "supabase.co"
+      ) ||
+      connectionString.includes(
+        "supabase.com"
+      ) ||
+      connectionString.includes(
+        "sslmode=require"
+      )
 
-    if (isSupabase) {
-      const url = new URL(connectionString)
+    if (isCloud) {
+      try {
+        const url =
+          new URL(
+            connectionString
+          )
 
-      // Quitamos sslmode de la URL porque configuraremos SSL aquí.
-      url.searchParams.delete("sslmode")
+        url.searchParams.delete(
+          "sslmode"
+        )
 
-      connectionString = url.toString()
+        connectionString =
+          url.toString()
+      } catch {
+        connectionString =
+          connectionString.replace(
+            /([?&])sslmode=[^&]+(&?)/,
+            (_match, prefix, suffix) =>
+              suffix
+                ? prefix
+                : ""
+          )
+      }
     }
 
-    global.__pgPool = new Pool({
-      connectionString,
+    global.__pgPool =
+      new Pool({
+        connectionString,
 
-      ssl: isSupabase
-        ? {
-            rejectUnauthorized: false,
-          }
-        : false,
+        ssl: isCloud
+          ? {
+              rejectUnauthorized:
+                false,
+            }
+          : false,
 
-      max: 10,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000,
-    })
+        max: 10,
+
+        idleTimeoutMillis:
+          30000,
+
+        connectionTimeoutMillis:
+          10000,
+      })
   }
 
   return global.__pgPool
 }
 
 export async function isDbConnected(): Promise<boolean> {
-  const pool = getDbPool()
+  const pool =
+    getDbPool()
 
   if (!pool) {
     return false
   }
 
   try {
-    const res = await pool.query("SELECT 1 AS ok")
-    return res.rows.length > 0
+    const res =
+      await pool.query(
+        "SELECT 1 AS ok"
+      )
+
+    return (
+      res.rows.length > 0
+    )
   } catch (error) {
-    console.error("Error de conexión PostgreSQL:", error)
+    console.error(
+      "Error de conexión PostgreSQL:",
+      error
+    )
+
     return false
   }
 }
