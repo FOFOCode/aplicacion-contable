@@ -163,11 +163,19 @@ export async function GET(req: Request) {
       ingresos,
       gastos,
       ventas,
-      devolucionesVentas: porTipo("gasto").filter((item) => item.cuenta.codigo === "4103"),
-      otrosIngresosOperativos: porTipo("ingreso").filter((item) => item.cuenta.codigo === "5104"),
+      devolucionesVentas: porTipo("gasto").filter(
+        (item) => item.cuenta.codigo === "4103",
+      ),
+      otrosIngresosOperativos: porTipo("ingreso").filter(
+        (item) => item.cuenta.codigo === "5104",
+      ),
       compras: porTipo("gasto").filter((item) => item.cuenta.codigo === "4101"),
-      gastosCompras: porTipo("gasto").filter((item) => item.cuenta.codigo === "4102"),
-      devolucionesCompras: porTipo("ingreso").filter((item) => ["5102", "4106"].includes(item.cuenta.codigo)),
+      gastosCompras: porTipo("gasto").filter(
+        (item) => item.cuenta.codigo === "4102",
+      ),
+      devolucionesCompras: porTipo("ingreso").filter((item) =>
+        ["5102", "4106"].includes(item.cuenta.codigo),
+      ),
       costoVentas,
       gastosOperacion,
       ingresosFinancieros,
@@ -256,14 +264,30 @@ export async function GET(req: Request) {
       activos,
       pasivos,
       capital,
-      activosCorrientes: activos.filter((item) => item.cuenta.codigo.startsWith("11")),
-      activosNoCorrientes: activos.filter((item) => !item.cuenta.codigo.startsWith("11")),
-      pasivosCorrientes: pasivos.filter((item) => item.cuenta.codigo.startsWith("21")),
-      pasivosNoCorrientes: pasivos.filter((item) => !item.cuenta.codigo.startsWith("21")),
-      totalActivoCorriente: suma(activos.filter((item) => item.cuenta.codigo.startsWith("11"))),
-      totalActivoNoCorriente: suma(activos.filter((item) => !item.cuenta.codigo.startsWith("11"))),
-      totalPasivoCorriente: suma(pasivos.filter((item) => item.cuenta.codigo.startsWith("21"))),
-      totalPasivoNoCorriente: suma(pasivos.filter((item) => !item.cuenta.codigo.startsWith("21"))),
+      activosCorrientes: activos.filter((item) =>
+        item.cuenta.codigo.startsWith("11"),
+      ),
+      activosNoCorrientes: activos.filter(
+        (item) => !item.cuenta.codigo.startsWith("11"),
+      ),
+      pasivosCorrientes: pasivos.filter((item) =>
+        item.cuenta.codigo.startsWith("21"),
+      ),
+      pasivosNoCorrientes: pasivos.filter(
+        (item) => !item.cuenta.codigo.startsWith("21"),
+      ),
+      totalActivoCorriente: suma(
+        activos.filter((item) => item.cuenta.codigo.startsWith("11")),
+      ),
+      totalActivoNoCorriente: suma(
+        activos.filter((item) => !item.cuenta.codigo.startsWith("11")),
+      ),
+      totalPasivoCorriente: suma(
+        pasivos.filter((item) => item.cuenta.codigo.startsWith("21")),
+      ),
+      totalPasivoNoCorriente: suma(
+        pasivos.filter((item) => !item.cuenta.codigo.startsWith("21")),
+      ),
       totalActivo,
       totalPasivo,
       totalCapitalCuentas,
