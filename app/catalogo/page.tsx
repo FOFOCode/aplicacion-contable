@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
-  Database,
   EyeOff,
   Filter,
   Info,
@@ -728,7 +727,7 @@ export default function CatalogoPage() {
       <Card className="border-dashed border-border/80">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <Database className="size-4 text-primary" />
+            <RotateCcw className="size-4 text-primary" />
             Mantenimiento y Entorno Didáctico
           </CardTitle>
           <CardDescription className="text-xs">

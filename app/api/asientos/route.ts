@@ -82,6 +82,23 @@ export async function POST(req: Request) {
       )
       if (folioRes.rows.length > 0) {
         targetFolioId = folioRes.rows[0].id
+      } else {
+        // Auto-iniciar folio para la fecha si no hay uno abierto (cero bloqueos)
+        const existFolio = await client.query("SELECT id FROM folio_diario WHERE fecha = $1 LIMIT 1", [fecha])
+        if (existFolio.rows.length === 0) {
+          const numFolioRes = await client.query(
+            "SELECT fn_proximo_numero_folio($1) AS next_folio",
+            [ejercicio]
+          )
+          const nextFolioNum = numFolioRes.rows[0]?.next_folio || 1
+          const nuevoFolio = await client.query(
+            "INSERT INTO folio_diario (ejercicio, numero_folio, fecha, estado) VALUES ($1, $2, $3, 'ABIERTO') RETURNING id",
+            [ejercicio, nextFolioNum, fecha]
+          )
+          targetFolioId = nuevoFolio.rows[0]?.id
+        } else {
+          targetFolioId = existFolio.rows[0].id
+        }
       }
     }
 
@@ -108,10 +125,41 @@ export async function POST(req: Request) {
       const haber = Number(l.haber) || 0
       totalDebe += debe
       totalHaber += haber
+      const articuloId = l.articulo_id || null
+      const cantidad = l.cantidad ? Number(l.cantidad) : null
+      const costoUnitario = l.costo_unitario ? Number(l.costo_unitario) : null
+
       await client.query(
-        "INSERT INTO asiento_linea (asiento_id, linea_numero, cuenta_codigo, debe, haber) VALUES ($1, $2, $3, $4, $5)",
-        [asientoId, i + 1, l.codigo, debe, haber]
+        `INSERT INTO asiento_linea (
+          asiento_id, linea_numero, cuenta_codigo, debe, haber, articulo_id, cantidad, costo_unitario
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [asientoId, i + 1, l.codigo, debe, haber, articuloId, cantidad, costoUnitario]
       )
+
+      // Registrar automáticamente en Kardex si es cuenta de mercaderías (Método Analítico)
+      if (["4101", "5101", "5102", "4103", "4106", "5103"].includes(l.codigo)) {
+        const monto = l.codigo.startsWith("4") ? debe : haber
+        if (monto > 0) {
+          try {
+            await client.query(
+              `SELECT sp_registrar_kardex_desde_linea($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+              [
+                asientoId,
+                i + 1,
+                l.codigo,
+                monto,
+                articuloId,
+                cantidad,
+                fecha,
+                concepto,
+                documento_soporte || `P-${numero}`,
+              ]
+            )
+          } catch (kErr) {
+            console.error("Aviso: no se pudo registrar movimiento automático en Kardex:", kErr)
+          }
+        }
+      }
     }
 
     // Registrar traza en el historial de auditoría con identificación de autoría legal
