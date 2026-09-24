@@ -1,0 +1,57 @@
+# =============================================================================
+# DOCKER COMPOSE - SISTEMA CONTABLE AUTOMATIZADO
+# Levanta la Base de Datos PostgreSQL y el Frontend Next.js con un solo comando
+# =============================================================================
+
+services:
+  # 1. Base de Datos Relacional PostgreSQL 16
+  db:
+    image: postgres:16-alpine
+    container_name: modulo-contable-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: contabilidad
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Inicialización automática: schema y catálogo con datos iniciales
+      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./data.sql:/docker-entrypoint-initdb.d/02-data.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d contabilidad"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - contable-net
+
+  # 2. Aplicación Web Frontend (Next.js 16)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: modulo-contable-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://postgres:postgrespassword@db:5432/contabilidad
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - contable-net
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  contable-net:
+    driver: bridge

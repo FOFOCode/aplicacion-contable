@@ -1,8 +1,8 @@
-pmOnFail: ignore
-
-minimumReleaseAgeExclude:
-  - '@next/*'
-  - next
-
+packages:
+  - '.'
+onlyBuiltDependencies:
+  - core-js
+  - unrs-resolver
 allowBuilds:
-  core-js: set this to true or false
+  unrs-resolver: true
+  core-js: true

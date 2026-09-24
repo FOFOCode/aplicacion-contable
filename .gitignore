@@ -14,8 +14,17 @@ __v0_jsx-dev-runtime.ts
 node_modules
 .next/
 .DS_Store
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 project.zip
+*.tsbuildinfo
+.agents/
+skills-lock.json
 
-# Build artifacts
-next-env.d.ts
-tsconfig.tsbuildinfo
+# Repomix
+repomix*
+repomix-output.*
+*.repomix
