@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+
 import {
   Archive,
   BookOpenText,
@@ -28,6 +29,10 @@ import {
 
 import { cn } from "@/lib/utils"
 import { useContabilidad } from "@/components/contabilidad-provider"
+
+// ============================================================
+// NAVEGACIÓN
+// ============================================================
 
 const NAV = [
   {
@@ -56,13 +61,28 @@ const NAV = [
     icon: Library,
   },
   {
-  href: "/archivo-contable",
-  label: "Archivo Contable",
-  icon: Archive,
-},
+    href: "/archivo-contable",
+    label: "Archivo Contable",
+    icon: Archive,
+  },
 ]
 
+// ============================================================
+// SESIÓN
+// ============================================================
+
 const SESSION_KEY = "finexa:sesion"
+
+type UsuarioSesion = {
+  id: string
+  nombre: string
+  email: string
+  tipo: string
+}
+
+// ============================================================
+// COMPONENTE
+// ============================================================
 
 export function AppShell({
   children,
@@ -71,60 +91,109 @@ export function AppShell({
 }) {
   const pathname = usePathname()
 
-  const [open, setOpen] = useState(false)
-
-  const [sesionIniciada, setSesionIniciada] =
+  const [open, setOpen] =
     useState(false)
 
-  const [verificandoSesion, setVerificandoSesion] =
-    useState(true)
+  const [
+    sesionIniciada,
+    setSesionIniciada,
+  ] = useState(false)
 
-  const [usuario, setUsuario] =
+  const [
+    verificandoSesion,
+    setVerificandoSesion,
+  ] = useState(true)
+
+  const [email, setEmail] =
     useState("")
 
-  const [password, setPassword] =
-    useState("")
+  const [
+    password,
+    setPassword,
+  ] = useState("")
 
-  const [mostrarPassword, setMostrarPassword] =
-    useState(false)
+  const [
+    usuarioSesion,
+    setUsuarioSesion,
+  ] =
+    useState<UsuarioSesion | null>(
+      null
+    )
 
-  const [errorLogin, setErrorLogin] =
-    useState("")
+  const [
+    iniciandoSesion,
+    setIniciandoSesion,
+  ] = useState(false)
+
+  const [
+    mostrarPassword,
+    setMostrarPassword,
+  ] = useState(false)
+
+  const [
+    errorLogin,
+    setErrorLogin,
+  ] = useState("")
 
   const { dbConnected } =
     useContabilidad()
 
   // ============================================================
-  // REVISAR SESIÓN LOCAL
+  // REVISAR SESIÓN GUARDADA
   // ============================================================
 
   useEffect(() => {
-    const sesion =
-      localStorage.getItem(
+    try {
+      const sesionGuardada =
+        localStorage.getItem(
+          SESSION_KEY
+        )
+
+      if (sesionGuardada) {
+        const datos =
+          JSON.parse(
+            sesionGuardada
+          ) as UsuarioSesion
+
+        if (
+          datos &&
+          datos.id &&
+          datos.email
+        ) {
+          setUsuarioSesion(
+            datos
+          )
+
+          setSesionIniciada(
+            true
+          )
+        }
+      }
+    } catch {
+      localStorage.removeItem(
         SESSION_KEY
       )
-
-    if (sesion === "true") {
-      setSesionIniciada(true)
+    } finally {
+      setVerificandoSesion(
+        false
+      )
     }
-
-    setVerificandoSesion(false)
   }, [])
 
   // ============================================================
   // INICIAR SESIÓN
   // ============================================================
 
-  function iniciarSesion(
+  async function iniciarSesion(
     e: FormEvent
   ) {
     e.preventDefault()
 
     setErrorLogin("")
 
-    if (!usuario.trim()) {
+    if (!email.trim()) {
       setErrorLogin(
-        "Ingrese el usuario."
+        "Ingrese su correo electrónico."
       )
 
       return
@@ -132,30 +201,78 @@ export function AppShell({
 
     if (!password.trim()) {
       setErrorLogin(
-        "Ingrese la contraseña."
+        "Ingrese su contraseña."
       )
 
       return
     }
 
-    /*
-      LOGIN TEMPORAL.
+    setIniciandoSesion(true)
 
-      Mientras todavía no exista una tabla de usuarios,
-      cualquier usuario y contraseña no vacíos permiten
-      ingresar al sistema.
+    try {
+      const respuesta =
+        await fetch(
+          "/api/login",
+          {
+            method: "POST",
 
-      El rol es únicamente Contador.
-    */
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
 
-    localStorage.setItem(
-      SESSION_KEY,
-      "true"
-    )
+            body: JSON.stringify({
+              email:
+                email
+                  .trim()
+                  .toLowerCase(),
 
-    setSesionIniciada(true)
+              password,
+            }),
+          }
+        )
 
-    setPassword("")
+      const data =
+        await respuesta.json()
+
+      if (!respuesta.ok) {
+        setErrorLogin(
+          data.error ??
+            "No se pudo iniciar sesión."
+        )
+
+        return
+      }
+
+      const datosUsuario: UsuarioSesion =
+        data.usuario
+
+      localStorage.setItem(
+        SESSION_KEY,
+        JSON.stringify(
+          datosUsuario
+        )
+      )
+
+      setUsuarioSesion(
+        datosUsuario
+      )
+
+      setSesionIniciada(
+        true
+      )
+
+      setPassword("")
+      setErrorLogin("")
+    } catch {
+      setErrorLogin(
+        "No fue posible comunicarse con el servidor."
+      )
+    } finally {
+      setIniciandoSesion(
+        false
+      )
+    }
   }
 
   // ============================================================
@@ -168,21 +285,28 @@ export function AppShell({
     )
 
     setSesionIniciada(false)
-    setUsuario("")
+
+    setUsuarioSesion(null)
+
+    setEmail("")
     setPassword("")
+
+    setMostrarPassword(false)
+
     setErrorLogin("")
+
     setOpen(false)
   }
 
   // ============================================================
   // CARGANDO SESIÓN
-  // Evita que aparezca brevemente el sistema antes del login.
   // ============================================================
 
   if (verificandoSesion) {
     return (
       <div className="flex min-h-svh items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
+
           <div className="flex size-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
             <Scale className="size-6" />
           </div>
@@ -190,6 +314,7 @@ export function AppShell({
           <p className="text-sm text-muted-foreground">
             Cargando Finexa...
           </p>
+
         </div>
       </div>
     )
@@ -206,7 +331,9 @@ export function AppShell({
         {/* FONDO DECORATIVO */}
 
         <div className="pointer-events-none absolute inset-0">
+
           <div className="absolute left-1/2 top-0 h-[450px] w-[700px] -translate-x-1/2 rounded-full bg-primary/5 blur-3xl" />
+
         </div>
 
         <div className="relative w-full max-w-md">
@@ -216,7 +343,9 @@ export function AppShell({
           <div className="mb-7 text-center">
 
             <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg">
+
               <Scale className="size-7" />
+
             </div>
 
             <h1 className="mt-4 text-3xl font-bold tracking-tight">
@@ -234,6 +363,7 @@ export function AppShell({
           <div className="rounded-2xl border border-border bg-card p-7 shadow-xl">
 
             <div className="mb-6">
+
               <h2 className="text-xl font-semibold">
                 Iniciar sesión
               </h2>
@@ -241,6 +371,7 @@ export function AppShell({
               <p className="mt-1 text-sm text-muted-foreground">
                 Ingresa tus credenciales para acceder al sistema.
               </p>
+
             </div>
 
             <form
@@ -250,15 +381,15 @@ export function AppShell({
               className="space-y-5"
             >
 
-              {/* USUARIO */}
+              {/* CORREO */}
 
               <div className="space-y-2">
 
                 <label
-                  htmlFor="usuario"
+                  htmlFor="email"
                   className="text-sm font-medium"
                 >
-                  Usuario
+                  Correo electrónico
                 </label>
 
                 <div className="relative">
@@ -266,17 +397,21 @@ export function AppShell({
                   <UserRound className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
 
                   <input
-                    id="usuario"
-                    type="text"
-                    autoComplete="username"
-                    placeholder="Ingrese su usuario"
-                    value={usuario}
-                    onChange={(e) => {
-                      setUsuario(
+                    id="email"
+                    type="email"
+                    autoComplete="email"
+                    placeholder="correo@finexa.com"
+                    value={email}
+                    onChange={(
+                      e
+                    ) => {
+                      setEmail(
                         e.target.value
                       )
 
-                      setErrorLogin("")
+                      setErrorLogin(
+                        ""
+                      )
                     }}
                     className="h-11 w-full rounded-lg border border-input bg-background pl-10 pr-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20"
                   />
@@ -309,13 +444,19 @@ export function AppShell({
                     }
                     autoComplete="current-password"
                     placeholder="Ingrese su contraseña"
-                    value={password}
-                    onChange={(e) => {
+                    value={
+                      password
+                    }
+                    onChange={(
+                      e
+                    ) => {
                       setPassword(
                         e.target.value
                       )
 
-                      setErrorLogin("")
+                      setErrorLogin(
+                        ""
+                      )
                     }}
                     className="h-11 w-full rounded-lg border border-input bg-background pl-10 pr-11 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20"
                   />
@@ -334,18 +475,20 @@ export function AppShell({
                         : "Mostrar contraseña"
                     }
                   >
+
                     {mostrarPassword ? (
                       <EyeOff className="size-4" />
                     ) : (
                       <Eye className="size-4" />
                     )}
+
                   </button>
 
                 </div>
 
               </div>
 
-              {/* ROL */}
+              {/* TIPO DE USUARIO */}
 
               <div className="space-y-2">
 
@@ -356,13 +499,17 @@ export function AppShell({
                 <div className="flex h-11 items-center gap-3 rounded-lg border border-border bg-muted/30 px-3">
 
                   <div className="flex size-7 items-center justify-center rounded-md bg-primary/10 text-primary">
+
                     <UserRound className="size-4" />
+
                   </div>
 
                   <div>
+
                     <p className="text-sm font-medium">
                       Contador
                     </p>
+
                   </div>
 
                 </div>
@@ -373,9 +520,11 @@ export function AppShell({
 
               {errorLogin && (
                 <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3">
+
                   <p className="text-sm text-red-500">
                     {errorLogin}
                   </p>
+
                 </div>
               )}
 
@@ -383,11 +532,18 @@ export function AppShell({
 
               <button
                 type="submit"
-                className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+                disabled={
+                  iniciandoSesion
+                }
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
               >
+
                 <LogIn className="size-4" />
 
-                Iniciar sesión
+                {iniciandoSesion
+                  ? "Verificando credenciales..."
+                  : "Iniciar sesión"}
+
               </button>
 
             </form>
@@ -420,6 +576,7 @@ export function AppShell({
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-40 flex w-64 flex-col bg-sidebar text-sidebar-foreground transition-transform md:static md:translate-x-0",
+
           open
             ? "translate-x-0"
             : "-translate-x-full"
@@ -431,7 +588,9 @@ export function AppShell({
         <div className="flex items-center gap-3 border-b border-sidebar-border px-5 py-5">
 
           <div className="flex size-10 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground">
+
             <Scale className="size-5" />
+
           </div>
 
           <div className="leading-tight">
@@ -456,15 +615,20 @@ export function AppShell({
 
           {NAV.map((item) => {
             const active =
-              pathname === item.href
+              pathname ===
+              item.href
 
             const Icon =
               item.icon
 
             return (
               <Link
-                key={item.href}
-                href={item.href}
+                key={
+                  item.href
+                }
+                href={
+                  item.href
+                }
                 onClick={() =>
                   setOpen(false)
                 }
@@ -476,9 +640,11 @@ export function AppShell({
                     : "text-sidebar-foreground/75 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
                 )}
               >
+
                 <Icon className="size-4 shrink-0" />
 
                 {item.label}
+
               </Link>
             )
           })}
@@ -494,17 +660,21 @@ export function AppShell({
           <div className="mb-2 flex items-center gap-3 rounded-lg bg-sidebar-accent/40 px-3 py-3">
 
             <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-sidebar-primary/10 text-sidebar-primary">
+
               <UserRound className="size-4" />
+
             </div>
 
             <div className="min-w-0 flex-1">
 
               <p className="truncate text-sm font-medium">
-                {usuario || "Contador"}
+                {usuarioSesion?.nombre ??
+                  "Usuario"}
               </p>
 
-              <p className="text-xs text-sidebar-foreground/60">
-                Contador
+              <p className="truncate text-xs text-sidebar-foreground/60">
+                {usuarioSesion?.tipo ??
+                  "Contador"}
               </p>
 
             </div>
@@ -518,9 +688,11 @@ export function AppShell({
             }
             className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/70 transition-colors hover:bg-red-500/10 hover:text-red-500"
           >
+
             <LogOut className="size-4" />
 
             Cerrar sesión
+
           </button>
 
         </div>
@@ -560,7 +732,9 @@ export function AppShell({
             className="flex size-9 items-center justify-center rounded-md border border-border"
             aria-label="Abrir menú"
           >
+
             <Menu className="size-5" />
+
           </button>
 
           <div className="leading-tight">
@@ -616,9 +790,11 @@ export function AppShell({
               className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               aria-label="Ir al panel principal"
             >
+
               <Home className="size-4" />
 
               Panel principal
+
             </Link>
 
           </div>
