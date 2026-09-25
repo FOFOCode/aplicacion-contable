@@ -72,7 +72,13 @@ export async function GET() {
           SELECT 1
           FROM asiento_linea al
           WHERE al.cuenta_codigo = c.codigo
-        ) AS "enUso"
+        ) AS "enUso",
+
+        (
+          SELECT COUNT(*)::int
+          FROM asiento_linea al
+          WHERE al.cuenta_codigo = c.codigo
+        ) AS "cantidadMovimientos"
 
       FROM catalogo_cuentas c
 
@@ -83,14 +89,14 @@ export async function GET() {
       res.rows
     )
   } catch (e: unknown) {
-    const msg =
+    const message =
       e instanceof Error
         ? e.message
         : "Error al consultar cuentas"
 
     return NextResponse.json(
       {
-        error: msg,
+        error: message,
       },
       {
         status: 500,

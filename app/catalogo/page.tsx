@@ -8,10 +8,11 @@ import {
   Layers,
   Pencil,
   Plus,
-  RefreshCw,
+  PowerOff,
   RotateCcw,
   Search,
   ShieldAlert,
+  ShieldCheck,
   Trash2,
   X,
 } from "lucide-react"
@@ -87,9 +88,10 @@ export default function CatalogoPage() {
     agregarCuenta,
     renombrarCuenta,
     eliminarCuenta,
+    desactivarCuenta,
     cuentaEnUso,
     reactivarCuenta,
-    reiniciarEjemplo,
+    cargando,
   } = useContabilidad()
 
   // ============================================================
@@ -137,6 +139,14 @@ export default function CatalogoPage() {
   const [
     cuentaDesactivando,
     setCuentaDesactivando,
+  ] =
+    useState<Cuenta | null>(
+      null
+    )
+
+  const [
+    cuentaEliminando,
+    setCuentaEliminando,
   ] =
     useState<Cuenta | null>(
       null
@@ -272,27 +282,10 @@ export default function CatalogoPage() {
 
   const estadisticas =
     useMemo(() => {
-      const total =
-        cuentas.length
-
-      const activas =
-        cuentas.filter(
-          (cuenta) =>
-            cuenta.activa
-        ).length
-
-      const inactivas =
-        total - activas
-
-      const enUso =
-        cuentas.filter(
-          (cuenta) =>
-            (
-              conteoMovimientos[
-                cuenta.codigo
-              ] || 0
-            ) > 0
-        ).length
+      const total = cuentas.length
+      const activas = cuentas.filter((cuenta) => cuenta.activa).length
+      const inactivas = total - activas
+      const enUso = cuentas.filter((cuenta) => cuentaEnUso(cuenta.codigo)).length
 
       const porGrupo: Record<
         TipoCuenta,
@@ -302,83 +295,23 @@ export default function CatalogoPage() {
           enUso: number
         }
       > = {
-        activo: {
-          total: 0,
-          activas: 0,
-          enUso: 0,
-        },
-
-        pasivo: {
-          total: 0,
-          activas: 0,
-          enUso: 0,
-        },
-
-        capital: {
-          total: 0,
-          activas: 0,
-          enUso: 0,
-        },
-
-        gasto: {
-          total: 0,
-          activas: 0,
-          enUso: 0,
-        },
-
-        ingreso: {
-          total: 0,
-          activas: 0,
-          enUso: 0,
-        },
+        activo: { total: 0, activas: 0, enUso: 0 },
+        pasivo: { total: 0, activas: 0, enUso: 0 },
+        capital: { total: 0, activas: 0, enUso: 0 },
+        gasto: { total: 0, activas: 0, enUso: 0 },
+        ingreso: { total: 0, activas: 0, enUso: 0 },
       }
 
-      for (
-        const cuenta
-        of cuentas
-      ) {
-        if (
-          porGrupo[
-            cuenta.tipo
-          ]
-        ) {
-          porGrupo[
-            cuenta.tipo
-          ].total++
-
-          if (
-            cuenta.activa
-          ) {
-            porGrupo[
-              cuenta.tipo
-            ].activas++
-          }
-
-          if (
-            (
-              conteoMovimientos[
-                cuenta.codigo
-              ] || 0
-            ) > 0
-          ) {
-            porGrupo[
-              cuenta.tipo
-            ].enUso++
-          }
-        }
+      for (const cuenta of cuentas) {
+        const grupo = porGrupo[cuenta.tipo]
+        if (!grupo) continue
+        grupo.total++
+        if (cuenta.activa) grupo.activas++
+        if (cuentaEnUso(cuenta.codigo)) grupo.enUso++
       }
 
-      return {
-        total,
-        activas,
-        inactivas,
-        enUso,
-        porGrupo,
-      }
-    }, [
-      cuentas,
-      conteoMovimientos,
-    ])
+      return { total, activas, inactivas, enUso, porGrupo }
+    }, [cuentas, asientos])
 
   // ============================================================
   // FILTRADO
@@ -917,58 +850,42 @@ export default function CatalogoPage() {
 
   const confirmarDesactivacion =
     async () => {
-      if (
-        !cuentaDesactivando
-      ) {
-        return
-      }
+      if (!cuentaDesactivando) return
 
-      const codigo =
-        cuentaDesactivando.codigo
+      const codigo = cuentaDesactivando.codigo
+      const resultado = await desactivarCuenta(codigo)
 
-      if (
-        cuentaEnUso(
-          codigo
-        )
-      ) {
-        setCuentaDesactivando(
-          null
-        )
-
+      if (!resultado.success) {
+        setCuentaDesactivando(null)
         mostrarToast(
-          `La cuenta ${codigo} no se puede eliminar porque posee movimientos contables registrados.`
+          resultado.error ??
+            `No se pudo desactivar la cuenta ${codigo}.`
         )
-
         return
       }
 
-      const resultado =
-        await eliminarCuenta(
-          codigo
-        )
+      setCuentaDesactivando(null)
+      mostrarToast(`Cuenta ${codigo} desactivada correctamente.`)
+    }
 
-      if (
-        !resultado.success
-      ) {
-        setCuentaDesactivando(
-          null
-        )
+  const confirmarEliminacion =
+    async () => {
+      if (!cuentaEliminando) return
 
+      const codigo = cuentaEliminando.codigo
+      const resultado = await eliminarCuenta(codigo)
+
+      if (!resultado.success) {
+        setCuentaEliminando(null)
         mostrarToast(
           resultado.error ??
             `No se pudo eliminar la cuenta ${codigo}.`
         )
-
         return
       }
 
-      setCuentaDesactivando(
-        null
-      )
-
-      mostrarToast(
-        `Cuenta ${codigo} eliminada del catálogo.`
-      )
+      setCuentaEliminando(null)
+      mostrarToast(`Cuenta ${codigo} eliminada definitivamente.`)
     }
 
   // ============================================================
@@ -977,32 +894,21 @@ export default function CatalogoPage() {
 
   const renderFilaCuenta =
     (cuenta: Cuenta) => {
-      const movimientos =
-        conteoMovimientos[
-          cuenta.codigo
-        ] || 0
-
-      const esSubcuenta =
-        cuenta.codigo.length >
-        4
+      const movimientos = conteoMovimientos[cuenta.codigo] || 0
+      const protegida = cuentaEnUso(cuenta.codigo)
+      const esSubcuenta = cuenta.codigo.length > 4
 
       return (
         <div
-          key={
-            cuenta.codigo
-          }
+          key={cuenta.codigo}
           className={`flex flex-col gap-2 p-3 transition-colors hover:bg-muted/25 sm:flex-row sm:items-center sm:justify-between ${
-            !cuenta.activa
-              ? "bg-muted/15 opacity-75"
-              : ""
+            !cuenta.activa ? "bg-muted/15 opacity-75" : ""
           }`}
         >
           <div className="flex items-start gap-3 sm:items-center">
             <span
               className={`font-mono text-sm font-semibold ${
-                esSubcuenta
-                  ? "pl-5 text-muted-foreground"
-                  : "text-primary"
+                esSubcuenta ? "pl-5 text-muted-foreground" : "text-primary"
               }`}
             >
               {cuenta.codigo}
@@ -1020,59 +926,20 @@ export default function CatalogoPage() {
                   {cuenta.nombre}
                 </span>
 
-                {cuenta.codigo ===
-                  "1104" && (
+                {cuenta.codigo === "1104" && (
                   <span className="inline-flex items-center rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
-                    Inventario
-                    Inicial
+                    Inventario Inicial
                   </span>
                 )}
 
-                {(cuenta.codigo ===
-                  "5102" ||
-                  cuenta.codigo ===
-                    "5103") && (
-                  <span className="inline-flex items-center rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
-                    Correctora
-                    Compras
-                    (Acreedora)
-                  </span>
+                {!cuenta.activa && (
+                  <Badge
+                    variant="muted"
+                    className="border-amber-500/20 bg-amber-500/10 text-[10px] text-amber-600 dark:text-amber-400"
+                  >
+                    Inactiva
+                  </Badge>
                 )}
-
-                {(cuenta.codigo ===
-                  "4103" ||
-                  cuenta.codigo ===
-                    "4104") && (
-                  <span className="inline-flex items-center rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
-                    Correctora
-                    Ventas
-                    (Deudora)
-                  </span>
-                )}
-
-                {cuenta.codigo ===
-                  "1206" && (
-                  <span className="inline-flex items-center rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
-                    Contra-Activo
-                    (Acreedora)
-                  </span>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2 text-[11px] text-muted-foreground sm:hidden">
-                <span>
-                  Naturaleza{" "}
-                  {
-                    cuenta.naturaleza
-                  }
-                </span>
-
-                <span>·</span>
-
-                <span>
-                  {movimientos}{" "}
-                  movimientos
-                </span>
               </div>
             </div>
           </div>
@@ -1080,147 +947,110 @@ export default function CatalogoPage() {
           <div className="flex shrink-0 items-center justify-between gap-2.5 border-t border-border/40 pt-1 sm:justify-end sm:border-0 sm:pt-0">
             <div className="flex items-center gap-1.5">
               <Badge
-                variant={
-                  cuenta.naturaleza ===
-                  "deudora"
-                    ? "deudora"
-                    : "acreedora"
-                }
+                variant={cuenta.naturaleza === "deudora" ? "deudora" : "acreedora"}
                 className="px-2 py-0 font-mono text-[11px] capitalize"
               >
-                {
-                  cuenta.naturaleza
-                }
+                {cuenta.naturaleza}
               </Badge>
 
               <span
-                title={`${movimientos} asientos contables registrados con esta cuenta`}
+                title={`${movimientos} movimientos del ejercicio seleccionado`}
                 className={`inline-flex items-center gap-1 rounded px-2 py-0.5 font-mono text-[11px] ${
                   movimientos > 0
                     ? "bg-muted font-medium text-foreground"
                     : "bg-muted/40 text-muted-foreground"
                 }`}
               >
-                {movimientos >
-                0
-                  ? `${movimientos} part.`
-                  : "Sin uso"}
+                {movimientos > 0 ? `${movimientos} part.` : "Sin uso"}
               </span>
 
-              {!cuenta.activa && (
-                <Badge
-                  variant="muted"
-                  className="border-red-500/20 bg-red-500/10 text-[10px] text-red-600 dark:text-red-400"
+              {protegida && (
+                <span
+                  title="Esta cuenta posee movimientos y está protegida contra edición, desactivación y eliminación."
+                  className="inline-flex items-center gap-1 rounded border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
                 >
-                  Inactiva
-                </Badge>
+                  <ShieldCheck className="size-3" />
+                  Protegida
+                </span>
               )}
             </div>
 
-            <div className="flex items-center gap-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Editar ${cuenta.nombre}`}
-                aria-disabled={
-                  movimientos > 0
-                }
-                className={
-                  movimientos > 0
-                    ? "cursor-not-allowed opacity-30"
-                    : ""
-                }
-                title={
-                  movimientos > 0
-                    ? "No se puede modificar: la cuenta tiene movimientos registrados"
-                    : "Modificar código y nombre de la cuenta"
-                }
-                onClick={() => {
-                  if (
-                    movimientos >
-                    0
-                  ) {
-                    return
-                  }
+            {!protegida && (
+              <div className="flex items-center gap-1">
+                {cuenta.activa ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Editar ${cuenta.nombre}`}
+                      title="Modificar código y nombre"
+                      onClick={() => {
+                        setCuentaEditando(cuenta)
+                        setEditCodigo(cuenta.codigo)
+                        setEditNombre(cuenta.nombre)
+                        setEditError("")
+                      }}
+                    >
+                      <Pencil className="size-3.5" />
+                    </Button>
 
-                  setCuentaEditando(
-                    cuenta
-                  )
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Desactivar ${cuenta.nombre}`}
+                      title="Desactivar cuenta"
+                      className="text-amber-500 hover:bg-amber-500/10 hover:text-amber-500"
+                      onClick={() => setCuentaDesactivando(cuenta)}
+                    >
+                      <PowerOff className="size-3.5" />
+                    </Button>
 
-                  setEditCodigo(
-                    cuenta.codigo
-                  )
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Eliminar ${cuenta.nombre}`}
+                      title="Eliminar definitivamente"
+                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      onClick={() => setCuentaEliminando(cuenta)}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Reactivar ${cuenta.nombre}`}
+                      title="Reactivar cuenta"
+                      className="text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400"
+                      onClick={async () => {
+                        await reactivarCuenta(cuenta.codigo)
+                        mostrarToast(`Cuenta ${cuenta.codigo} reactivada correctamente.`)
+                      }}
+                    >
+                      <RotateCcw className="size-3.5" />
+                    </Button>
 
-                  setEditNombre(
-                    cuenta.nombre
-                  )
-
-                  setEditError("")
-                }}
-              >
-                <Pencil className="size-3.5" />
-              </Button>
-
-              {cuenta.activa ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Eliminar ${cuenta.nombre}`}
-                  aria-disabled={
-                    movimientos >
-                    0
-                  }
-                  className={
-                    movimientos >
-                    0
-                      ? "cursor-not-allowed text-destructive opacity-30"
-                      : "text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                  }
-                  title={
-                    movimientos >
-                    0
-                      ? "No se puede eliminar: la cuenta tiene movimientos registrados"
-                      : "Eliminar cuenta del catálogo"
-                  }
-                  onClick={() => {
-                    if (
-                      movimientos >
-                      0
-                    ) {
-                      return
-                    }
-
-                    setCuentaDesactivando(
-                      cuenta
-                    )
-                  }}
-                >
-                  <Trash2 className="size-3.5" />
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Reactivar ${cuenta.nombre}`}
-                  className="text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400"
-                  title="Reactivar cuenta en el catálogo"
-                  onClick={() => {
-                    reactivarCuenta(
-                      cuenta.codigo
-                    )
-
-                    mostrarToast(
-                      `Cuenta ${cuenta.codigo} reactivada para nuevos asientos.`
-                    )
-                  }}
-                >
-                  <RotateCcw className="size-3.5" />
-                </Button>
-              )}
-            </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Eliminar ${cuenta.nombre}`}
+                      title="Eliminar definitivamente"
+                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      onClick={() => setCuentaEliminando(cuenta)}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )
@@ -1229,6 +1059,20 @@ export default function CatalogoPage() {
   // ============================================================
   // INTERFAZ
   // ============================================================
+
+  if (cargando) {
+    return (
+      <div className="space-y-4">
+        <div className="h-20 animate-pulse rounded-xl border border-border bg-card" />
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <div key={index} className="h-28 animate-pulse rounded-xl border border-border bg-card" />
+          ))}
+        </div>
+        <div className="h-72 animate-pulse rounded-xl border border-border bg-card" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -1872,61 +1716,6 @@ export default function CatalogoPage() {
       </div>
 
       {/* ====================================================== */}
-      {/* MANTENIMIENTO */}
-      {/* ====================================================== */}
-
-      <Card className="border-dashed border-border/80">
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-            <RotateCcw className="size-4 text-primary" />
-
-            Mantenimiento y
-            Entorno
-            Didáctico
-          </CardTitle>
-
-          <CardDescription className="text-xs">
-            Restablece el
-            catálogo completo
-            original y las
-            partidas del caso
-            comercial de
-            muestra para fines
-            de evaluación o
-            capacitación.
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 gap-1.5 text-xs"
-            onClick={() => {
-              if (
-                window.confirm(
-                  "¿Deseas restablecer el catálogo oficial y los 7 asientos del caso didáctico de ejemplo? Esta acción recargará las operaciones iniciales."
-                )
-              ) {
-                reiniciarEjemplo()
-
-                mostrarToast(
-                  "Catálogo y partidas didácticas restablecidas."
-                )
-              }
-            }}
-          >
-            <RefreshCw className="size-3.5" />
-
-            Restablecer datos
-            didácticos del
-            catálogo
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* ====================================================== */}
       {/* MODAL NUEVA CUENTA */}
       {/* ====================================================== */}
 
@@ -2374,7 +2163,7 @@ export default function CatalogoPage() {
       )}
 
       {/* ====================================================== */}
-      {/* MODAL ELIMINAR */}
+      {/* MODAL DESACTIVAR */}
       {/* ====================================================== */}
 
       {cuentaDesactivando && (
@@ -2382,95 +2171,81 @@ export default function CatalogoPage() {
           <div className="w-full max-w-md space-y-4 rounded-xl border border-border bg-card p-5 shadow-2xl sm:p-6">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-2">
-                <ShieldAlert className="size-5 text-destructive" />
-
+                <PowerOff className="size-5 text-amber-500" />
                 <h3 className="text-base font-bold text-foreground">
-                  Eliminar Cuenta
-                  Contable
+                  Desactivar Cuenta Contable
                 </h3>
               </div>
-
               <button
                 type="button"
-                onClick={() =>
-                  setCuentaDesactivando(
-                    null
-                  )
-                }
+                onClick={() => setCuentaDesactivando(null)}
                 className="text-muted-foreground hover:text-foreground"
               >
                 <X className="size-5" />
               </button>
             </div>
 
-            <div className="space-y-3 text-xs sm:text-sm">
-              <div className="space-y-1 rounded-lg border border-border bg-muted/40 p-3">
-                <div className="font-mono text-sm font-bold text-primary">
-                  {
-                    cuentaDesactivando.codigo
-                  }{" "}
-                  —{" "}
-                  {
-                    cuentaDesactivando.nombre
-                  }
-                </div>
-
-                <div className="text-xs text-muted-foreground">
-                  Partidas
-                  vinculadas en
-                  el ejercicio:{" "}
-
-                  <strong className="text-foreground">
-                    {
-                      conteoMovimientos[
-                        cuentaDesactivando
-                          .codigo
-                      ] || 0
-                    }{" "}
-                    movimientos
-                  </strong>
-                </div>
+            <div className="rounded-lg border border-border bg-muted/40 p-3">
+              <div className="font-mono text-sm font-bold text-primary">
+                {cuentaDesactivando.codigo} — {cuentaDesactivando.nombre}
               </div>
-
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                Esta cuenta no
-                posee movimientos
-                registrados. Al
-                confirmar, será
-                eliminada del
-                catálogo. Esta
-                acción no se
-                puede deshacer.
+              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                La cuenta seguirá guardada en PostgreSQL, pero no estará disponible para nuevas operaciones. Podrás verla con el filtro Inactivas y reactivarla después.
               </p>
             </div>
 
             <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  setCuentaDesactivando(
-                    null
-                  )
-                }
-              >
+              <Button type="button" variant="outline" size="sm" onClick={() => setCuentaDesactivando(null)}>
                 Cancelar
               </Button>
+              <Button type="button" size="sm" onClick={confirmarDesactivacion} className="gap-1.5 bg-amber-600 text-white hover:bg-amber-700">
+                <PowerOff className="size-4" />
+                Desactivar cuenta
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
-              <Button
+      {/* ====================================================== */}
+      {/* MODAL ELIMINAR DEFINITIVAMENTE */}
+      {/* ====================================================== */}
+
+      {cuentaEliminando && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in">
+          <div className="w-full max-w-md space-y-4 rounded-xl border border-border bg-card p-5 shadow-2xl sm:p-6">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="size-5 text-destructive" />
+                <h3 className="text-base font-bold text-foreground">
+                  Eliminar Cuenta Definitivamente
+                </h3>
+              </div>
+              <button
                 type="button"
-                variant="destructive"
-                size="sm"
-                onClick={
-                  confirmarDesactivacion
-                }
-                className="gap-1.5"
+                onClick={() => setCuentaEliminando(null)}
+                className="text-muted-foreground hover:text-foreground"
               >
-                <Trash2 className="size-4" />
+                <X className="size-5" />
+              </button>
+            </div>
 
-                Eliminar
-                Definitivamente
+            <div className="rounded-lg border border-border bg-muted/40 p-3">
+              <div className="font-mono text-sm font-bold text-primary">
+                {cuentaEliminando.codigo} — {cuentaEliminando.nombre}
+              </div>
+              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                Esta cuenta no tiene movimientos registrados. Al confirmar será eliminada físicamente del catálogo. Esta acción no se puede deshacer.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
+              <Button type="button" variant="outline" size="sm" onClick={() => setCuentaEliminando(null)}>
+                Cancelar
+              </Button>
+              <Button type="button" variant="destructive" size="sm" onClick={confirmarEliminacion} className="gap-1.5">
+                <Trash2 className="size-4" />
+                Eliminar definitivamente
               </Button>
             </div>
           </div>

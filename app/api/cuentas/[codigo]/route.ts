@@ -1,625 +1,326 @@
 import { NextResponse } from "next/server"
 import { getDbPool } from "@/lib/db"
 
-function clasificarCuenta(codigo: string) {
-  const primerDigito = codigo.charAt(0)
-
-  switch (primerDigito) {
-    case "1":
-      return {
-        tipo: "activo",
-        naturaleza: "deudora",
-      }
-
-    case "2":
-      return {
-        tipo: "pasivo",
-        naturaleza: "acreedora",
-      }
-
-    case "3":
-      return {
-        tipo: "capital",
-        naturaleza: "acreedora",
-      }
-
-    case "4":
-      return {
-        tipo: "gasto",
-        naturaleza: "deudora",
-      }
-
-    case "5":
-      return {
-        tipo: "ingreso",
-        naturaleza: "acreedora",
-      }
-
-    default:
-      return null
-  }
+type RouteContext = {
+  params: Promise<{
+    codigo: string
+  }>
 }
 
-// ============================================================
-// MODIFICAR CUENTA
-// ============================================================
+async function obtenerCodigo(context: RouteContext) {
+  const { codigo } = await context.params
+  return decodeURIComponent(codigo).trim()
+}
 
-export async function PUT(
-  req: Request,
-  {
-    params,
-  }: {
-    params: Promise<{
-      codigo: string
-    }>
-  }
-) {
+async function cuentaTieneMovimientos(codigo: string) {
+  const pool = getDbPool()
+  if (!pool) return false
+
+  const resultado = await pool.query(
+    `
+      SELECT EXISTS (
+        SELECT 1
+        FROM asiento_linea
+        WHERE cuenta_codigo = $1
+      ) AS "enUso"
+    `,
+    [codigo]
+  )
+
+  return Boolean(resultado.rows[0]?.enUso)
+}
+
+export async function PUT(req: Request, context: RouteContext) {
   const pool = getDbPool()
 
   if (!pool) {
     return NextResponse.json(
-      {
-        error: "No database configured",
-      },
-      {
-        status: 503,
-      }
+      { error: "No database configured" },
+      { status: 503 }
     )
   }
 
-  const client =
-    await pool.connect()
-
   try {
-    const paramsResueltos =
-      await params
+    const codigoActual = await obtenerCodigo(context)
 
-    const codigoActual =
-      decodeURIComponent(
-        paramsResueltos.codigo
-      )
+    const cuentaActual = await pool.query(
+      `
+        SELECT codigo, nombre, tipo, naturaleza, permite_movimiento, activa
+        FROM catalogo_cuentas
+        WHERE codigo = $1
+        LIMIT 1
+      `,
+      [codigoActual]
+    )
 
-    const body =
-      await req.json()
-
-    const codigoNuevo =
-      String(
-        body.codigo ?? ""
-      ).trim()
-
-    const nombreNuevo =
-      String(
-        body.nombre ?? ""
-      ).trim()
-
-    // ========================================================
-    // VALIDAR CÓDIGO
-    // ========================================================
-
-    if (
-      !/^\d{3,}$/.test(
-        codigoNuevo
-      )
-    ) {
+    if (cuentaActual.rows.length === 0) {
       return NextResponse.json(
-        {
-          error:
-            "El código debe tener al menos 3 dígitos numéricos.",
-        },
-        {
-          status: 400,
-        }
+        { error: "La cuenta no existe en la base de datos." },
+        { status: 404 }
       )
     }
 
-    // ========================================================
-    // VALIDAR NOMBRE
-    // ========================================================
+    if (await cuentaTieneMovimientos(codigoActual)) {
+      return NextResponse.json(
+        {
+          error:
+            "Esta cuenta posee movimientos contables registrados y no puede modificarse.",
+        },
+        { status: 409 }
+      )
+    }
+
+    const body = await req.json().catch(() => ({}))
+    const codigoNuevo = String(body.codigo ?? codigoActual).trim()
+    const nombreNuevo = String(body.nombre ?? "").trim()
+
+    if (!/^\d{3,}$/.test(codigoNuevo)) {
+      return NextResponse.json(
+        { error: "El código debe contener al menos 3 dígitos numéricos." },
+        { status: 400 }
+      )
+    }
 
     if (!nombreNuevo) {
       return NextResponse.json(
-        {
-          error:
-            "El nombre de la cuenta es obligatorio.",
-        },
-        {
-          status: 400,
-        }
+        { error: "El nombre de la cuenta es obligatorio." },
+        { status: 400 }
       )
     }
 
-    // ========================================================
-    // CLASIFICACIÓN AUTOMÁTICA
-    // ========================================================
+    const codigoDuplicado = await pool.query(
+      `
+        SELECT codigo
+        FROM catalogo_cuentas
+        WHERE codigo = $1
+          AND codigo <> $2
+        LIMIT 1
+      `,
+      [codigoNuevo, codigoActual]
+    )
 
-    const clasificacion =
-      clasificarCuenta(
-        codigoNuevo
+    if (codigoDuplicado.rows.length > 0) {
+      return NextResponse.json(
+        { error: "Ya existe otra cuenta con ese código." },
+        { status: 409 }
       )
+    }
+
+    const nombreDuplicado = await pool.query(
+      `
+        SELECT codigo
+        FROM catalogo_cuentas
+        WHERE LOWER(TRIM(nombre)) = LOWER(TRIM($1))
+          AND codigo <> $2
+        LIMIT 1
+      `,
+      [nombreNuevo, codigoActual]
+    )
+
+    if (nombreDuplicado.rows.length > 0) {
+      return NextResponse.json(
+        { error: "Ya existe otra cuenta registrada con ese nombre." },
+        { status: 409 }
+      )
+    }
+
+    const primerDigito = codigoNuevo.charAt(0)
+
+    const mapa = {
+      "1": { tipo: "activo", naturaleza: "deudora" },
+      "2": { tipo: "pasivo", naturaleza: "acreedora" },
+      "3": { tipo: "capital", naturaleza: "acreedora" },
+      "4": { tipo: "gasto", naturaleza: "deudora" },
+      "5": { tipo: "ingreso", naturaleza: "acreedora" },
+    } as const
+
+    const clasificacion = mapa[primerDigito as keyof typeof mapa]
 
     if (!clasificacion) {
       return NextResponse.json(
-        {
-          error:
-            "El primer dígito del código debe ser 1, 2, 3, 4 o 5.",
-        },
-        {
-          status: 400,
-        }
+        { error: "El primer dígito debe ser 1, 2, 3, 4 o 5." },
+        { status: 400 }
       )
     }
 
-    // ========================================================
-    // INICIAR TRANSACCIÓN
-    // ========================================================
-
-    await client.query(
-      "BEGIN"
-    )
-
-    // ========================================================
-    // VERIFICAR QUE LA CUENTA EXISTA
-    // ========================================================
-
-    const cuentaActual =
-      await client.query(
-        `
-        SELECT
-          codigo,
-          nombre,
-          tipo,
-          naturaleza,
-          activa
-
-        FROM catalogo_cuentas
-
-        WHERE codigo = $1
-
-        FOR UPDATE
-        `,
-        [
-          codigoActual,
-        ]
-      )
-
-    if (
-      cuentaActual.rows.length === 0
-    ) {
-      await client.query(
-        "ROLLBACK"
-      )
-
-      return NextResponse.json(
-        {
-          error:
-            "La cuenta no existe.",
-        },
-        {
-          status: 404,
-        }
-      )
-    }
-
-    // ========================================================
-    // VERIFICAR SI TIENE MOVIMIENTOS
-    // ========================================================
-
-    const movimientos =
-      await client.query(
-        `
-        SELECT 1
-
-        FROM asiento_linea
-
-        WHERE cuenta_codigo = $1
-
-        LIMIT 1
-        `,
-        [
-          codigoActual,
-        ]
-      )
-
-    if (
-      movimientos.rows.length > 0
-    ) {
-      await client.query(
-        "ROLLBACK"
-      )
-
-      return NextResponse.json(
-        {
-          error:
-            "No se puede modificar esta cuenta porque ya posee movimientos contables registrados.",
-        },
-        {
-          status: 409,
-        }
-      )
-    }
-
-    // ========================================================
-    // VALIDAR CÓDIGO DUPLICADO
-    // ========================================================
-
-    if (
-      codigoNuevo !==
-      codigoActual
-    ) {
-      const codigoExistente =
-        await client.query(
-          `
-          SELECT codigo
-
-          FROM catalogo_cuentas
-
-          WHERE codigo = $1
-
-          LIMIT 1
-          `,
-          [
-            codigoNuevo,
-          ]
-        )
-
-      if (
-        codigoExistente.rows
-          .length > 0
-      ) {
-        await client.query(
-          "ROLLBACK"
-        )
-
-        return NextResponse.json(
-          {
-            error:
-              "Ya existe otra cuenta con ese código.",
-          },
-          {
-            status: 409,
-          }
-        )
-      }
-    }
-
-    // ========================================================
-    // VALIDAR NOMBRE DUPLICADO
-    // ========================================================
-
-    const nombreExistente =
-      await client.query(
-        `
-        SELECT codigo
-
-        FROM catalogo_cuentas
-
-        WHERE LOWER(TRIM(nombre)) = LOWER(TRIM($1))
-          AND codigo <> $2
-
-        LIMIT 1
-        `,
-        [
-          nombreNuevo,
-          codigoActual,
-        ]
-      )
-
-    if (
-      nombreExistente.rows.length > 0
-    ) {
-      await client.query(
-        "ROLLBACK"
-      )
-
-      return NextResponse.json(
-        {
-          error:
-            "Ya existe otra cuenta registrada con ese nombre.",
-        },
-        {
-          status: 409,
-        }
-      )
-    }
-
-    // ========================================================
-    // ACTUALIZAR CUENTA
-    // ========================================================
-
-    const resultado =
-      await client.query(
-        `
-        UPDATE catalogo_cuentas
-
-        SET
-          codigo = $1,
-          nombre = $2,
-          tipo = $3,
-          naturaleza = $4
-
-        WHERE codigo = $5
-
-        RETURNING
-          codigo,
-          nombre,
-          tipo,
-          naturaleza,
-          activa
-        `,
-        [
-          codigoNuevo,
-          nombreNuevo,
-          clasificacion.tipo,
-          clasificacion.naturaleza,
-          codigoActual,
-        ]
-      )
-
-    await client.query(
-      "COMMIT"
-    )
-
-    return NextResponse.json({
-      success: true,
-      cuenta:
-        resultado.rows[0],
-    })
-  } catch (e: unknown) {
-    try {
-      await client.query(
-        "ROLLBACK"
-      )
-    } catch {
-      // No hacemos nada si la transacción
-      // ya había terminado.
-    }
-
-    const msg =
-      e instanceof Error
-        ? e.message
-        : "Error al modificar cuenta"
-
-    return NextResponse.json(
-      {
-        error: msg,
-      },
-      {
-        status: 400,
-      }
-    )
-  } finally {
-    client.release()
-  }
-}
-
-// ============================================================
-// ELIMINAR CUENTA
-// ============================================================
-
-export async function DELETE(
-  _req: Request,
-  {
-    params,
-  }: {
-    params: Promise<{
-      codigo: string
-    }>
-  }
-) {
-  const pool = getDbPool()
-
-  if (!pool) {
-    return NextResponse.json(
-      {
-        error: "No database configured",
-      },
-      {
-        status: 503,
-      }
-    )
-  }
-
-  try {
-    const paramsResueltos =
-      await params
-
-    const codigoCuenta =
-      decodeURIComponent(
-        paramsResueltos.codigo
-      )
-
-    // ========================================================
-    // VERIFICAR QUE EXISTA
-    // ========================================================
-
-    const cuenta =
-      await pool.query(
-        `
-        SELECT
-          codigo,
-          nombre
-
-        FROM catalogo_cuentas
-
-        WHERE codigo = $1
-        `,
-        [
-          codigoCuenta,
-        ]
-      )
-
-    if (
-      cuenta.rows.length === 0
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "La cuenta no existe.",
-        },
-        {
-          status: 404,
-        }
-      )
-    }
-
-    // ========================================================
-    // COMPROBAR SI ESTÁ EN USO
-    // ========================================================
-
-    const movimientos =
-      await pool.query(
-        `
-        SELECT 1
-
-        FROM asiento_linea
-
-        WHERE cuenta_codigo = $1
-
-        LIMIT 1
-        `,
-        [
-          codigoCuenta,
-        ]
-      )
-
-    if (
-      movimientos.rows.length > 0
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "No se puede eliminar esta cuenta porque posee movimientos contables registrados.",
-        },
-        {
-          status: 409,
-        }
-      )
-    }
-
-    // ========================================================
-    // ELIMINAR
-    // ========================================================
-
-    await pool.query(
+    const resultado = await pool.query(
       `
-      DELETE FROM catalogo_cuentas
-      WHERE codigo = $1
+        UPDATE catalogo_cuentas
+        SET codigo = $1,
+            nombre = $2,
+            tipo = $3,
+            naturaleza = $4
+        WHERE codigo = $5
+        RETURNING codigo, nombre, tipo, naturaleza, permite_movimiento, activa
       `,
       [
-        codigoCuenta,
+        codigoNuevo,
+        nombreNuevo,
+        clasificacion.tipo,
+        clasificacion.naturaleza,
+        codigoActual,
       ]
     )
 
     return NextResponse.json({
       success: true,
+      cuenta: resultado.rows[0],
     })
-  } catch (e: unknown) {
-    const msg =
-      e instanceof Error
-        ? e.message
-        : "Error al eliminar cuenta"
-
+  } catch (error) {
+    console.error("Error modificando cuenta:", error)
     return NextResponse.json(
       {
-        error: msg,
+        error:
+          error instanceof Error
+            ? error.message
+            : "No se pudo modificar la cuenta.",
       },
-      {
-        status: 400,
-      }
+      { status: 500 }
     )
   }
 }
 
-// ============================================================
-// REACTIVAR CUENTA
-// Se conserva por compatibilidad con el provider.
-// ============================================================
-
-export async function PATCH(
-  _req: Request,
-  {
-    params,
-  }: {
-    params: Promise<{
-      codigo: string
-    }>
-  }
-) {
+export async function DELETE(_req: Request, context: RouteContext) {
   const pool = getDbPool()
 
   if (!pool) {
     return NextResponse.json(
-      {
-        error: "No database configured",
-      },
-      {
-        status: 503,
-      }
+      { error: "No database configured" },
+      { status: 503 }
     )
   }
 
   try {
-    const paramsResueltos =
-      await params
+    const codigo = await obtenerCodigo(context)
 
-    const codigoCuenta =
-      decodeURIComponent(
-        paramsResueltos.codigo
-      )
-
-    const resultado =
-      await pool.query(
-        `
-        UPDATE catalogo_cuentas
-
-        SET activa = TRUE
-
+    const cuenta = await pool.query(
+      `
+        SELECT codigo, nombre, activa
+        FROM catalogo_cuentas
         WHERE codigo = $1
+        LIMIT 1
+      `,
+      [codigo]
+    )
 
-        RETURNING
-          codigo,
-          nombre,
-          tipo,
-          naturaleza,
-          activa
-        `,
-        [
-          codigoCuenta,
-        ]
-      )
-
-    if (
-      resultado.rows.length === 0
-    ) {
+    if (cuenta.rows.length === 0) {
       return NextResponse.json(
-        {
-          error:
-            "La cuenta no existe.",
-        },
-        {
-          status: 404,
-        }
+        { error: "La cuenta no existe en la base de datos." },
+        { status: 404 }
       )
     }
 
+    if (await cuentaTieneMovimientos(codigo)) {
+      return NextResponse.json(
+        {
+          error:
+            "Esta cuenta posee movimientos contables registrados y no puede eliminarse.",
+        },
+        { status: 409 }
+      )
+    }
+
+    await pool.query(
+      `DELETE FROM catalogo_cuentas WHERE codigo = $1`,
+      [codigo]
+    )
+
     return NextResponse.json({
       success: true,
-      cuenta:
-        resultado.rows[0],
+      message: "Cuenta eliminada definitivamente.",
     })
-  } catch (e: unknown) {
-    const msg =
-      e instanceof Error
-        ? e.message
-        : "Error al reactivar cuenta"
-
+  } catch (error) {
+    console.error("Error eliminando cuenta:", error)
     return NextResponse.json(
       {
-        error: msg,
+        error:
+          error instanceof Error
+            ? error.message
+            : "No se pudo eliminar la cuenta.",
       },
+      { status: 500 }
+    )
+  }
+}
+
+export async function PATCH(req: Request, context: RouteContext) {
+  const pool = getDbPool()
+
+  if (!pool) {
+    return NextResponse.json(
+      { error: "No database configured" },
+      { status: 503 }
+    )
+  }
+
+  try {
+    const codigo = await obtenerCodigo(context)
+    const body = await req.json().catch(() => ({}))
+    const accion = String(body.accion ?? "reactivar").toLowerCase()
+
+    const cuenta = await pool.query(
+      `
+        SELECT codigo, nombre, activa
+        FROM catalogo_cuentas
+        WHERE codigo = $1
+        LIMIT 1
+      `,
+      [codigo]
+    )
+
+    if (cuenta.rows.length === 0) {
+      return NextResponse.json(
+        { error: "La cuenta no existe en la base de datos." },
+        { status: 404 }
+      )
+    }
+
+    if (await cuentaTieneMovimientos(codigo)) {
+      return NextResponse.json(
+        {
+          error:
+            "Esta cuenta posee movimientos contables registrados y no puede cambiar de estado.",
+        },
+        { status: 409 }
+      )
+    }
+
+    if (accion !== "desactivar" && accion !== "reactivar") {
+      return NextResponse.json(
+        { error: "Acción de cuenta inválida." },
+        { status: 400 }
+      )
+    }
+
+    const activa = accion === "reactivar"
+
+    const resultado = await pool.query(
+      `
+        UPDATE catalogo_cuentas
+        SET activa = $1
+        WHERE codigo = $2
+        RETURNING codigo, nombre, tipo, naturaleza, permite_movimiento, activa
+      `,
+      [activa, codigo]
+    )
+
+    return NextResponse.json({
+      success: true,
+      message: activa
+        ? "Cuenta reactivada correctamente."
+        : "Cuenta desactivada correctamente.",
+      cuenta: resultado.rows[0],
+    })
+  } catch (error) {
+    console.error("Error cambiando estado de cuenta:", error)
+    return NextResponse.json(
       {
-        status: 400,
-      }
+        error:
+          error instanceof Error
+            ? error.message
+            : "No se pudo cambiar el estado de la cuenta.",
+      },
+      { status: 500 }
     )
   }
 }

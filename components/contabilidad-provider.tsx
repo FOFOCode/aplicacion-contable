@@ -362,6 +362,10 @@ interface ContabilidadContextValue {
     codigo: string
   ) => Promise<ResultadoOperacion>
 
+  desactivarCuenta: (
+    codigo: string
+  ) => Promise<ResultadoOperacion>
+
   reactivarCuenta: (
     codigo: string
   ) => Promise<void>
@@ -381,6 +385,8 @@ interface ContabilidadContextValue {
   ) => Promise<
     ResultadoCierre | void
   >
+
+  recargarCuentas: () => Promise<void>
 
   recargarCierres: () => Promise<void>
 
@@ -426,16 +432,12 @@ export function ContabilidadProvider({
   const [
     cuentas,
     setCuentas,
-  ] = useState<Cuenta[]>(
-    CATALOGO_CUENTAS
-  )
+  ] = useState<Cuenta[]>([])
 
   const [
     asientos,
     setAsientos,
-  ] = useState<Asiento[]>(
-    ASIENTOS_EJEMPLO
-  )
+  ] = useState<Asiento[]>([])
 
   const [
     cierres,
@@ -556,6 +558,23 @@ export function ContabilidadProvider({
       },
       []
     )
+
+  // ============================================================
+  // RECARGAR CUENTAS
+  // ============================================================
+
+  const recargarCuentas = useCallback(async () => {
+    if (!dbConnected) return
+
+    try {
+      const respuesta = await fetch("/api/cuentas", { cache: "no-store" })
+      if (!respuesta.ok) return
+      const data = await respuesta.json()
+      if (Array.isArray(data)) setCuentas(data)
+    } catch (error) {
+      console.error("Error al recargar cuentas:", error)
+    }
+  }, [dbConnected])
 
   // ============================================================
   // RECARGAR CIERRES
@@ -748,6 +767,7 @@ export function ContabilidadProvider({
   const recargarTodo =
     useCallback(async () => {
       await Promise.all([
+        recargarCuentas(),
         recargarAsientos(),
         recargarCierres(),
         recargarTomaFisica(
@@ -758,6 +778,7 @@ export function ContabilidadProvider({
         ),
       ])
     }, [
+      recargarCuentas,
       recargarAsientos,
       recargarCierres,
       recargarTomaFisica,
@@ -1054,6 +1075,10 @@ export function ContabilidadProvider({
                 rawAsientos
               )
             )
+          } else {
+            setAsientos(
+              ASIENTOS_EJEMPLO
+            )
           }
 
           if (rawCuentas) {
@@ -1061,6 +1086,10 @@ export function ContabilidadProvider({
               JSON.parse(
                 rawCuentas
               )
+            )
+          } else {
+            setCuentas(
+              CATALOGO_CUENTAS
             )
           }
 
@@ -1088,6 +1117,14 @@ export function ContabilidadProvider({
 
         setDbConnected(
           false
+        )
+
+        setCuentas(
+          CATALOGO_CUENTAS
+        )
+
+        setAsientos(
+          ASIENTOS_EJEMPLO
         )
       } finally {
         setHidratado(
@@ -1803,106 +1840,33 @@ export function ContabilidadProvider({
   // AGREGAR CUENTA
   // ============================================================
 
-  async function agregarCuenta(
-    cuenta: Cuenta
-  ) {
+  async function agregarCuenta(cuenta: Cuenta) {
     if (dbConnected) {
       try {
-        const respuesta =
-          await fetch(
-            "/api/cuentas",
-            {
-              method: "POST",
-
-              headers: {
-                "Content-Type":
-                  "application/json",
-              },
-
-              body: JSON.stringify(
-                cuenta
-              ),
-            }
-          )
-
-        const data =
-          await respuesta
-            .json()
-            .catch(
-              () => ({})
-            )
-
-        if (
-          !respuesta.ok
-        ) {
-          console.warn(
-            data.error ??
-              "No se pudo guardar la cuenta."
-          )
-
+        const respuesta = await fetch("/api/cuentas", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(cuenta),
+        })
+        const data = await respuesta.json().catch(() => ({}))
+        if (!respuesta.ok) {
+          console.warn(data.error ?? "No se pudo guardar la cuenta.")
           return
         }
-
-        const nuevaCuenta =
-          data.cuenta ??
-          cuenta
-
-        setCuentas(
-          (prev) =>
-            prev.some(
-              (item) =>
-                item.codigo ===
-                nuevaCuenta.codigo
-            )
-              ? prev
-              : [
-                  ...prev,
-                  nuevaCuenta,
-                ].sort(
-                  (
-                    a,
-                    b
-                  ) =>
-                    a.codigo.localeCompare(
-                      b.codigo
-                    )
-                )
-        )
-
+        await recargarCuentas()
         return
       } catch (error) {
-        console.error(
-          "Error al guardar cuenta:",
-          error
-        )
-
+        console.error("Error al guardar cuenta:", error)
         return
       }
     }
 
-    setCuentas(
-      (prev) =>
-        prev.some(
-          (item) =>
-            item.codigo ===
-            cuenta.codigo
-        )
-          ? prev
-          : [
-              ...prev,
-              {
-                ...cuenta,
-                activa: true,
-              },
-            ].sort(
-              (
-                a,
-                b
-              ) =>
-                a.codigo.localeCompare(
-                  b.codigo
-                )
-            )
+    setCuentas((prev) =>
+      prev.some((item) => item.codigo === cuenta.codigo)
+        ? prev
+        : [...prev, { ...cuenta, activa: true }].sort((a, b) =>
+            a.codigo.localeCompare(b.codigo)
+          )
     )
   }
 
@@ -1910,18 +1874,20 @@ export function ContabilidadProvider({
   // CUENTA EN USO
   // ============================================================
 
-  function cuentaEnUso(
-    codigo: string
-  ) {
-    return asientos.some(
-      (asiento) =>
-        asiento.estado !==
-          "ANULADO" &&
-        asiento.lineas.some(
-          (linea) =>
-            linea.codigo ===
-            codigo
-        )
+  function cuentaEnUso(codigo: string) {
+    const cuentaDb = cuentas.find((cuenta) => cuenta.codigo === codigo) as
+      | (Cuenta & { enUso?: boolean; cantidadMovimientos?: number })
+      | undefined
+
+    if (
+      cuentaDb?.enUso === true ||
+      Number(cuentaDb?.cantidadMovimientos ?? 0) > 0
+    ) {
+      return true
+    }
+
+    return asientos.some((asiento) =>
+      asiento.lineas.some((linea) => linea.codigo === codigo)
     )
   }
 
@@ -1934,376 +1900,150 @@ export function ContabilidadProvider({
     codigoNuevo: string,
     nombre: string
   ): Promise<ResultadoOperacion> {
-    const codigoLimpio =
-      codigoNuevo.trim()
+    const codigoLimpio = codigoNuevo.trim()
+    const nombreLimpio = nombre.trim()
 
-    const nombreLimpio =
-      nombre.trim()
-
-    if (
-      cuentaEnUso(
-        codigoActual
-      )
-    ) {
-      return {
-        success: false,
-
-        error:
-          "No se puede modificar esta cuenta porque posee movimientos contables registrados.",
-      }
+    if (cuentaEnUso(codigoActual)) {
+      return { success: false, error: "No se puede modificar esta cuenta porque posee movimientos contables registrados." }
     }
 
-    if (
-      !/^\d{3,}$/.test(
-        codigoLimpio
-      )
-    ) {
-      return {
-        success: false,
-
-        error:
-          "El código debe tener al menos 3 dígitos numéricos.",
-      }
+    if (!/^\d{3,}$/.test(codigoLimpio)) {
+      return { success: false, error: "El código debe tener al menos 3 dígitos numéricos." }
     }
 
-    const tipo =
-      grupoPorDigito(
-        codigoLimpio
-      )
-
-    if (!tipo) {
-      return {
-        success: false,
-
-        error:
-          "El primer dígito debe ser 1, 2, 3, 4 o 5.",
-      }
-    }
-
-    if (!nombreLimpio) {
-      return {
-        success: false,
-
-        error:
-          "El nombre de la cuenta es obligatorio.",
-      }
-    }
-
-    const codigoDuplicado =
-      cuentas.some(
-        (cuenta) =>
-          cuenta.codigo ===
-            codigoLimpio &&
-          cuenta.codigo !==
-            codigoActual
-      )
-
-    if (
-      codigoDuplicado
-    ) {
-      return {
-        success: false,
-
-        error:
-          "Ya existe otra cuenta con ese código.",
-      }
-    }
-
-    const nombreDuplicado =
-      cuentas.some(
-        (cuenta) =>
-          cuenta.codigo !==
-            codigoActual &&
-          cuenta.nombre
-            .trim()
-            .toLowerCase() ===
-            nombreLimpio.toLowerCase()
-      )
-
-    if (
-      nombreDuplicado
-    ) {
-      return {
-        success: false,
-
-        error:
-          "Ya existe otra cuenta con ese nombre.",
-      }
-    }
+    const tipo = grupoPorDigito(codigoLimpio)
+    if (!tipo) return { success: false, error: "El primer dígito debe ser 1, 2, 3, 4 o 5." }
+    if (!nombreLimpio) return { success: false, error: "El nombre de la cuenta es obligatorio." }
 
     if (dbConnected) {
       try {
-        const respuesta =
-          await fetch(
-            `/api/cuentas/${encodeURIComponent(
-              codigoActual
-            )}`,
-            {
-              method: "PUT",
-
-              headers: {
-                "Content-Type":
-                  "application/json",
-              },
-
-              body: JSON.stringify({
-                codigo:
-                  codigoLimpio,
-
-                nombre:
-                  nombreLimpio,
-              }),
-            }
-          )
-
-        const data =
-          await respuesta
-            .json()
-            .catch(
-              () => ({})
-            )
-
-        if (
-          !respuesta.ok
-        ) {
-          return {
-            success: false,
-
-            error:
-              data.error ??
-              "No se pudo modificar la cuenta.",
-          }
+        const respuesta = await fetch(`/api/cuentas/${encodeURIComponent(codigoActual)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ codigo: codigoLimpio, nombre: nombreLimpio }),
+        })
+        const data = await respuesta.json().catch(() => ({}))
+        if (!respuesta.ok) {
+          await recargarCuentas()
+          return { success: false, error: data.error ?? "No se pudo modificar la cuenta." }
         }
-
-        const actualizada: Cuenta =
-          data.cuenta ?? {
-            ...cuentas.find(
-              (cuenta) =>
-                cuenta.codigo ===
-                codigoActual
-            )!,
-
-            codigo:
-              codigoLimpio,
-
-            nombre:
-              nombreLimpio,
-
-            tipo,
-
-            naturaleza:
-              tipo ===
-                "activo" ||
-              tipo ===
-                "gasto"
-                ? "deudora"
-                : "acreedora",
-          }
-
-        setCuentas(
-          (prev) =>
-            prev
-              .map(
-                (cuenta) =>
-                  cuenta.codigo ===
-                  codigoActual
-                    ? actualizada
-                    : cuenta
-              )
-              .sort(
-                (
-                  a,
-                  b
-                ) =>
-                  a.codigo.localeCompare(
-                    b.codigo
-                  )
-              )
-        )
-
-        return {
-          success: true,
-        }
+        await recargarCuentas()
+        return { success: true }
       } catch (error) {
-        console.error(
-          error
-        )
-
-        return {
-          success: false,
-
-          error:
-            "No se pudo conectar con la base de datos.",
-        }
+        console.error("Error al modificar cuenta:", error)
+        await recargarCuentas()
+        return { success: false, error: "No se pudo conectar con la base de datos." }
       }
     }
 
     const naturaleza: Cuenta["naturaleza"] =
-      tipo === "activo" ||
-      tipo === "gasto"
-        ? "deudora"
-        : "acreedora"
+      tipo === "activo" || tipo === "gasto" ? "deudora" : "acreedora"
 
-    setCuentas(
-      (prev) =>
-        prev
-          .map(
-            (cuenta): Cuenta =>
-              cuenta.codigo ===
-              codigoActual
-                ? {
-                    ...cuenta,
-
-                    codigo:
-                      codigoLimpio,
-
-                    nombre:
-                      nombreLimpio,
-
-                    tipo,
-
-                    naturaleza,
-                  }
-                : cuenta
-          )
-          .sort(
-            (
-              a,
-              b
-            ) =>
-              a.codigo.localeCompare(
-                b.codigo
-              )
-          )
+    setCuentas((prev) =>
+      prev
+        .map((cuenta): Cuenta =>
+          cuenta.codigo === codigoActual
+            ? { ...cuenta, codigo: codigoLimpio, nombre: nombreLimpio, tipo, naturaleza }
+            : cuenta
+        )
+        .sort((a, b) => a.codigo.localeCompare(b.codigo))
     )
 
-    return {
-      success: true,
-    }
+    return { success: true }
   }
 
   // ============================================================
-  // ELIMINAR CUENTA
+  // ELIMINAR DEFINITIVAMENTE
   // ============================================================
 
-  async function eliminarCuenta(
-    codigo: string
-  ): Promise<ResultadoOperacion> {
-    if (
-      cuentaEnUso(codigo)
-    ) {
-      return {
-        success: false,
-
-        error:
-          "No se puede eliminar esta cuenta porque posee movimientos contables registrados.",
-      }
+  async function eliminarCuenta(codigo: string): Promise<ResultadoOperacion> {
+    if (cuentaEnUso(codigo)) {
+      return { success: false, error: "No se puede eliminar esta cuenta porque posee movimientos contables registrados." }
     }
 
     if (dbConnected) {
       try {
-        const respuesta =
-          await fetch(
-            `/api/cuentas/${encodeURIComponent(
-              codigo
-            )}`,
-            {
-              method: "DELETE",
-            }
-          )
-
-        const data =
-          await respuesta
-            .json()
-            .catch(
-              () => ({})
-            )
-
-        if (
-          !respuesta.ok
-        ) {
-          return {
-            success: false,
-
-            error:
-              data.error ??
-              "No se pudo eliminar la cuenta.",
-          }
+        const respuesta = await fetch(`/api/cuentas/${encodeURIComponent(codigo)}`, { method: "DELETE" })
+        const data = await respuesta.json().catch(() => ({}))
+        if (!respuesta.ok) {
+          await recargarCuentas()
+          return { success: false, error: data.error ?? "No se pudo eliminar la cuenta." }
         }
+        await recargarCuentas()
+        return { success: true }
       } catch (error) {
-        console.error(
-          error
-        )
-
-        return {
-          success: false,
-
-          error:
-            "No se pudo conectar con la base de datos.",
-        }
+        console.error("Error al eliminar cuenta:", error)
+        await recargarCuentas()
+        return { success: false, error: "No se pudo conectar con la base de datos." }
       }
     }
 
-    setCuentas(
-      (prev) =>
-        prev.filter(
-          (cuenta) =>
-            cuenta.codigo !==
-            codigo
-        )
-    )
+    setCuentas((prev) => prev.filter((cuenta) => cuenta.codigo !== codigo))
+    return { success: true }
+  }
 
-    return {
-      success: true,
+  // ============================================================
+  // DESACTIVAR CUENTA
+  // ============================================================
+
+  async function desactivarCuenta(codigo: string): Promise<ResultadoOperacion> {
+    if (cuentaEnUso(codigo)) {
+      return { success: false, error: "No se puede desactivar esta cuenta porque posee movimientos contables registrados." }
     }
+
+    if (dbConnected) {
+      try {
+        const respuesta = await fetch(`/api/cuentas/${encodeURIComponent(codigo)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ accion: "desactivar" }),
+        })
+        const data = await respuesta.json().catch(() => ({}))
+        if (!respuesta.ok) {
+          await recargarCuentas()
+          return { success: false, error: data.error ?? "No se pudo desactivar la cuenta." }
+        }
+        await recargarCuentas()
+        return { success: true }
+      } catch (error) {
+        console.error("Error al desactivar cuenta:", error)
+        await recargarCuentas()
+        return { success: false, error: "No se pudo conectar con la base de datos." }
+      }
+    }
+
+    setCuentas((prev) =>
+      prev.map((cuenta) => cuenta.codigo === codigo ? { ...cuenta, activa: false } : cuenta)
+    )
+    return { success: true }
   }
 
   // ============================================================
   // REACTIVAR CUENTA
   // ============================================================
 
-  async function reactivarCuenta(
-    codigo: string
-  ) {
+  async function reactivarCuenta(codigo: string) {
+    if (cuentaEnUso(codigo)) return
+
     if (dbConnected) {
       try {
-        const respuesta =
-          await fetch(
-            `/api/cuentas/${encodeURIComponent(
-              codigo
-            )}`,
-            {
-              method: "PATCH",
-            }
-          )
-
-        if (
-          !respuesta.ok
-        ) {
-          return
-        }
+        const respuesta = await fetch(`/api/cuentas/${encodeURIComponent(codigo)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ accion: "reactivar" }),
+        })
+        await recargarCuentas()
+        if (!respuesta.ok) return
+        return
       } catch (error) {
-        console.error(
-          "Error al reactivar cuenta:",
-          error
-        )
-
+        console.error("Error al reactivar cuenta:", error)
+        await recargarCuentas()
         return
       }
     }
 
-    setCuentas(
-      (prev) =>
-        prev.map(
-          (cuenta) =>
-            cuenta.codigo ===
-            codigo
-              ? {
-                  ...cuenta,
-                  activa: true,
-                }
-              : cuenta
-        )
+    setCuentas((prev) =>
+      prev.map((cuenta) => cuenta.codigo === codigo ? { ...cuenta, activa: true } : cuenta)
     )
   }
 
@@ -2644,6 +2384,8 @@ export function ContabilidadProvider({
 
       eliminarCuenta,
 
+      desactivarCuenta,
+
       reactivarCuenta,
 
       cuentaEnUso,
@@ -2653,6 +2395,8 @@ export function ContabilidadProvider({
       limpiarTodo,
 
       cerrarCicloContable,
+
+      recargarCuentas,
 
       recargarCierres,
 
