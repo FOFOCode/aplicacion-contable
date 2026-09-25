@@ -1898,6 +1898,18 @@ export function esCuentaSujetaAIVA(
     cod === "4208" ||
     cod.startsWith(
       "4208"
+    ) ||
+    cod === "4303" ||
+    cod.startsWith(
+      "4303"
+    ) ||
+    cod === "5102" ||
+    cod.startsWith(
+      "5102"
+    ) ||
+    cod === "5103" ||
+    cod.startsWith(
+      "5103"
     )
 
   if (
@@ -1941,6 +1953,23 @@ export function esCuentaSujetaAIVA(
     ) {
       detalle =
         "Compra de Mercadería"
+    } else if (
+      cod.startsWith(
+        "4303"
+      )
+    ) {
+      detalle =
+        "Comisiones Bancarias"
+    } else if (
+      cod.startsWith(
+        "5102"
+      ) ||
+      cod.startsWith(
+        "5103"
+      )
+    ) {
+      detalle =
+        "Ajuste / Devolución sobre Compras"
     }
 
     return {
@@ -1976,11 +2005,27 @@ export function esCuentaSujetaAIVA(
     cod === "5203" ||
     cod.startsWith(
       "5203"
+    ) ||
+    cod === "4103" ||
+    cod.startsWith(
+      "4103"
+    ) ||
+    cod === "4104" ||
+    cod.startsWith(
+      "4104"
     )
 
   if (
     esVentaOIngresoConIVA
   ) {
+    let detalleVenta = "Venta / Ingreso"
+    if (
+      cod.startsWith("4103") ||
+      cod.startsWith("4104")
+    ) {
+      detalleVenta = "Ajuste / Devolución sobre Ventas"
+    }
+
     return {
       esSujeta: true,
 
@@ -1994,7 +2039,7 @@ export function esCuentaSujetaAIVA(
         "IVA débito fiscal",
 
       impuestoNombre:
-        "IVA Débito Fiscal (13%)",
+        `IVA Débito Fiscal 13% (${detalleVenta})`,
     }
   }
 

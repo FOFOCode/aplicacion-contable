@@ -257,8 +257,8 @@ export function CuentaFinderModal({
       },
     }
 
-    // Si se seleccionó IVA (Más IVA o IVA Incluido) y hay monto de IVA mayor a cero
-    if (modoIVA !== "NO" && ivaFinal > 0 && infoIva.cuentaIvaCodigo) {
+    // Si la cuenta es sujeta a IVA y se seleccionó modo IVA distinto de NO
+    if (infoIva.esSujeta && modoIVA !== "NO" && ivaFinal > 0 && infoIva.cuentaIvaCodigo) {
       const esCompraOActivo = infoIva.tipo === "COMPRA"
       // En compras/activos: IVA Crédito Fiscal (1105) es cuenta deudora -> Aumenta al DEBE
       // En ventas/ingresos: IVA Débito Fiscal (2103) es cuenta acreedora -> Aumenta al HABER
@@ -408,9 +408,19 @@ export function CuentaFinderModal({
                 {cuentaSeleccionada.codigo}
               </span>
               <div className="min-w-0">
-                <h3 className="text-sm font-bold text-foreground truncate">
-                  {cuentaSeleccionada.nombre}
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-foreground truncate">
+                    {cuentaSeleccionada.nombre}
+                  </h3>
+                  {infoIva.esSujeta && (
+                    <Badge
+                      variant="outline"
+                      className="text-[9px] h-4.5 px-1.5 border-amber-500/40 text-amber-600 dark:text-amber-400 font-mono shrink-0"
+                    >
+                      {infoIva.tipo === "COMPRA" ? "IVA Crédito" : "IVA Débito"}
+                    </Badge>
+                  )}
+                </div>
                 <p className="text-[11px] text-muted-foreground truncate">
                   {formatearCuentaJerarquica(cuentaSeleccionada, cuentasMap).principal} · Naturaleza {cuentaSeleccionada.naturaleza}
                 </p>
@@ -658,88 +668,89 @@ export function CuentaFinderModal({
 
               {/* =================================================================== */}
               {/* MODAL / SECCIÓN SECUNDARIA DE IVA (Crédito / Débito Fiscal)          */}
+              {/* Solo se muestra si la cuenta contable seleccionada está sujeta a IVA  */}
               {/* =================================================================== */}
-              <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/5 dark:bg-amber-500/10 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Zap className="size-4 text-amber-500 shrink-0" />
-                    <div>
-                      <h4 className="text-xs font-bold text-foreground">
-                        Asistente de IVA 13% ({infoIva.tipo === "COMPRA" || !infoIva.tipo ? "Crédito Fiscal" : "Débito Fiscal"})
-                      </h4>
-                      <p className="text-[10px] text-muted-foreground">
-                        {infoIva.tipo === "COMPRA"
-                          ? "Adquisiciones y gastos aplican automáticamente a IVA Crédito Fiscal (1105)"
-                          : infoIva.tipo === "VENTA"
-                          ? "Ventas e ingresos aplican automáticamente a IVA Débito Fiscal (2103)"
-                          : "Determina si este movimiento genera comprobante con IVA"}
-                      </p>
+              {infoIva.esSujeta && (
+                <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/5 dark:bg-amber-500/10 space-y-3 animate-in fade-in-50 duration-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Zap className="size-4 text-amber-500 shrink-0" />
+                      <div>
+                        <h4 className="text-xs font-bold text-foreground">
+                          Asistente de IVA 13% ({infoIva.tipo === "COMPRA" ? "Crédito Fiscal" : "Débito Fiscal"})
+                        </h4>
+                        <p className="text-[10px] text-muted-foreground">
+                          {infoIva.tipo === "COMPRA"
+                            ? "Adquisiciones y gastos aplican automáticamente a IVA Crédito Fiscal (1105)"
+                            : "Ventas e ingresos aplican automáticamente a IVA Débito Fiscal (2103)"}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* 3 Opciones requeridas: No, Más IVA, IVA Incluido */}
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setModoIVA("NO")}
-                    className={cn(
-                      "py-2 px-3 rounded-lg border text-center font-medium transition-all text-xs cursor-pointer",
-                      modoIVA === "NO"
-                        ? "bg-card border-foreground/30 text-foreground shadow-xs font-bold"
-                        : "border-border/60 hover:bg-muted/50 text-muted-foreground"
-                    )}
-                  >
-                    No
-                  </button>
+                  {/* 3 Opciones requeridas: No, Más IVA, IVA Incluido */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setModoIVA("NO")}
+                      className={cn(
+                        "py-2 px-3 rounded-lg border text-center font-medium transition-all text-xs cursor-pointer",
+                        modoIVA === "NO"
+                          ? "bg-card border-foreground/30 text-foreground shadow-xs font-bold"
+                          : "border-border/60 hover:bg-muted/50 text-muted-foreground"
+                      )}
+                    >
+                      No
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setModoIVA("MAS_IVA")}
-                    className={cn(
-                      "py-2 px-3 rounded-lg border text-center font-medium transition-all text-xs cursor-pointer",
-                      modoIVA === "MAS_IVA"
-                        ? "bg-amber-500 text-white border-amber-600 shadow-xs font-bold"
-                        : "border-border/60 hover:bg-muted/50 text-muted-foreground"
-                    )}
-                  >
-                    MÁS IVA (+13%)
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => setModoIVA("MAS_IVA")}
+                      className={cn(
+                        "py-2 px-3 rounded-lg border text-center font-medium transition-all text-xs cursor-pointer",
+                        modoIVA === "MAS_IVA"
+                          ? "bg-amber-500 text-white border-amber-600 shadow-xs font-bold"
+                          : "border-border/60 hover:bg-muted/50 text-muted-foreground"
+                      )}
+                    >
+                      MÁS IVA (+13%)
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setModoIVA("IVA_INCLUIDO")}
-                    className={cn(
-                      "py-2 px-3 rounded-lg border text-center font-medium transition-all text-xs cursor-pointer",
-                      modoIVA === "IVA_INCLUIDO"
-                        ? "bg-amber-500 text-white border-amber-600 shadow-xs font-bold"
-                        : "border-border/60 hover:bg-muted/50 text-muted-foreground"
-                    )}
-                  >
-                    IVA INCLUIDO
-                  </button>
-                </div>
-
-                {/* Vista previa matemática de las cifras */}
-                {modoIVA !== "NO" && montoNumerico > 0 && (
-                  <div className="rounded-lg bg-background/80 border border-border p-2.5 text-xs font-mono tabular-nums space-y-1">
-                    <div className="flex justify-between text-muted-foreground text-[11px]">
-                      <span>Base Neta ({cuentaSeleccionada.nombre}):</span>
-                      <strong className="text-foreground">{formatoMoneda(desgloseIVA.base)}</strong>
-                    </div>
-                    <div className="flex justify-between text-amber-600 dark:text-amber-400 text-[11px]">
-                      <span>
-                        + {infoIva.tipo === "COMPRA" || !infoIva.tipo ? "IVA Crédito Fiscal (1105)" : "IVA Débito Fiscal (2103)"}:
-                      </span>
-                      <strong>{formatoMoneda(desgloseIVA.iva)}</strong>
-                    </div>
-                    <div className="flex justify-between pt-1 border-t border-border font-bold text-foreground">
-                      <span>Total Liquidación:</span>
-                      <span className="text-primary">{formatoMoneda(desgloseIVA.total)}</span>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setModoIVA("IVA_INCLUIDO")}
+                      className={cn(
+                        "py-2 px-3 rounded-lg border text-center font-medium transition-all text-xs cursor-pointer",
+                        modoIVA === "IVA_INCLUIDO"
+                          ? "bg-amber-500 text-white border-amber-600 shadow-xs font-bold"
+                          : "border-border/60 hover:bg-muted/50 text-muted-foreground"
+                      )}
+                    >
+                      IVA INCLUIDO
+                    </button>
                   </div>
-                )}
-              </div>
+
+                  {/* Vista previa matemática de las cifras */}
+                  {modoIVA !== "NO" && montoNumerico > 0 && (
+                    <div className="rounded-lg bg-background/80 border border-border p-2.5 text-xs font-mono tabular-nums space-y-1">
+                      <div className="flex justify-between text-muted-foreground text-[11px]">
+                        <span>Base Neta ({cuentaSeleccionada.nombre}):</span>
+                        <strong className="text-foreground">{formatoMoneda(desgloseIVA.base)}</strong>
+                      </div>
+                      <div className="flex justify-between text-amber-600 dark:text-amber-400 text-[11px]">
+                        <span>
+                          + {infoIva.tipo === "COMPRA" ? "IVA Crédito Fiscal (1105)" : "IVA Débito Fiscal (2103)"}:
+                        </span>
+                        <strong>{formatoMoneda(desgloseIVA.iva)}</strong>
+                      </div>
+                      <div className="flex justify-between pt-1 border-t border-border font-bold text-foreground">
+                        <span>Total Liquidación:</span>
+                        <span className="text-primary">{formatoMoneda(desgloseIVA.total)}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
