@@ -3,59 +3,117 @@
 import { useState } from "react"
 import Link from "next/link"
 import {
+  ArrowRight,
+  Calculator,
+  CalendarPlus,
+  CheckCircle2,
   CircleCheck,
+  ClipboardCheck,
+  Edit3,
   FileDown,
   FileSpreadsheet,
   History,
+  Layers,
   RotateCcw,
-  TriangleAlert,
-  Calculator,
-  ClipboardCheck,
-  Edit3,
-  X,
   Save,
-  CheckCircle2,
-  CalendarPlus,
-  ArrowRight,
+  TriangleAlert,
+  X,
 } from "lucide-react"
+
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input, Label } from "@/components/ui/field"
-import { useContabilidad } from "@/components/contabilidad-provider"
-import { formatoMoneda } from "@/lib/contabilidad"
-import { exportarLibroExcel } from "@/lib/excel"
-import type { LineaReporte } from "@/lib/contabilidad"
 
-function Renglones({ items }: { items: LineaReporte[] }) {
-  if (items.length === 0) return <p className="px-1 py-2 text-sm text-muted-foreground">Sin movimientos.</p>
+import { useContabilidad } from "@/components/contabilidad-provider"
+
+import {
+  formatoMoneda,
+  type LineaReporte,
+} from "@/lib/contabilidad"
+
+import { exportarLibroExcel } from "@/lib/excel"
+
+// ============================================================
+// RENGLONES DE REPORTE
+// ============================================================
+
+function Renglones({
+  items,
+}: {
+  items: LineaReporte[]
+}) {
+  if (items.length === 0) {
+    return (
+      <p className="px-1 py-2 text-sm text-muted-foreground">
+        Sin movimientos.
+      </p>
+    )
+  }
+
   return (
     <div className="divide-y divide-border">
       {items.map((it) => (
-        <div key={it.cuenta.codigo} className="flex items-center justify-between px-1 py-2 text-sm">
-          <span>
-            <span className="mr-2 text-muted-foreground">{it.cuenta.codigo}</span>
+        <div
+          key={it.cuenta.codigo}
+          className="flex items-center justify-between gap-4 px-1 py-2 text-sm"
+        >
+          <span className="min-w-0">
+            <span className="mr-2 text-muted-foreground">
+              {it.cuenta.codigo}
+            </span>
+
             {it.cuenta.nombre}
           </span>
-          <span className="tabular-nums font-mono">{formatoMoneda(it.monto)}</span>
+
+          <span className="shrink-0 font-mono tabular-nums">
+            {formatoMoneda(it.monto)}
+          </span>
         </div>
       ))}
     </div>
   )
 }
 
-function TotalRow({ label, valor, fuerte }: { label: string; valor: number; fuerte?: boolean }) {
+// ============================================================
+// FILA TOTAL
+// ============================================================
+
+function TotalRow({
+  label,
+  valor,
+  fuerte,
+}: {
+  label: string
+  valor: number
+  fuerte?: boolean
+}) {
   return (
     <div
-      className={`flex items-center justify-between border-t border-border px-1 pt-2 text-sm ${
-        fuerte ? "font-bold" : "font-semibold"
+      className={`flex items-center justify-between gap-4 border-t border-border px-1 pt-2 text-sm ${
+        fuerte
+          ? "font-bold"
+          : "font-semibold"
       }`}
     >
       <span>{label}</span>
-      <span className="tabular-nums font-mono">{formatoMoneda(valor)}</span>
+
+      <span className="font-mono tabular-nums">
+        {formatoMoneda(valor)}
+      </span>
     </div>
   )
 }
+
+// ============================================================
+// SECCIÓN GENERAL
+// ============================================================
 
 function ReportSection({
   title,
@@ -74,244 +132,701 @@ function ReportSection({
     <div>
       <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold">
         {title}
-        <Badge variant="muted">Código {code}</Badge>
+
+        <Badge variant="muted">
+          Código {code}
+        </Badge>
       </h3>
+
       <Renglones items={items} />
-      <TotalRow label={totalLabel} valor={total} />
+
+      <TotalRow
+        label={totalLabel}
+        valor={total}
+      />
     </div>
   )
 }
+
+// ============================================================
+// PÁGINA
+// ============================================================
 
 export default function EstadosFinancierosPage() {
   const {
     estadoResultados: er,
     balanceGeneral: bg,
+
     cerrarCicloContable,
     generarPartidaApertura,
+
     asientos,
     cierres,
+
     tomaFisica,
     guardarTomaFisica,
+
     esEjercicioCerrado,
     ejercicioSeleccionado,
     dbConnected,
   } = useContabilidad()
 
-  const [modoVista, setModoVista] = useState<"analitico" | "general">("analitico")
+  const [
+    modoVista,
+    setModoVista,
+  ] = useState<
+    "analitico" |
+    "general"
+  >("analitico")
 
-  // Estado para el modal de actualización de Toma Física
-  const [modalTomaAbierto, setModalTomaAbierto] = useState(false)
-  const [valorToma, setValorToma] = useState<string>(
-    (tomaFisica?.valor_inventario_final ?? er.analitico.valorInventarioFinal).toString()
+  // ============================================================
+  // TOMA FÍSICA
+  // ============================================================
+
+  const [
+    modalTomaAbierto,
+    setModalTomaAbierto,
+  ] = useState(false)
+
+  const [
+    valorToma,
+    setValorToma,
+  ] = useState<string>(
+    (
+      tomaFisica
+        ?.valor_inventario_final ??
+      er.analitico
+        .valorInventarioFinal
+    ).toString()
   )
-  const [fechaToma, setFechaToma] = useState<string>(
-    tomaFisica?.fecha_toma || `${ejercicioSeleccionado}-12-31`
+
+  const [
+    fechaToma,
+    setFechaToma,
+  ] = useState<string>(
+    tomaFisica
+      ?.fecha_toma ||
+      `${ejercicioSeleccionado}-12-31`
   )
-  const [responsableToma, setResponsableToma] = useState<string>(
-    tomaFisica?.responsable || "Comité de Auditoría y Control de Inventarios"
+
+  const [
+    responsableToma,
+    setResponsableToma,
+  ] = useState<string>(
+    tomaFisica
+      ?.responsable ||
+      "Comité de Auditoría y Control de Inventarios"
   )
-  const [observacionesToma, setObservacionesToma] = useState<string>(
-    tomaFisica?.observaciones || "Toma física de existencias y conteo al cierre del ejercicio"
+
+  const [
+    observacionesToma,
+    setObservacionesToma,
+  ] = useState<string>(
+    tomaFisica
+      ?.observaciones ||
+      "Toma física de existencias y conteo al cierre del ejercicio"
   )
-  const [guardandoToma, setGuardandoToma] = useState(false)
-  const [mensajeExitoToma, setMensajeExitoToma] = useState(false)
+
+  const [
+    guardandoToma,
+    setGuardandoToma,
+  ] = useState(false)
+
+  const [
+    mensajeExitoToma,
+    setMensajeExitoToma,
+  ] = useState(false)
+
+  // ============================================================
+  // PDF
+  // ============================================================
 
   function exportarPdf() {
-    const previousTitle = document.title
-    document.title = `Reporte de Estados Financieros - Ejercicio ${ejercicioSeleccionado}`
+    const previousTitle =
+      document.title
+
+    document.title =
+      `Reporte de Estados Financieros - Ejercicio ${ejercicioSeleccionado}`
+
     window.print()
-    window.setTimeout(() => {
-      document.title = previousTitle
-    }, 500)
+
+    window.setTimeout(
+      () => {
+        document.title =
+          previousTitle
+      },
+      500
+    )
   }
 
+  // ============================================================
+  // EXCEL
+  // ============================================================
+
   function exportarExcel() {
-    const filasER: (string | number | null | undefined)[][] = [
-      ["ESTADO DE RESULTADOS - MÉTODO ANALÍTICO O PORMENORIZADO"],
-      ["Expresado en dólares de los Estados Unidos de América (USD)"],
-      [`Ejercicio fiscal: ${ejercicioSeleccionado}`],
-      [`Origen de datos: ${er.calculadoPorSql ? "Motor Central Validado" : "Motor Local (Modo Offline)"}`],
-      [`Fecha de emisión: ${new Date().toLocaleDateString("es-SV")}`],
-      [],
-      ["1. DETERMINACIÓN DE VENTAS NETAS", ""],
-      ["Ventas totales (5101)", er.analitico.ventasTotales],
-      ["(-) Menos: Devoluciones sobre ventas (4103)", er.analitico.devolucionesSobreVentas],
-      ["(-) Menos: Rebajas y descuentos sobre ventas (4104)", er.analitico.rebajasSobreVentas],
-      ["(=) VENTAS NETAS", er.analitico.ventasNetas],
-      [],
-      ["2. DETERMINACIÓN DE COMPRAS NETAS Y TOTAL DE MERCANCÍAS", ""],
-      ["Compras (4101)", er.analitico.compras],
-      ["(+) Más: Gastos sobre compras (4102)", er.analitico.gastosSobreCompras],
-      ["(=) Compras Totales", er.analitico.comprasTotales],
-      ["(-) Menos: Devoluciones sobre compras (5102)", er.analitico.devolucionesSobreCompras],
-      ["(-) Menos: Rebajas y descuentos sobre compras (5103)", er.analitico.rebajasSobreCompras],
-      ["(=) COMPRAS NETAS", er.analitico.comprasNetas],
-      ["(+) Más: Inventario Inicial de Mercaderías (1104)", er.analitico.inventarioInicial],
-      ["(=) TOTAL DE MERCANCÍAS DISPONIBLES", er.analitico.totalMercancias],
+    const filasER: (
+      | string
+      | number
+      | null
+      | undefined
+    )[][] = [
       [
-        `(-) Menos: Inventario Final de Mercaderías (Toma física al ${er.analitico.fechaInventarioFinal || "cierre"})`,
-        er.analitico.valorInventarioFinal,
+        "ESTADO DE RESULTADOS - MÉTODO ANALÍTICO O PORMENORIZADO",
       ],
-      [`    Responsable de toma física: ${er.analitico.responsableInventarioFinal || "N/A"}`],
-      ["(=) COSTO DE LO VENDIDO (Costo de Ventas)", er.analitico.costoVentas],
+      [
+        "Expresado en dólares de los Estados Unidos de América (USD)",
+      ],
+      [
+        `Ejercicio fiscal: ${ejercicioSeleccionado}`,
+      ],
+      [
+        `Origen de datos: ${
+          er.calculadoPorSql
+            ? "Motor Central Validado"
+            : "Motor Local (Modo Offline)"
+        }`,
+      ],
+      [
+        `Fecha de emisión: ${new Date().toLocaleDateString(
+          "es-SV"
+        )}`,
+      ],
       [],
-      ["3. UTILIDAD BRUTA", ""],
-      ["(=) UTILIDAD BRUTA (Ventas Netas - Costo de Ventas)", er.analitico.utilidadBruta],
+      [
+        "1. DETERMINACIÓN DE VENTAS NETAS",
+        "",
+      ],
+      [
+        "Ventas totales (5101)",
+        er.analitico
+          .ventasTotales,
+      ],
+      [
+        "(-) Menos: Devoluciones sobre ventas (4103)",
+        er.analitico
+          .devolucionesSobreVentas,
+      ],
+      [
+        "(-) Menos: Rebajas y descuentos sobre ventas (4104)",
+        er.analitico
+          .rebajasSobreVentas,
+      ],
+      [
+        "(=) VENTAS NETAS",
+        er.analitico
+          .ventasNetas,
+      ],
       [],
-      ["4. GASTOS DE OPERACIÓN", ""],
+      [
+        "2. DETERMINACIÓN DE COMPRAS NETAS Y TOTAL DE MERCANCÍAS",
+        "",
+      ],
+      [
+        "Compras (4101)",
+        er.analitico.compras,
+      ],
+      [
+        "(+) Más: Gastos sobre compras (4102)",
+        er.analitico
+          .gastosSobreCompras,
+      ],
+      [
+        "(=) Compras Totales",
+        er.analitico
+          .comprasTotales,
+      ],
+      [
+        "(-) Menos: Devoluciones sobre compras (5102)",
+        er.analitico
+          .devolucionesSobreCompras,
+      ],
+      [
+        "(-) Menos: Rebajas y descuentos sobre compras (5103)",
+        er.analitico
+          .rebajasSobreCompras,
+      ],
+      [
+        "(=) COMPRAS NETAS",
+        er.analitico
+          .comprasNetas,
+      ],
+      [
+        "(+) Más: Inventario Inicial de Mercaderías (1104)",
+        er.analitico
+          .inventarioInicial,
+      ],
+      [
+        "(=) TOTAL DE MERCANCÍAS DISPONIBLES",
+        er.analitico
+          .totalMercancias,
+      ],
+      [
+        `(-) Menos: Inventario Final de Mercaderías (Toma física al ${
+          er.analitico
+            .fechaInventarioFinal ||
+          "cierre"
+        })`,
+        er.analitico
+          .valorInventarioFinal,
+      ],
+      [
+        `Responsable de toma física: ${
+          er.analitico
+            .responsableInventarioFinal ||
+          "N/A"
+        }`,
+      ],
+      [
+        "(=) COSTO DE LO VENDIDO (Costo de Ventas)",
+        er.analitico
+          .costoVentas,
+      ],
+      [],
+      [
+        "3. UTILIDAD BRUTA",
+        "",
+      ],
+      [
+        "(=) UTILIDAD BRUTA (Ventas Netas - Costo de Ventas)",
+        er.analitico
+          .utilidadBruta,
+      ],
+      [],
+      [
+        "4. GASTOS DE OPERACIÓN",
+        "",
+      ],
     ]
 
-    for (const g of er.gastosOperacion) {
-      filasER.push([`${g.cuenta.codigo} - ${g.cuenta.nombre}`, g.monto])
+    for (
+      const gasto
+      of er.gastosOperacion
+    ) {
+      filasER.push([
+        `${gasto.cuenta.codigo} - ${gasto.cuenta.nombre}`,
+        gasto.monto,
+      ])
     }
-    filasER.push(["(=) TOTAL GASTOS DE OPERACIÓN", er.totalGastosOperacion])
-    filasER.push(["(=) UTILIDAD DE OPERACIÓN", er.analitico.utilidadOperacion])
+
+    filasER.push([
+      "(=) TOTAL GASTOS DE OPERACIÓN",
+      er.totalGastosOperacion,
+    ])
+
+    filasER.push([
+      "(=) UTILIDAD DE OPERACIÓN",
+      er.analitico
+        .utilidadOperacion,
+    ])
+
     filasER.push([])
 
     if (
-      er.totalIngresosFinancieros > 0 ||
-      er.totalGastosFinancieros > 0 ||
-      er.analitico.otrosIngresos > 0
+      er.totalIngresosFinancieros >
+        0 ||
+      er.totalGastosFinancieros >
+        0 ||
+      er.analitico
+        .otrosIngresos >
+        0
     ) {
-      filasER.push(["5. PRODUCTOS Y GASTOS FINANCIEROS / OTROS", ""])
-      if (er.analitico.otrosIngresos > 0)
-        filasER.push(["(+) Otros ingresos operativos (5104)", er.analitico.otrosIngresos])
-      if (er.totalIngresosFinancieros > 0)
-        filasER.push(["(+) Productos financieros (52)", er.totalIngresosFinancieros])
-      if (er.totalGastosFinancieros > 0)
-        filasER.push(["(-) Gastos financieros (43)", er.totalGastosFinancieros])
+      filasER.push([
+        "5. PRODUCTOS Y GASTOS FINANCIEROS / OTROS",
+        "",
+      ])
+
+      if (
+        er.analitico
+          .otrosIngresos >
+        0
+      ) {
+        filasER.push([
+          "(+) Otros ingresos operativos (5104)",
+          er.analitico
+            .otrosIngresos,
+        ])
+      }
+
+      if (
+        er.totalIngresosFinancieros >
+        0
+      ) {
+        filasER.push([
+          "(+) Productos financieros (52)",
+          er.totalIngresosFinancieros,
+        ])
+      }
+
+      if (
+        er.totalGastosFinancieros >
+        0
+      ) {
+        filasER.push([
+          "(-) Gastos financieros (43)",
+          er.totalGastosFinancieros,
+        ])
+      }
+
       filasER.push([])
     }
 
-    filasER.push(["RESULTADO FINAL", ""])
     filasER.push([
-      er.utilidad >= 0 ? "UTILIDAD NETA DEL EJERCICIO" : "PÉRDIDA NETA DEL EJERCICIO",
+      "RESULTADO FINAL",
+      "",
+    ])
+
+    filasER.push([
+      er.utilidad >= 0
+        ? "UTILIDAD NETA DEL EJERCICIO"
+        : "PÉRDIDA NETA DEL EJERCICIO",
+
       er.utilidad,
     ])
 
-    const filasBG: (string | number | null | undefined)[][] = [
-      ["BALANCE GENERAL"],
-      ["Ecuación Contable: Activo = Pasivo + Capital Contable"],
-      [`Ejercicio fiscal: ${ejercicioSeleccionado}`],
-      [`Fecha de corte: ${new Date().toLocaleDateString("es-SV")}`],
+    const filasBG: (
+      | string
+      | number
+      | null
+      | undefined
+    )[][] = [
+      [
+        "BALANCE GENERAL",
+      ],
+      [
+        "Ecuación Contable: Activo = Pasivo + Capital Contable",
+      ],
+      [
+        `Ejercicio fiscal: ${ejercicioSeleccionado}`,
+      ],
+      [
+        `Fecha de corte: ${new Date().toLocaleDateString(
+          "es-SV"
+        )}`,
+      ],
       [],
-      ["ACTIVO (Código 1)", ""],
+      [
+        "ACTIVO (Código 1)",
+        "",
+      ],
     ]
-    for (const a of bg.activos) {
-      filasBG.push([`${a.cuenta.codigo} - ${a.cuenta.nombre}`, a.monto])
+
+    for (
+      const activo
+      of bg.activos
+    ) {
+      filasBG.push([
+        `${activo.cuenta.codigo} - ${activo.cuenta.nombre}`,
+        activo.monto,
+      ])
     }
-    filasBG.push(["TOTAL ACTIVO", bg.totalActivo])
-    filasBG.push([])
 
-    filasBG.push(["PASIVO (Código 2)", ""])
-    for (const p of bg.pasivos) {
-      filasBG.push([`${p.cuenta.codigo} - ${p.cuenta.nombre}`, p.monto])
-    }
-    filasBG.push(["TOTAL PASIVO", bg.totalPasivo])
-    filasBG.push([])
-
-    filasBG.push(["CAPITAL CONTABLE (Código 3)", ""])
-    for (const c of bg.capital) {
-      filasBG.push([`${c.cuenta.codigo} - ${c.cuenta.nombre}`, c.monto])
-    }
-    filasBG.push(["Utilidad neta del ejercicio", bg.utilidadEjercicio])
-    filasBG.push(["TOTAL CAPITAL CONTABLE", bg.totalCapitalContable])
-    filasBG.push([])
-
-    filasBG.push(["TOTAL PASIVO + CAPITAL", bg.totalPasivoMasCapital])
-    filasBG.push(["ESTADO DE CUADRE", bg.cuadra ? "CUADRADO AL CENTAVO" : "DESCUADRADO"])
-
-    exportarLibroExcel(`Estados_Financieros_Ejercicio_${ejercicioSeleccionado}`, [
-      { nombre: "Estado de Resultados", filas: filasER },
-      { nombre: "Balance General", filas: filasBG },
+    filasBG.push([
+      "TOTAL ACTIVO",
+      bg.totalActivo,
     ])
+
+    filasBG.push([])
+
+    filasBG.push([
+      "PASIVO (Código 2)",
+      "",
+    ])
+
+    for (
+      const pasivo
+      of bg.pasivos
+    ) {
+      filasBG.push([
+        `${pasivo.cuenta.codigo} - ${pasivo.cuenta.nombre}`,
+        pasivo.monto,
+      ])
+    }
+
+    filasBG.push([
+      "TOTAL PASIVO",
+      bg.totalPasivo,
+    ])
+
+    filasBG.push([])
+
+    filasBG.push([
+      "CAPITAL CONTABLE (Código 3)",
+      "",
+    ])
+
+    for (
+      const capital
+      of bg.capital
+    ) {
+      filasBG.push([
+        `${capital.cuenta.codigo} - ${capital.cuenta.nombre}`,
+        capital.monto,
+      ])
+    }
+
+    filasBG.push([
+      "Utilidad neta del ejercicio",
+      bg.utilidadEjercicio,
+    ])
+
+    filasBG.push([
+      "TOTAL CAPITAL CONTABLE",
+      bg.totalCapitalContable,
+    ])
+
+    filasBG.push([])
+
+    filasBG.push([
+      "TOTAL PASIVO + CAPITAL",
+      bg.totalPasivoMasCapital,
+    ])
+
+    filasBG.push([
+      "ESTADO DE CUADRE",
+      bg.cuadra
+        ? "CUADRADO AL CENTAVO"
+        : "DESCUADRADO",
+    ])
+
+    exportarLibroExcel(
+      `Estados_Financieros_Ejercicio_${ejercicioSeleccionado}`,
+      [
+        {
+          nombre:
+            "Estado de Resultados",
+          filas:
+            filasER,
+        },
+        {
+          nombre:
+            "Balance General",
+          filas:
+            filasBG,
+        },
+      ]
+    )
   }
 
-  const [modalCierreAbierto, setModalCierreAbierto] = useState(false)
-  const [cierreConfirmadoCheckbox, setCierreConfirmadoCheckbox] = useState(false)
-  const [aperturarSiguienteCheckbox, setAperturarSiguienteCheckbox] = useState(true)
-  const [ejecutandoCierre, setEjecutandoCierre] = useState(false)
-  const [aperturandoSiguiente, setAperturandoSiguiente] = useState(false)
+  // ============================================================
+  // CIERRE
+  // ============================================================
+
+  const [
+    modalCierreAbierto,
+    setModalCierreAbierto,
+  ] = useState(false)
+
+  const [
+    cierreConfirmadoCheckbox,
+    setCierreConfirmadoCheckbox,
+  ] = useState(false)
+
+  const [
+    aperturarSiguienteCheckbox,
+    setAperturarSiguienteCheckbox,
+  ] = useState(true)
+
+  const [
+    ejecutandoCierre,
+    setEjecutandoCierre,
+  ] = useState(false)
+
+  const [
+    aperturandoSiguiente,
+    setAperturandoSiguiente,
+  ] = useState(false)
 
   function abrirModalCierre() {
-    if (esEjercicioCerrado) {
-      alert("Este ejercicio fiscal ya se encuentra cerrado o bloqueado.")
+    if (
+      esEjercicioCerrado
+    ) {
+      alert(
+        "Este ejercicio fiscal ya se encuentra cerrado o bloqueado."
+      )
+
       return
     }
-    setCierreConfirmadoCheckbox(false)
-    setAperturarSiguienteCheckbox(true)
-    setModalCierreAbierto(true)
+
+    setCierreConfirmadoCheckbox(
+      false
+    )
+
+    setAperturarSiguienteCheckbox(
+      true
+    )
+
+    setModalCierreAbierto(
+      true
+    )
   }
 
   async function ejecutarCierreSeguro() {
-    setEjecutandoCierre(true)
-    await cerrarCicloContable({ aperturarSiguiente: aperturarSiguienteCheckbox })
-    setEjecutandoCierre(false)
-    setModalCierreAbierto(false)
+    setEjecutandoCierre(
+      true
+    )
+
+    try {
+      await cerrarCicloContable({
+        aperturarSiguiente:
+          aperturarSiguienteCheckbox,
+      })
+
+      setModalCierreAbierto(
+        false
+      )
+    } finally {
+      setEjecutandoCierre(
+        false
+      )
+    }
   }
 
-  async function guardarTomaFormulario(e: React.FormEvent) {
-    e.preventDefault()
-    setGuardandoToma(true)
-    const exito = await guardarTomaFisica({
-      ejercicio: ejercicioSeleccionado,
-      fecha_toma: fechaToma,
-      valor_inventario_final: parseFloat(valorToma) || 0,
-      responsable: responsableToma,
-      observaciones: observacionesToma,
-    })
-    setGuardandoToma(false)
+  // ============================================================
+  // GUARDAR TOMA FÍSICA
+  // ============================================================
+
+  async function guardarTomaFormulario(
+    event: React.FormEvent
+  ) {
+    event.preventDefault()
+
+    setGuardandoToma(
+      true
+    )
+
+    const exito =
+      await guardarTomaFisica({
+        ejercicio:
+          ejercicioSeleccionado,
+
+        fecha_toma:
+          fechaToma,
+
+        valor_inventario_final:
+          Number.parseFloat(
+            valorToma
+          ) || 0,
+
+        responsable:
+          responsableToma,
+
+        observaciones:
+          observacionesToma,
+      })
+
+    setGuardandoToma(
+      false
+    )
+
     if (exito) {
-      setMensajeExitoToma(true)
-      setTimeout(() => {
-        setMensajeExitoToma(false)
-        setModalTomaAbierto(false)
-      }, 1000)
+      setMensajeExitoToma(
+        true
+      )
+
+      setTimeout(
+        () => {
+          setMensajeExitoToma(
+            false
+          )
+
+          setModalTomaAbierto(
+            false
+          )
+        },
+        1000
+      )
     }
   }
 
   return (
     <div className="space-y-8 report-page">
+      {/* ====================================================== */}
+      {/* ENCABEZADO */}
+      {/* ====================================================== */}
+
       <header className="space-y-3 report-header">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-sm font-medium text-primary">Reportes contables oficiales</p>
+            <p className="text-sm font-medium text-primary">
+              Reportes contables
+              oficiales
+            </p>
+
             <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
-              Reporte de Estados Financieros
+              Reporte de Estados
+              Financieros
             </h1>
+
             <p className="mt-1 text-sm text-muted-foreground">
-              Ciclo: <strong className="text-foreground">{ejercicioSeleccionado}</strong> · Corte oficial expresado en dólares de los Estados Unidos de América (USD)
+              Ciclo:{" "}
+              <strong className="text-foreground">
+                {
+                  ejercicioSeleccionado
+                }
+              </strong>{" "}
+              · Corte oficial
+              expresado en
+              dólares de los
+              Estados Unidos de
+              América (USD)
             </p>
           </div>
+
           <div className="flex flex-wrap gap-2 print:hidden">
             <Button
               type="button"
               variant="outline"
-              onClick={exportarExcel}
+              onClick={
+                exportarExcel
+              }
               className="border-emerald-600/40 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/20"
             >
-              <FileSpreadsheet className="size-4 text-emerald-600 mr-1.5" />
+              <FileSpreadsheet className="mr-1.5 size-4 text-emerald-600" />
+
               Exportar Excel
             </Button>
-            <Button type="button" variant="outline" onClick={exportarPdf}>
-              <FileDown className="size-4 mr-1.5" />
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={
+                exportarPdf
+              }
+            >
+              <FileDown className="mr-1.5 size-4" />
+
               Exportar PDF
             </Button>
+
             <Link
               href="/ciclos"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors shadow-xs"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground shadow-xs transition-colors hover:bg-muted"
             >
               <History className="size-4 text-primary" />
-              Historial de Ciclos
+
+              Historial de
+              Ciclos
             </Link>
           </div>
         </div>
+
         <p className="max-w-3xl text-sm text-muted-foreground">
-          Preparado automáticamente a partir de los asientos mayorizados y clasificados bajo el Método Analítico o Pormenorizado, con cruce real de Toma Física de Inventarios.
+          Preparado
+          automáticamente a
+          partir de los asientos
+          mayorizados y
+          clasificados bajo el
+          Método Analítico o
+          Pormenorizado, con
+          cruce real de Toma
+          Física de Inventarios.
         </p>
       </header>
 
-      {/* Tarjeta de Control: Toma Física de Inventario */}
+      {/* ====================================================== */}
+      {/* TOMA FÍSICA */}
+      {/* ====================================================== */}
+
       <Card className="border-primary/20 bg-primary/[0.02]">
         <CardContent className="p-4 sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -319,22 +834,52 @@ export default function EstadosFinancierosPage() {
               <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <ClipboardCheck className="size-5" />
               </div>
+
               <div>
                 <div className="flex items-center gap-2">
-                  <p className="font-semibold text-foreground text-sm">
-                    Toma Física Oficial de Inventario:{" "}
-                    <span className="font-mono text-emerald-700 dark:text-emerald-400 font-bold">
-                      {formatoMoneda(er.analitico.valorInventarioFinal)}
+                  <p className="text-sm font-semibold text-foreground">
+                    Toma Física
+                    Oficial de
+                    Inventario:{" "}
+
+                    <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400">
+                      {formatoMoneda(
+                        er
+                          .analitico
+                          .valorInventarioFinal
+                      )}
                     </span>
                   </p>
+
                   {dbConnected && (
-                    <Badge variant="success" className="border-emerald-500/40 text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 text-[10px]">
-                      Sincronizado con PostgreSQL
+                    <Badge
+                      variant="success"
+                      className="border-emerald-500/40 bg-emerald-500/10 text-[10px] text-emerald-700 dark:text-emerald-300"
+                    >
+                      Sincronizado
+                      en Libros
                     </Badge>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Fecha de Conteo: <strong>{er.analitico.fechaInventarioFinal || `${ejercicioSeleccionado}-12-31`}</strong> · Responsable: <strong>{er.analitico.responsableInventarioFinal || "Comité de Auditoría"}</strong>
+
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Fecha de
+                  Conteo:{" "}
+
+                  <strong>
+                    {er
+                      .analitico
+                      .fechaInventarioFinal ||
+                      `${ejercicioSeleccionado}-12-31`}
+                  </strong>{" "}
+                  · Responsable:{" "}
+
+                  <strong>
+                    {er
+                      .analitico
+                      .responsableInventarioFinal ||
+                      "Comité de Auditoría"}
+                  </strong>
                 </p>
               </div>
             </div>
@@ -344,115 +889,309 @@ export default function EstadosFinancierosPage() {
               size="sm"
               variant="outline"
               onClick={() => {
-                setValorToma((tomaFisica?.valor_inventario_final ?? er.analitico.valorInventarioFinal).toString())
-                setFechaToma(tomaFisica?.fecha_toma || `${ejercicioSeleccionado}-12-31`)
-                setResponsableToma(tomaFisica?.responsable || "Comité de Auditoría y Control de Inventarios")
-                setObservacionesToma(tomaFisica?.observaciones || "")
-                setModalTomaAbierto(true)
+                setValorToma(
+                  (
+                    tomaFisica
+                      ?.valor_inventario_final ??
+                    er
+                      .analitico
+                      .valorInventarioFinal
+                  ).toString()
+                )
+
+                setFechaToma(
+                  tomaFisica
+                    ?.fecha_toma ||
+                    `${ejercicioSeleccionado}-12-31`
+                )
+
+                setResponsableToma(
+                  tomaFisica
+                    ?.responsable ||
+                    "Comité de Auditoría y Control de Inventarios"
+                )
+
+                setObservacionesToma(
+                  tomaFisica
+                    ?.observaciones ||
+                    ""
+                )
+
+                setModalTomaAbierto(
+                  true
+                )
               }}
-              disabled={esEjercicioCerrado}
-              className="print:hidden border-primary/30 text-primary hover:bg-primary/5"
+              disabled={
+                esEjercicioCerrado
+              }
+              className="border-primary/30 text-primary hover:bg-primary/5 print:hidden"
             >
-              <Edit3 className="size-3.5 mr-1.5" />
-              Actualizar Toma Física
+              <Edit3 className="mr-1.5 size-3.5" />
+
+              Actualizar Toma
+              Física
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Modal / Dialog para Actualizar Toma Física */}
+      {/* ====================================================== */}
+      {/* MODAL TOMA FÍSICA */}
+      {/* ====================================================== */}
+
       {modalTomaAbierto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-lg rounded-xl border border-border bg-card p-6 shadow-xl space-y-4">
+          <div className="w-full max-w-lg space-y-4 rounded-xl border border-border bg-card p-6 shadow-xl">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-2">
                 <ClipboardCheck className="size-5 text-primary" />
-                <h3 className="font-semibold text-base text-foreground">
-                  Registrar Toma Física de Inventario Final
+
+                <h3 className="text-base font-semibold text-foreground">
+                  Registrar Toma
+                  Física de
+                  Inventario Final
                 </h3>
               </div>
+
               <button
                 type="button"
-                onClick={() => setModalTomaAbierto(false)}
+                onClick={() =>
+                  setModalTomaAbierto(
+                    false
+                  )
+                }
                 className="text-muted-foreground hover:text-foreground"
               >
                 <X className="size-5" />
               </button>
             </div>
 
-            <form onSubmit={guardarTomaFormulario} className="space-y-4 text-sm">
+            <form
+              onSubmit={
+                guardarTomaFormulario
+              }
+              className="space-y-4 text-sm"
+            >
               <p className="text-xs text-muted-foreground">
-                En el <strong>Método Analítico</strong>, el Inventario Final físico determina directamente el Costo de Ventas y la Utilidad Bruta del ejercicio {ejercicioSeleccionado}.
+                El Inventario
+                Final valorado
+                determina
+                directamente el
+                Costo de Ventas y
+                la Utilidad Bruta
+                del ejercicio{" "}
+                {
+                  ejercicioSeleccionado
+                }
+                .
               </p>
 
               <div className="space-y-1.5">
-                <Label htmlFor="valor_inventario">Valor del Inventario Final ($ USD):</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="valor_inventario">
+                    Valor del
+                    Inventario
+                    Final ($ USD):
+                  </Label>
+
+                  <button
+                    type="button"
+                    onClick={
+                      async () => {
+                        try {
+                          const response =
+                            await fetch(
+                              `/api/kardex?ejercicio=${ejercicioSeleccionado}`
+                            )
+
+                          if (
+                            response.ok
+                          ) {
+                            const data =
+                              await response.json()
+
+                            if (
+                              data.totalInventarioValorado !==
+                                undefined &&
+                              data.totalInventarioValorado >
+                                0
+                            ) {
+                              setValorToma(
+                                Number(
+                                  data.totalInventarioValorado
+                                ).toFixed(
+                                  2
+                                )
+                              )
+
+                              setObservacionesToma(
+                                `Conteo conciliado con saldo de Kardex CPP ($${Number(
+                                  data.totalInventarioValorado
+                                ).toFixed(
+                                  2
+                                )})`
+                              )
+                            }
+                          }
+                        } catch (
+                          error
+                        ) {
+                          console.error(
+                            error
+                          )
+                        }
+                      }
+                    }
+                    className="inline-flex cursor-pointer items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+                  >
+                    <Layers className="size-3" />
+
+                    Cargar saldo
+                    actual de
+                    Kardex
+                  </button>
+                </div>
+
                 <Input
                   id="valor_inventario"
                   type="number"
                   step="0.01"
                   min="0"
                   required
-                  value={valorToma}
-                  onChange={(e) => setValorToma(e.target.value)}
+                  value={
+                    valorToma
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setValorToma(
+                      event
+                        .target
+                        .value
+                    )
+                  }
                   className="font-mono text-base font-semibold"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label htmlFor="fecha_toma">Fecha de Conteo Físico:</Label>
+                  <Label htmlFor="fecha_toma">
+                    Fecha de
+                    Conteo Físico:
+                  </Label>
+
                   <Input
                     id="fecha_toma"
                     type="date"
                     required
-                    value={fechaToma}
-                    onChange={(e) => setFechaToma(e.target.value)}
+                    value={
+                      fechaToma
+                    }
+                    onChange={(
+                      event
+                    ) =>
+                      setFechaToma(
+                        event
+                          .target
+                          .value
+                      )
+                    }
                   />
                 </div>
+
                 <div className="space-y-1.5">
-                  <Label htmlFor="responsable_toma">Auditor / Responsable:</Label>
+                  <Label htmlFor="responsable_toma">
+                    Auditor /
+                    Responsable:
+                  </Label>
+
                   <Input
                     id="responsable_toma"
                     type="text"
                     required
-                    value={responsableToma}
-                    onChange={(e) => setResponsableToma(e.target.value)}
+                    value={
+                      responsableToma
+                    }
+                    onChange={(
+                      event
+                    ) =>
+                      setResponsableToma(
+                        event
+                          .target
+                          .value
+                      )
+                    }
                     placeholder="Ej. Comité de Inventarios"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="obs_toma">Observaciones de Auditoría:</Label>
+                <Label htmlFor="obs_toma">
+                  Observaciones de
+                  Auditoría:
+                </Label>
+
                 <Input
                   id="obs_toma"
                   type="text"
-                  value={observacionesToma}
-                  onChange={(e) => setObservacionesToma(e.target.value)}
+                  value={
+                    observacionesToma
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setObservacionesToma(
+                      event
+                        .target
+                        .value
+                    )
+                  }
                   placeholder="Observaciones de conteo físico..."
                 />
               </div>
 
               {mensajeExitoToma && (
-                <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400 font-semibold bg-emerald-50 dark:bg-emerald-950/30 p-2 rounded">
+                <div className="flex items-center gap-2 rounded bg-emerald-50 p-2 text-xs font-semibold text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400">
                   <CheckCircle2 className="size-4" />
-                  Toma física guardada y sincronizada correctamente con PostgreSQL.
+
+                  Toma física
+                  guardada y
+                  sincronizada
+                  correctamente
+                  en los registros
+                  contables.
                 </div>
               )}
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-border">
+              <div className="flex justify-end gap-2 border-t border-border pt-2">
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setModalTomaAbierto(false)}
-                  disabled={guardandoToma}
+                  onClick={() =>
+                    setModalTomaAbierto(
+                      false
+                    )
+                  }
+                  disabled={
+                    guardandoToma
+                  }
                 >
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={guardandoToma}>
-                  <Save className="size-4 mr-1.5" />
-                  {guardandoToma ? "Guardando..." : "Guardar en Base de Datos"}
+
+                <Button
+                  type="submit"
+                  disabled={
+                    guardandoToma
+                  }
+                >
+                  <Save className="mr-1.5 size-4" />
+
+                  {guardandoToma
+                    ? "Guardando..."
+                    : "Guardar en Base de Datos"}
                 </Button>
               </div>
             </form>
@@ -460,288 +1199,625 @@ export default function EstadosFinancierosPage() {
         </div>
       )}
 
+      {/* ====================================================== */}
       {/* ESTADO DE RESULTADOS */}
+      {/* ====================================================== */}
+
       <Card className="report-card">
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <CardTitle>Estado de Resultados</CardTitle>
-                <Badge variant="default" className="text-xs bg-primary/15 text-primary border-primary/30">
-                  Método Analítico o Pormenorizado
+                <CardTitle>
+                  Estado de
+                  Resultados
+                </CardTitle>
+
+                <Badge
+                  variant="default"
+                  className="border-primary/30 bg-primary/15 text-xs text-primary"
+                >
+                  Método
+                  Analítico o
+                  Pormenorizado
                 </Badge>
+
                 {er.calculadoPorSql ? (
-                  <Badge variant="success" className="text-xs bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 flex items-center gap-1 font-medium">
+                  <Badge
+                    variant="success"
+                    className="flex items-center gap-1 border-emerald-500/30 bg-emerald-50 text-xs font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
+                  >
                     <CircleCheck className="size-3" />
-                    Cálculo Oficial Validado por el Servidor
+
+                    Cálculo
+                    Oficial
+                    Validado por
+                    el Servidor
                   </Badge>
                 ) : (
-                  <Badge variant="acreedora" className="text-xs bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-500/30 flex items-center gap-1 font-medium">
-                    Cálculo Local en Memoria (Modo Offline)
+                  <Badge
+                    variant="acreedora"
+                    className="flex items-center gap-1 border-amber-500/30 bg-amber-50 text-xs font-medium text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
+                  >
+                    Cálculo Local
+                    en Memoria
+                    (Modo Offline)
                   </Badge>
                 )}
               </div>
+
               <CardDescription className="mt-1">
-                Determinación analítica de Ventas Netas, Compras Netas, Mercancías Disponibles, Costo de Ventas y Utilidades para el ejercicio {ejercicioSeleccionado}.
+                Determinación
+                analítica de
+                Ventas Netas,
+                Compras Netas,
+                Mercancías
+                Disponibles,
+                Costo de Ventas
+                y Utilidades para
+                el ejercicio{" "}
+                {
+                  ejercicioSeleccionado
+                }
+                .
               </CardDescription>
             </div>
+
             <div className="flex items-center gap-2 print:hidden">
               <Button
                 type="button"
                 size="sm"
-                variant={modoVista === "analitico" ? "default" : "outline"}
-                onClick={() => setModoVista("analitico")}
+                variant={
+                  modoVista ===
+                  "analitico"
+                    ? "default"
+                    : "outline"
+                }
+                onClick={() =>
+                  setModoVista(
+                    "analitico"
+                  )
+                }
               >
-                <Calculator className="size-3.5 mr-1" />
+                <Calculator className="mr-1 size-3.5" />
+
                 Método Analítico
               </Button>
+
               <Button
                 type="button"
                 size="sm"
-                variant={modoVista === "general" ? "default" : "outline"}
-                onClick={() => setModoVista("general")}
+                variant={
+                  modoVista ===
+                  "general"
+                    ? "default"
+                    : "outline"
+                }
+                onClick={() =>
+                  setModoVista(
+                    "general"
+                  )
+                }
               >
                 Vista por Cuentas
               </Button>
             </div>
           </div>
         </CardHeader>
+
         <CardContent className="space-y-5">
-          {modoVista === "analitico" ? (
+          {modoVista ===
+          "analitico" ? (
             <div className="overflow-x-auto rounded-lg border border-border">
               <table className="w-full text-sm">
                 <tbody className="divide-y divide-border/60">
-                  {/* 1. VENTAS NETAS */}
-                  <tr className="bg-muted/40 font-semibold text-xs text-muted-foreground uppercase tracking-wider">
-                    <td colSpan={2} className="py-2.5 px-3">
-                      1. Determinación de Ventas Netas
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3">
-                      Ventas totales <span className="text-xs text-muted-foreground">(5101)</span>
-                    </td>
-                    <td className="py-2 px-3 text-right font-mono">
-                      {formatoMoneda(er.analitico.ventasTotales)}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 pl-6 text-muted-foreground">
-                      (-) Menos: Devoluciones sobre ventas{" "}
-                      <span className="text-xs text-muted-foreground/80">(4103)</span>
-                    </td>
-                    <td className="py-2 px-3 text-right font-mono text-muted-foreground">
-                      {formatoMoneda(er.analitico.devolucionesSobreVentas)}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 pl-6 text-muted-foreground">
-                      (-) Menos: Rebajas y descuentos sobre ventas{" "}
-                      <span className="text-xs text-muted-foreground/80">(4104)</span>
-                    </td>
-                    <td className="py-2 px-3 text-right font-mono text-muted-foreground">
-                      {formatoMoneda(er.analitico.rebajasSobreVentas)}
-                    </td>
-                  </tr>
-                  <tr className="font-semibold bg-muted/20">
-                    <td className="py-2.5 px-3">(=) Ventas Netas</td>
-                    <td className="py-2.5 px-3 text-right font-mono font-semibold">
-                      {formatoMoneda(er.analitico.ventasNetas)}
+
+                  <tr className="bg-muted/40 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <td
+                      colSpan={2}
+                      className="px-3 py-2.5"
+                    >
+                      1.
+                      Determinación
+                      de Ventas
+                      Netas
                     </td>
                   </tr>
 
-                  {/* 2. COMPRAS NETAS Y TOTAL DE MERCANCÍAS */}
-                  <tr className="bg-muted/40 font-semibold text-xs text-muted-foreground uppercase tracking-wider">
-                    <td colSpan={2} className="py-2.5 px-3">
-                      2. Determinación de Compras Netas y Mercancías
-                    </td>
-                  </tr>
                   <tr>
-                    <td className="py-2 px-3">
-                      Compras <span className="text-xs text-muted-foreground">(4101)</span>
+                    <td className="px-3 py-2">
+                      Ventas
+                      totales{" "}
+                      <span className="text-xs text-muted-foreground">
+                        (5101)
+                      </span>
                     </td>
-                    <td className="py-2 px-3 text-right font-mono">
-                      {formatoMoneda(er.analitico.compras)}
+
+                    <td className="px-3 py-2 text-right font-mono">
+                      {formatoMoneda(
+                        er
+                          .analitico
+                          .ventasTotales
+                      )}
                     </td>
                   </tr>
+
                   <tr>
-                    <td className="py-2 px-3 pl-6 text-muted-foreground">
-                      (+) Más: Gastos sobre compras{" "}
-                      <span className="text-xs text-muted-foreground/80">(4102)</span>
+                    <td className="px-3 py-2 pl-6 text-muted-foreground">
+                      (-) Menos:
+                      Devoluciones
+                      sobre ventas{" "}
+
+                      <span className="text-xs text-muted-foreground/80">
+                        (4103)
+                      </span>
                     </td>
-                    <td className="py-2 px-3 text-right font-mono text-muted-foreground">
-                      {formatoMoneda(er.analitico.gastosSobreCompras)}
+
+                    <td className="px-3 py-2 text-right font-mono text-muted-foreground">
+                      {formatoMoneda(
+                        er
+                          .analitico
+                          .devolucionesSobreVentas
+                      )}
                     </td>
                   </tr>
+
+                  <tr>
+                    <td className="px-3 py-2 pl-6 text-muted-foreground">
+                      (-) Menos:
+                      Rebajas y
+                      descuentos
+                      sobre ventas{" "}
+
+                      <span className="text-xs text-muted-foreground/80">
+                        (4104)
+                      </span>
+                    </td>
+
+                    <td className="px-3 py-2 text-right font-mono text-muted-foreground">
+                      {formatoMoneda(
+                        er
+                          .analitico
+                          .rebajasSobreVentas
+                      )}
+                    </td>
+                  </tr>
+
+                  <tr className="bg-muted/20 font-semibold">
+                    <td className="px-3 py-2.5">
+                      (=) Ventas
+                      Netas
+                    </td>
+
+                    <td className="px-3 py-2.5 text-right font-mono font-semibold">
+                      {formatoMoneda(
+                        er
+                          .analitico
+                          .ventasNetas
+                      )}
+                    </td>
+                  </tr>
+
+                  <tr className="bg-muted/40 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <td
+                      colSpan={2}
+                      className="px-3 py-2.5"
+                    >
+                      2.
+                      Determinación
+                      de Compras
+                      Netas y
+                      Mercancías
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td className="px-3 py-2">
+                      Compras{" "}
+
+                      <span className="text-xs text-muted-foreground">
+                        (4101)
+                      </span>
+                    </td>
+
+                    <td className="px-3 py-2 text-right font-mono">
+                      {formatoMoneda(
+                        er
+                          .analitico
+                          .compras
+                      )}
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td className="px-3 py-2 pl-6 text-muted-foreground">
+                      (+) Más:
+                      Gastos sobre
+                      compras{" "}
+
+                      <span className="text-xs text-muted-foreground/80">
+                        (4102)
+                      </span>
+                    </td>
+
+                    <td className="px-3 py-2 text-right font-mono text-muted-foreground">
+                      {formatoMoneda(
+                        er
+                          .analitico
+                          .gastosSobreCompras
+                      )}
+                    </td>
+                  </tr>
+
                   <tr className="text-muted-foreground">
-                    <td className="py-2 px-3 font-medium">(=) Compras Totales</td>
-                    <td className="py-2 px-3 text-right font-mono font-medium">
-                      {formatoMoneda(er.analitico.comprasTotales)}
+                    <td className="px-3 py-2 font-medium">
+                      (=) Compras
+                      Totales
+                    </td>
+
+                    <td className="px-3 py-2 text-right font-mono font-medium">
+                      {formatoMoneda(
+                        er
+                          .analitico
+                          .comprasTotales
+                      )}
                     </td>
                   </tr>
+
                   <tr>
-                    <td className="py-2 px-3 pl-6 text-muted-foreground">
-                      (-) Menos: Devoluciones sobre compras{" "}
-                      <span className="text-xs text-muted-foreground/80">(5102)</span>
+                    <td className="px-3 py-2 pl-6 text-muted-foreground">
+                      (-) Menos:
+                      Devoluciones
+                      sobre compras{" "}
+
+                      <span className="text-xs text-muted-foreground/80">
+                        (5102)
+                      </span>
                     </td>
-                    <td className="py-2 px-3 text-right font-mono text-muted-foreground">
-                      {formatoMoneda(er.analitico.devolucionesSobreCompras)}
+
+                    <td className="px-3 py-2 text-right font-mono text-muted-foreground">
+                      {formatoMoneda(
+                        er
+                          .analitico
+                          .devolucionesSobreCompras
+                      )}
                     </td>
                   </tr>
+
                   <tr>
-                    <td className="py-2 px-3 pl-6 text-muted-foreground">
-                      (-) Menos: Rebajas y descuentos sobre compras{" "}
-                      <span className="text-xs text-muted-foreground/80">(5103)</span>
+                    <td className="px-3 py-2 pl-6 text-muted-foreground">
+                      (-) Menos:
+                      Rebajas y
+                      descuentos
+                      sobre compras{" "}
+
+                      <span className="text-xs text-muted-foreground/80">
+                        (5103)
+                      </span>
                     </td>
-                    <td className="py-2 px-3 text-right font-mono text-muted-foreground">
-                      {formatoMoneda(er.analitico.rebajasSobreCompras)}
+
+                    <td className="px-3 py-2 text-right font-mono text-muted-foreground">
+                      {formatoMoneda(
+                        er
+                          .analitico
+                          .rebajasSobreCompras
+                      )}
                     </td>
                   </tr>
-                  <tr className="font-semibold bg-muted/20">
-                    <td className="py-2.5 px-3">(=) Compras Netas</td>
-                    <td className="py-2.5 px-3 text-right font-mono font-semibold">
-                      {formatoMoneda(er.analitico.comprasNetas)}
+
+                  <tr className="bg-muted/20 font-semibold">
+                    <td className="px-3 py-2.5">
+                      (=) Compras
+                      Netas
+                    </td>
+
+                    <td className="px-3 py-2.5 text-right font-mono font-semibold">
+                      {formatoMoneda(
+                        er
+                          .analitico
+                          .comprasNetas
+                      )}
                     </td>
                   </tr>
+
                   <tr>
-                    <td className="py-2 px-3">
-                      (+) Inventario Inicial de Mercaderías{" "}
-                      <span className="text-xs text-muted-foreground">(1104)</span>
+                    <td className="px-3 py-2">
+                      (+)
+                      Inventario
+                      Inicial de
+                      Mercaderías{" "}
+
+                      <span className="text-xs text-muted-foreground">
+                        (1104)
+                      </span>
                     </td>
-                    <td className="py-2 px-3 text-right font-mono">
-                      {formatoMoneda(er.analitico.inventarioInicial)}
+
+                    <td className="px-3 py-2 text-right font-mono">
+                      {formatoMoneda(
+                        er
+                          .analitico
+                          .inventarioInicial
+                      )}
                     </td>
                   </tr>
+
                   <tr className="font-semibold">
-                    <td className="py-2.5 px-3">(=) Total de Mercancías Disponibles</td>
-                    <td className="py-2.5 px-3 text-right font-mono font-semibold">
-                      {formatoMoneda(er.analitico.totalMercancias)}
+                    <td className="px-3 py-2.5">
+                      (=) Total de
+                      Mercancías
+                      Disponibles
+                    </td>
+
+                    <td className="px-3 py-2.5 text-right font-mono font-semibold">
+                      {formatoMoneda(
+                        er
+                          .analitico
+                          .totalMercancias
+                      )}
                     </td>
                   </tr>
+
                   <tr>
-                    <td className="py-2 px-3 pl-6 text-muted-foreground">
-                      (-) Menos: Inventario Final de Mercaderías{" "}
-                      {er.analitico.fechaInventarioFinal && (
-                        <span className="text-xs text-muted-foreground/80 font-normal">
-                          (Toma física al {er.analitico.fechaInventarioFinal})
+                    <td className="px-3 py-2 pl-6 text-muted-foreground">
+                      (-) Menos:
+                      Inventario
+                      Final de
+                      Mercaderías{" "}
+
+                      {er
+                        .analitico
+                        .fechaInventarioFinal && (
+                        <span className="text-xs font-normal text-muted-foreground/80">
+                          (Toma
+                          física al{" "}
+                          {
+                            er
+                              .analitico
+                              .fechaInventarioFinal
+                          }
+                          )
                         </span>
                       )}
                     </td>
-                    <td className="py-2 px-3 text-right font-mono font-medium text-emerald-700 dark:text-emerald-400">
-                      {formatoMoneda(er.analitico.valorInventarioFinal)}
-                    </td>
-                  </tr>
-                  <tr className="font-semibold bg-muted/20">
-                    <td className="py-2.5 px-3">(=) Costo de lo Vendido (Costo de Ventas)</td>
-                    <td className="py-2.5 px-3 text-right font-mono font-semibold">
-                      {formatoMoneda(er.analitico.costoVentas)}
+
+                    <td className="px-3 py-2 text-right font-mono font-medium text-emerald-700 dark:text-emerald-400">
+                      {formatoMoneda(
+                        er
+                          .analitico
+                          .valorInventarioFinal
+                      )}
                     </td>
                   </tr>
 
-                  {/* 3. UTILIDAD BRUTA */}
-                  <tr className="bg-primary/5 font-bold border-y-2 border-primary/20">
-                    <td className="py-3 px-3 text-primary">
-                      (=) Utilidad Bruta (Ventas Netas - Costo de Ventas)
+                  <tr className="bg-muted/20 font-semibold">
+                    <td className="px-3 py-2.5">
+                      (=) Costo de
+                      lo Vendido
+                      (Costo de
+                      Ventas)
                     </td>
-                    <td className="py-3 px-3 text-right font-mono text-primary font-bold">
-                      {formatoMoneda(er.analitico.utilidadBruta)}
+
+                    <td className="px-3 py-2.5 text-right font-mono font-semibold">
+                      {formatoMoneda(
+                        er
+                          .analitico
+                          .costoVentas
+                      )}
                     </td>
                   </tr>
 
-                  {/* 4. GASTOS DE OPERACIÓN */}
-                  <tr className="bg-muted/40 font-semibold text-xs text-muted-foreground uppercase tracking-wider">
-                    <td colSpan={2} className="py-2.5 px-3">
-                      4. Gastos de Operación
+                  <tr className="border-y-2 border-primary/20 bg-primary/5 font-bold">
+                    <td className="px-3 py-3 text-primary">
+                      (=) Utilidad
+                      Bruta (Ventas
+                      Netas - Costo
+                      de Ventas)
+                    </td>
+
+                    <td className="px-3 py-3 text-right font-mono font-bold text-primary">
+                      {formatoMoneda(
+                        er
+                          .analitico
+                          .utilidadBruta
+                      )}
                     </td>
                   </tr>
-                  {er.gastosOperacion.map((g) => (
-                    <tr key={g.cuenta.codigo}>
-                      <td className="py-2 px-3 pl-6 text-muted-foreground">
-                        {g.cuenta.nombre} <span className="text-xs">({g.cuenta.codigo})</span>
-                      </td>
-                      <td className="py-2 px-3 text-right font-mono text-muted-foreground">
-                        {formatoMoneda(g.monto)}
-                      </td>
-                    </tr>
-                  ))}
-                  {er.gastosOperacion.length === 0 && (
+
+                  <tr className="bg-muted/40 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <td
+                      colSpan={2}
+                      className="px-3 py-2.5"
+                    >
+                      4. Gastos de
+                      Operación
+                    </td>
+                  </tr>
+
+                  {er.gastosOperacion.map(
+                    (gasto) => (
+                      <tr
+                        key={
+                          gasto
+                            .cuenta
+                            .codigo
+                        }
+                      >
+                        <td className="px-3 py-2 pl-6 text-muted-foreground">
+                          {
+                            gasto
+                              .cuenta
+                              .nombre
+                          }{" "}
+
+                          <span className="text-xs">
+                            (
+                            {
+                              gasto
+                                .cuenta
+                                .codigo
+                            }
+                            )
+                          </span>
+                        </td>
+
+                        <td className="px-3 py-2 text-right font-mono text-muted-foreground">
+                          {formatoMoneda(
+                            gasto.monto
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  )}
+
+                  {er
+                    .gastosOperacion
+                    .length ===
+                    0 && (
                     <tr>
-                      <td colSpan={2} className="py-2 px-3 pl-6 text-xs text-muted-foreground italic">
-                        Sin gastos operativos registrados.
+                      <td
+                        colSpan={
+                          2
+                        }
+                        className="px-3 py-2 pl-6 text-xs italic text-muted-foreground"
+                      >
+                        Sin gastos
+                        operativos
+                        registrados.
                       </td>
                     </tr>
                   )}
-                  <tr className="font-semibold bg-muted/20">
-                    <td className="py-2.5 px-3">(=) Total Gastos de Operación</td>
-                    <td className="py-2.5 px-3 text-right font-mono font-semibold">
-                      {formatoMoneda(er.totalGastosOperacion)}
+
+                  <tr className="bg-muted/20 font-semibold">
+                    <td className="px-3 py-2.5">
+                      (=) Total
+                      Gastos de
+                      Operación
                     </td>
-                  </tr>
-                  <tr className="font-semibold">
-                    <td className="py-2.5 px-3">(=) Utilidad de Operación</td>
-                    <td className="py-2.5 px-3 text-right font-mono font-semibold">
-                      {formatoMoneda(er.analitico.utilidadOperacion)}
+
+                    <td className="px-3 py-2.5 text-right font-mono font-semibold">
+                      {formatoMoneda(
+                        er.totalGastosOperacion
+                      )}
                     </td>
                   </tr>
 
-                  {/* 5. FINANCIEROS Y OTROS */}
-                  {(er.totalIngresosFinancieros > 0 ||
-                    er.totalGastosFinancieros > 0 ||
-                    er.analitico.otrosIngresos > 0) && (
+                  <tr className="font-semibold">
+                    <td className="px-3 py-2.5">
+                      (=) Utilidad
+                      de Operación
+                    </td>
+
+                    <td className="px-3 py-2.5 text-right font-mono font-semibold">
+                      {formatoMoneda(
+                        er
+                          .analitico
+                          .utilidadOperacion
+                      )}
+                    </td>
+                  </tr>
+
+                  {(er.totalIngresosFinancieros >
+                    0 ||
+                    er.totalGastosFinancieros >
+                      0 ||
+                    er
+                      .analitico
+                      .otrosIngresos >
+                      0) && (
                     <>
-                      <tr className="bg-muted/40 font-semibold text-xs text-muted-foreground uppercase tracking-wider">
-                        <td colSpan={2} className="py-2.5 px-3">
-                          5. Productos y Gastos Financieros / Otros
+                      <tr className="bg-muted/40 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        <td
+                          colSpan={
+                            2
+                          }
+                          className="px-3 py-2.5"
+                        >
+                          5.
+                          Productos y
+                          Gastos
+                          Financieros
+                          / Otros
                         </td>
                       </tr>
-                      {er.analitico.otrosIngresos > 0 && (
+
+                      {er
+                        .analitico
+                        .otrosIngresos >
+                        0 && (
                         <tr>
-                          <td className="py-2 px-3 pl-6 text-muted-foreground">
-                            (+) Otros ingresos operativos (5104)
+                          <td className="px-3 py-2 pl-6 text-muted-foreground">
+                            (+) Otros
+                            ingresos
+                            operativos
+                            (5104)
                           </td>
-                          <td className="py-2 px-3 text-right font-mono text-muted-foreground">
-                            {formatoMoneda(er.analitico.otrosIngresos)}
+
+                          <td className="px-3 py-2 text-right font-mono text-muted-foreground">
+                            {formatoMoneda(
+                              er
+                                .analitico
+                                .otrosIngresos
+                            )}
                           </td>
                         </tr>
                       )}
-                      {er.totalIngresosFinancieros > 0 && (
+
+                      {er.totalIngresosFinancieros >
+                        0 && (
                         <tr>
-                          <td className="py-2 px-3 pl-6 text-muted-foreground">
-                            (+) Productos financieros (52)
+                          <td className="px-3 py-2 pl-6 text-muted-foreground">
+                            (+)
+                            Productos
+                            financieros
+                            (52)
                           </td>
-                          <td className="py-2 px-3 text-right font-mono text-muted-foreground">
-                            {formatoMoneda(er.totalIngresosFinancieros)}
+
+                          <td className="px-3 py-2 text-right font-mono text-muted-foreground">
+                            {formatoMoneda(
+                              er.totalIngresosFinancieros
+                            )}
                           </td>
                         </tr>
                       )}
-                      {er.totalGastosFinancieros > 0 && (
+
+                      {er.totalGastosFinancieros >
+                        0 && (
                         <tr>
-                          <td className="py-2 px-3 pl-6 text-muted-foreground">
-                            (-) Gastos financieros (43)
+                          <td className="px-3 py-2 pl-6 text-muted-foreground">
+                            (-) Gastos
+                            financieros
+                            (43)
                           </td>
-                          <td className="py-2 px-3 text-right font-mono text-muted-foreground">
-                            {formatoMoneda(er.totalGastosFinancieros)}
+
+                          <td className="px-3 py-2 text-right font-mono text-muted-foreground">
+                            {formatoMoneda(
+                              er.totalGastosFinancieros
+                            )}
                           </td>
                         </tr>
                       )}
                     </>
                   )}
 
-                  {/* RESULTADO FINAL */}
                   <tr
-                    className={`font-bold border-t-2 text-base ${
-                      er.utilidad >= 0
-                        ? "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-500/30"
-                        : "bg-red-500/10 text-red-800 dark:text-red-300 border-red-500/30"
+                    className={`border-t-2 text-base font-bold ${
+                      er.utilidad >=
+                      0
+                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
+                        : "border-red-500/30 bg-red-500/10 text-red-800 dark:text-red-300"
                     }`}
                   >
-                    <td className="py-3 px-3">
-                      {er.utilidad >= 0
+                    <td className="px-3 py-3">
+                      {er.utilidad >=
+                      0
                         ? "(=) Utilidad Neta del Ejercicio"
                         : "(=) Pérdida Neta del Ejercicio"}
                     </td>
-                    <td className="py-3 px-3 text-right font-mono font-bold text-lg">
-                      {formatoMoneda(er.utilidad)}
+
+                    <td className="px-3 py-3 text-right font-mono text-lg font-bold">
+                      {formatoMoneda(
+                        er.utilidad
+                      )}
                     </td>
                   </tr>
                 </tbody>
@@ -752,68 +1828,245 @@ export default function EstadosFinancierosPage() {
               <ReportSection
                 title="Ingresos"
                 code="5"
-                items={er.ingresos}
+                items={
+                  er.ingresos
+                }
                 totalLabel="Total ingresos"
-                total={er.totalIngresos}
+                total={
+                  er.totalIngresos
+                }
               />
+
               <ReportSection
                 title="Costos y gastos"
                 code="4"
-                items={er.gastos}
+                items={
+                  er.gastos
+                }
                 totalLabel="Total costos y gastos"
-                total={er.totalGastos}
+                total={
+                  er.totalGastos
+                }
               />
             </div>
           )}
         </CardContent>
       </Card>
 
+      {/* ====================================================== */}
       {/* BALANCE GENERAL */}
+      {/* ====================================================== */}
+
       <Card className="report-card">
         <CardHeader>
-          <CardTitle>Balance General</CardTitle>
+          <CardTitle>
+            Balance General
+          </CardTitle>
+
           <CardDescription>
-            Activo = Pasivo + Capital Contable · Verificación de cuadre contable
+            Activo = Pasivo +
+            Capital Contable ·
+            Verificación de
+            cuadre contable
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid gap-6 md:grid-cols-2">
-            <ReportSection
-              title="Activo"
-              code="1"
-              items={bg.activos}
-              totalLabel="Total activo"
-              total={bg.totalActivo}
-            />
+
+        <CardContent className="space-y-8">
+          <div className="grid gap-8 md:grid-cols-2">
+            {/* ACTIVO */}
+
             <div className="space-y-6">
-              <ReportSection
-                title="Pasivo"
-                code="2"
-                items={bg.pasivos}
-                totalLabel="Total pasivo"
-                total={bg.totalPasivo}
-              />
               <div>
-                <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold">
-                  Capital contable
-                  <Badge variant="muted">Código 3</Badge>
-                </h3>
-                <Renglones items={bg.capital} />
-                <div className="flex items-center justify-between border-t border-border px-1 pt-2 text-sm">
-                  <span>Resultado del ejercicio</span>
-                  <span className="tabular-nums font-mono">{formatoMoneda(bg.utilidadEjercicio)}</span>
-                </div>
-                <TotalRow label="Total capital contable" valor={bg.totalCapitalContable} />
+                <h2 className="mb-4 text-base font-bold">
+                  ACTIVO
+                </h2>
+
+                <section>
+                  <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold">
+                    Activo
+                    corriente
+
+                    <Badge variant="muted">
+                      Código 11
+                    </Badge>
+                  </h3>
+
+                  <Renglones
+                    items={
+                      bg.activosCorrientes
+                    }
+                  />
+
+                  <TotalRow
+                    label="Total activo corriente"
+                    valor={
+                      bg.totalActivoCorriente
+                    }
+                    fuerte
+                  />
+                </section>
+
+                <section className="mt-6">
+                  <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold">
+                    Activo no
+                    corriente
+
+                    <Badge variant="muted">
+                      Código 12
+                    </Badge>
+                  </h3>
+
+                  <Renglones
+                    items={
+                      bg.activosNoCorrientes
+                    }
+                  />
+
+                  <TotalRow
+                    label="Total activo no corriente"
+                    valor={
+                      bg.totalActivoNoCorriente
+                    }
+                    fuerte
+                  />
+                </section>
               </div>
-              <TotalRow
-                label="Total pasivo + capital"
-                valor={bg.totalPasivoMasCapital}
-                fuerte
-              />
+
+              <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-4">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold">
+                    TOTAL ACTIVO
+                  </span>
+
+                  <span className="font-mono text-lg font-bold tabular-nums">
+                    {formatoMoneda(
+                      bg.totalActivo
+                    )}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* PASIVO + CAPITAL */}
+
+            <div className="space-y-6">
+              <div>
+                <h2 className="mb-4 text-base font-bold">
+                  PASIVO
+                </h2>
+
+                <section>
+                  <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold">
+                    Pasivo
+                    corriente
+
+                    <Badge variant="muted">
+                      Código 21
+                    </Badge>
+                  </h3>
+
+                  <Renglones
+                    items={
+                      bg.pasivosCorrientes
+                    }
+                  />
+
+                  <TotalRow
+                    label="Total pasivo corriente"
+                    valor={
+                      bg.totalPasivoCorriente
+                    }
+                    fuerte
+                  />
+                </section>
+
+                <section className="mt-6">
+                  <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold">
+                    Pasivo no
+                    corriente
+
+                    <Badge variant="muted">
+                      Código 22
+                    </Badge>
+                  </h3>
+
+                  <Renglones
+                    items={
+                      bg.pasivosNoCorrientes
+                    }
+                  />
+
+                  <TotalRow
+                    label="Total pasivo no corriente"
+                    valor={
+                      bg.totalPasivoNoCorriente
+                    }
+                    fuerte
+                  />
+                </section>
+
+                <div className="mt-6">
+                  <TotalRow
+                    label="TOTAL PASIVO"
+                    valor={
+                      bg.totalPasivo
+                    }
+                    fuerte
+                  />
+                </div>
+              </div>
+
+              <div className="border-t border-border pt-6">
+                <h2 className="mb-4 text-base font-bold">
+                  CAPITAL
+                  CONTABLE
+                </h2>
+
+                <Renglones
+                  items={
+                    bg.capital
+                  }
+                />
+
+                <div className="flex items-center justify-between gap-4 px-1 py-2 text-sm">
+                  <span className="text-muted-foreground">
+                    Utilidad del
+                    ejercicio
+                  </span>
+
+                  <span className="font-mono tabular-nums">
+                    {formatoMoneda(
+                      bg.utilidadEjercicio
+                    )}
+                  </span>
+                </div>
+
+                <TotalRow
+                  label="Total capital contable"
+                  valor={
+                    bg.totalCapitalContable
+                  }
+                  fuerte
+                />
+              </div>
+
+              <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="font-bold">
+                    TOTAL PASIVO +
+                    CAPITAL
+                  </span>
+
+                  <span className="font-mono text-lg font-bold tabular-nums">
+                    {formatoMoneda(
+                      bg.totalPasivoMasCapital
+                    )}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
-        </CardContent>
-        <CardContent className="pt-0">
+
           <div
             className={`flex items-center gap-3 rounded-lg border p-4 text-sm ${
               bg.cuadra
@@ -826,36 +2079,60 @@ export default function EstadosFinancierosPage() {
             ) : (
               <TriangleAlert className="size-5 shrink-0 text-red-600" />
             )}
+
             <span className="font-medium">
               {bg.cuadra
-                ? `Balance cuadrado: ${formatoMoneda(bg.totalActivo)} = ${formatoMoneda(
+                ? `Balance cuadrado: ${formatoMoneda(
+                    bg.totalActivo
+                  )} = ${formatoMoneda(
                     bg.totalPasivoMasCapital
                   )}`
                 : `El balance no cuadra: Activo ${formatoMoneda(
                     bg.totalActivo
-                  )} ≠ Pasivo + Capital ${formatoMoneda(bg.totalPasivoMasCapital)}`}
+                  )} ≠ Pasivo + Capital ${formatoMoneda(
+                    bg.totalPasivoMasCapital
+                  )}`}
             </span>
           </div>
         </CardContent>
       </Card>
 
-      {/* SECCIÓN DE ADMINISTRACIÓN Y CIERRE FISCAL */}
+      {/* ====================================================== */}
+      {/* ADMINISTRACIÓN DEL CICLO */}
+      {/* ====================================================== */}
+
       <Card className="report-card border-amber-500/30 bg-amber-500/[0.02] print:hidden">
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-2">
                 <CardTitle className="text-base font-semibold">
-                  Administración y Cierre del Ciclo {ejercicioSeleccionado}
+                  Administración
+                  y Cierre del
+                  Ciclo{" "}
+                  {
+                    ejercicioSeleccionado
+                  }
                 </CardTitle>
-                <Badge variant={esEjercicioCerrado ? "muted" : "default"} className="text-xs">
-                  {esEjercicioCerrado ? "Ciclo Cerrado" : "Abierto para Operación"}
+
+                <Badge
+                  variant={
+                    esEjercicioCerrado
+                      ? "muted"
+                      : "default"
+                  }
+                  className="text-xs"
+                >
+                  {esEjercicioCerrado
+                    ? "Ciclo Cerrado"
+                    : "Abierto para Operación"}
                 </Badge>
               </div>
-              <CardDescription className="text-xs mt-1">
+
+              <CardDescription className="mt-1 text-xs">
                 {esEjercicioCerrado
                   ? "Este ejercicio ha sido liquidado formalmente. Sus cuentas de resultados están en $0.00 y sus cifras finales están protegidas."
-                  : "La liquidación de fin de año cancela las cuentas de resultados (ingresos y gastos) e imputa la utilidad o pérdida a Capital Contable (3102)."}
+                  : "La liquidación de fin de año cancela las cuentas de resultados e imputa la utilidad o pérdida a Capital Contable."}
               </CardDescription>
             </div>
 
@@ -865,32 +2142,63 @@ export default function EstadosFinancierosPage() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={aperturandoSiguiente}
-                  onClick={async () => {
-                    setAperturandoSiguiente(true)
-                    const res = await generarPartidaApertura(ejercicioSeleccionado, ejercicioSeleccionado + 1)
-                    setAperturandoSiguiente(false)
-                    if (!res.success) {
-                      alert(res.error || "No se pudo generar la partida de apertura.")
+                  disabled={
+                    aperturandoSiguiente
+                  }
+                  onClick={
+                    async () => {
+                      setAperturandoSiguiente(
+                        true
+                      )
+
+                      const resultado =
+                        await generarPartidaApertura(
+                          ejercicioSeleccionado,
+                          ejercicioSeleccionado +
+                            1
+                        )
+
+                      setAperturandoSiguiente(
+                        false
+                      )
+
+                      if (
+                        !resultado.success
+                      ) {
+                        alert(
+                          resultado.error ||
+                            "No se pudo generar la partida de apertura."
+                        )
+                      }
                     }
-                  }}
+                  }
                   className="border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
                 >
-                  <CalendarPlus className="size-3.5 mr-1.5" />
+                  <CalendarPlus className="mr-1.5 size-3.5" />
+
                   {aperturandoSiguiente
                     ? "Generando..."
-                    : `Generar Partida de Apertura para ${ejercicioSeleccionado + 1}`}
+                    : `Generar Partida de Apertura para ${
+                        ejercicioSeleccionado +
+                        1
+                      }`}
                 </Button>
               ) : (
                 <Button
                   type="button"
                   size="sm"
-                  onClick={abrirModalCierre}
-                  disabled={!asientos.length}
-                  className="bg-amber-600 hover:bg-amber-700 text-white"
+                  onClick={
+                    abrirModalCierre
+                  }
+                  disabled={
+                    !asientos.length
+                  }
+                  className="bg-amber-600 text-white hover:bg-amber-700"
                 >
-                  <RotateCcw className="size-3.5 mr-1.5" />
-                  Proceder al Cierre Contable
+                  <RotateCcw className="mr-1.5 size-3.5" />
+
+                  Proceder al
+                  Cierre Contable
                 </Button>
               )}
             </div>
@@ -898,20 +2206,33 @@ export default function EstadosFinancierosPage() {
         </CardHeader>
       </Card>
 
-      {/* MODAL DE PRE-CIERRE CONTABLE SEGURO */}
+      {/* ====================================================== */}
+      {/* MODAL CIERRE */}
+      {/* ====================================================== */}
+
       {modalCierreAbierto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in">
-          <div className="w-full max-w-lg rounded-xl border border-border bg-card p-6 shadow-2xl space-y-4">
+          <div className="w-full max-w-lg space-y-4 rounded-xl border border-border bg-card p-6 shadow-2xl">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-2">
                 <RotateCcw className="size-5 text-amber-600" />
-                <h3 className="font-bold text-base text-foreground">
-                  Liquidación y Cierre Fiscal {ejercicioSeleccionado}
+
+                <h3 className="text-base font-bold text-foreground">
+                  Liquidación y
+                  Cierre Fiscal{" "}
+                  {
+                    ejercicioSeleccionado
+                  }
                 </h3>
               </div>
+
               <button
                 type="button"
-                onClick={() => setModalCierreAbierto(false)}
+                onClick={() =>
+                  setModalCierreAbierto(
+                    false
+                  )
+                }
                 className="text-muted-foreground hover:text-foreground"
               >
                 <X className="size-5" />
@@ -920,158 +2241,422 @@ export default function EstadosFinancierosPage() {
 
             <div className="space-y-3 text-xs sm:text-sm">
               <p className="text-muted-foreground">
-                Revise el resumen preliminar de las cuentas que se cancelarán antes de asentar la partida definitiva de cierre:
+                Revise el
+                resumen
+                preliminar de las
+                cuentas que se
+                cancelarán antes
+                de asentar la
+                partida
+                definitiva de
+                cierre.
               </p>
 
-              <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2 font-mono text-xs">
+              <div className="space-y-2 rounded-lg border border-border bg-muted/40 p-3 font-mono text-xs">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total Ingresos a liquidar:</span>
-                  <span className="font-bold text-foreground">{formatoMoneda(er.totalIngresos)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total Gastos y Costos a liquidar:</span>
-                  <span className="font-bold text-foreground">{formatoMoneda(er.totalGastos)}</span>
-                </div>
-                <div className="border-t border-border/80 pt-1.5 flex justify-between font-bold text-sm">
-                  <span>Resultado Neto ({er.utilidad >= 0 ? "Utilidad" : "Pérdida"}):</span>
-                  <span className={er.utilidad >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600"}>
-                    {formatoMoneda(er.utilidad)}
+                  <span className="text-muted-foreground">
+                    Total
+                    Ingresos a
+                    liquidar:
+                  </span>
+
+                  <span className="font-bold text-foreground">
+                    {formatoMoneda(
+                      er.totalIngresos
+                    )}
                   </span>
                 </div>
-                <div className="text-[11px] text-muted-foreground font-sans pt-1">
-                  Destino: Transferencia automática a cuenta <strong>3102 (Utilidades acumuladas)</strong>.
+
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">
+                    Total Gastos
+                    y Costos a
+                    liquidar:
+                  </span>
+
+                  <span className="font-bold text-foreground">
+                    {formatoMoneda(
+                      er.totalGastos
+                    )}
+                  </span>
+                </div>
+
+                <div className="flex justify-between border-t border-border/80 pt-1.5 text-sm font-bold">
+                  <span>
+                    Resultado
+                    Neto (
+                    {er.utilidad >=
+                    0
+                      ? "Utilidad"
+                      : "Pérdida"}
+                    ):
+                  </span>
+
+                  <span
+                    className={
+                      er.utilidad >=
+                      0
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-red-600"
+                    }
+                  >
+                    {formatoMoneda(
+                      er.utilidad
+                    )}
+                  </span>
+                </div>
+
+                <div className="pt-1 font-sans text-[11px] text-muted-foreground">
+                  Destino:
+                  Transferencia
+                  automática a
+                  cuenta{" "}
+
+                  <strong>
+                    3102
+                    (Utilidades
+                    acumuladas)
+                  </strong>
+                  .
                 </div>
               </div>
 
               <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-950 dark:text-amber-200">
-                <strong>Aviso de Auditoría:</strong> Al cerrar el ejercicio, las cuentas de ingresos y gastos quedarán en $0.00 y no se admitirán nuevas partidas ni anulaciones en el ejercicio {ejercicioSeleccionado}.
+                <strong>
+                  Aviso de
+                  Auditoría:
+                </strong>{" "}
+
+                Al cerrar el
+                ejercicio, las
+                cuentas de
+                ingresos y
+                gastos quedarán
+                en $0.00 y no se
+                admitirán nuevas
+                partidas ni
+                anulaciones en
+                el ejercicio{" "}
+                {
+                  ejercicioSeleccionado
+                }
+                .
               </div>
 
-              <label className="flex items-start gap-2 pt-1 cursor-pointer select-none text-xs">
+              <label className="flex cursor-pointer select-none items-start gap-2 pt-1 text-xs">
                 <input
                   type="checkbox"
-                  checked={cierreConfirmadoCheckbox}
-                  onChange={(e) => setCierreConfirmadoCheckbox(e.target.checked)}
-                  className="rounded border-border size-4 text-primary focus:ring-primary mt-0.5"
+                  checked={
+                    cierreConfirmadoCheckbox
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setCierreConfirmadoCheckbox(
+                      event
+                        .target
+                        .checked
+                    )
+                  }
+                  className="mt-0.5 size-4 rounded border-border text-primary focus:ring-primary"
                 />
-                <span>He revisado la toma física de inventario y confirmo la liquidación del año {ejercicioSeleccionado}.</span>
+
+                <span>
+                  He revisado la
+                  toma física de
+                  inventario y
+                  confirmo la
+                  liquidación del
+                  año{" "}
+                  {
+                    ejercicioSeleccionado
+                  }
+                  .
+                </span>
               </label>
 
-              <label className="flex items-start gap-2 pt-1 cursor-pointer select-none text-xs bg-primary/5 p-2.5 rounded-lg border border-primary/25">
+              <label className="flex cursor-pointer select-none items-start gap-2 rounded-lg border border-primary/25 bg-primary/5 p-2.5 pt-1 text-xs">
                 <input
                   type="checkbox"
-                  checked={aperturarSiguienteCheckbox}
-                  onChange={(e) => setAperturarSiguienteCheckbox(e.target.checked)}
-                  className="rounded border-border size-4 text-primary focus:ring-primary mt-0.5"
+                  checked={
+                    aperturarSiguienteCheckbox
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setAperturarSiguienteCheckbox(
+                      event
+                        .target
+                        .checked
+                    )
+                  }
+                  className="mt-0.5 size-4 rounded border-border text-primary focus:ring-primary"
                 />
+
                 <span className="leading-snug">
-                  <strong className="text-foreground">Transición Contable Automática:</strong> Crear el ejercicio fiscal <strong>{ejercicioSeleccionado + 1}</strong> y generar su <strong>Partida #1 de Apertura</strong> con los saldos de balance y el inventario final contado.
+                  <strong className="text-foreground">
+                    Transición
+                    Contable
+                    Automática:
+                  </strong>{" "}
+
+                  Crear el
+                  ejercicio
+                  fiscal{" "}
+
+                  <strong>
+                    {ejercicioSeleccionado +
+                      1}
+                  </strong>{" "}
+
+                  y generar su{" "}
+
+                  <strong>
+                    Partida #1 de
+                    Apertura
+                  </strong>{" "}
+
+                  con los saldos
+                  de balance y
+                  el inventario
+                  final contado.
                 </span>
               </label>
             </div>
 
-            <div className="flex justify-end gap-2 pt-3 border-t border-border">
+            <div className="flex justify-end gap-2 border-t border-border pt-3">
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setModalCierreAbierto(false)}
-                disabled={ejecutandoCierre}
+                onClick={() =>
+                  setModalCierreAbierto(
+                    false
+                  )
+                }
+                disabled={
+                  ejecutandoCierre
+                }
               >
                 Cancelar
               </Button>
+
               <Button
                 type="button"
-                onClick={ejecutarCierreSeguro}
-                disabled={!cierreConfirmadoCheckbox || ejecutandoCierre}
-                className="bg-amber-600 hover:bg-amber-700 text-white"
+                onClick={
+                  ejecutarCierreSeguro
+                }
+                disabled={
+                  !cierreConfirmadoCheckbox ||
+                  ejecutandoCierre
+                }
+                className="bg-amber-600 text-white hover:bg-amber-700"
               >
-                {ejecutandoCierre ? "Procesando Cierre..." : "Confirmar y Cerrar Ejercicio"}
+                {ejecutandoCierre
+                  ? "Procesando Cierre..."
+                  : "Confirmar y Cerrar Ejercicio"}
               </Button>
             </div>
           </div>
         </div>
       )}
 
+      {/* ====================================================== */}
       {/* HISTORIAL DE CIERRES */}
+      {/* ====================================================== */}
+
       <Card className="report-card">
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <History className="size-5 text-primary" />
-                Historial de Cierres Contables
+
+                Historial de
+                Cierres
+                Contables
               </CardTitle>
+
               <CardDescription>
-                Registro auditable e inmutable de los cierres de ejercicio y liquidación de cuentas nominales.
+                Registro
+                auditable e
+                inmutable de los
+                cierres de
+                ejercicio y
+                liquidación de
+                cuentas
+                nominales.
               </CardDescription>
             </div>
+
             <div className="flex items-center gap-2">
               <Badge variant="muted">
-                {cierres.length} {cierres.length === 1 ? "cierre registrado" : "cierres registrados"}
+                {cierres.length}{" "}
+                {cierres.length ===
+                1
+                  ? "cierre registrado"
+                  : "cierres registrados"}
               </Badge>
+
               <Link
                 href="/ciclos"
-                className="inline-flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
+                className="inline-flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary/20"
               >
-                <span>Ver pantalla de Ciclos</span>
+                <span>
+                  Ver pantalla
+                  de Ciclos
+                </span>
+
                 <ArrowRight className="size-3" />
               </Link>
             </div>
           </div>
         </CardHeader>
+
         <CardContent>
-          {cierres.length === 0 ? (
+          {cierres.length ===
+          0 ? (
             <p className="py-4 text-center text-sm text-muted-foreground">
-              Aún no se han ejecutado cierres contables. Al hacer clic en &quot;Cerrar ejercicio&quot;, las cuentas de ingresos y gastos se liquidarán y el cierre se registrará aquí para auditoría.
+              Aún no se han
+              ejecutado cierres
+              contables.
             </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead className="border-b border-border text-xs text-muted-foreground uppercase">
+                <thead className="border-b border-border text-xs uppercase text-muted-foreground">
                   <tr>
-                    <th className="py-2 px-3">Fecha</th>
-                    <th className="py-2 px-3">Ejercicio</th>
-                    <th className="py-2 px-3">Concepto</th>
-                    <th className="py-2 px-3 text-right">Ingresos</th>
-                    <th className="py-2 px-3 text-right">Gastos</th>
-                    <th className="py-2 px-3 text-right">Resultado</th>
-                    <th className="py-2 px-3 text-center">Partida #</th>
+                    <th className="px-3 py-2">
+                      Fecha
+                    </th>
+
+                    <th className="px-3 py-2">
+                      Ejercicio
+                    </th>
+
+                    <th className="px-3 py-2">
+                      Concepto
+                    </th>
+
+                    <th className="px-3 py-2 text-right">
+                      Ingresos
+                    </th>
+
+                    <th className="px-3 py-2 text-right">
+                      Gastos
+                    </th>
+
+                    <th className="px-3 py-2 text-right">
+                      Resultado
+                    </th>
+
+                    <th className="px-3 py-2 text-center">
+                      Partida #
+                    </th>
                   </tr>
                 </thead>
+
                 <tbody className="divide-y divide-border">
-                  {cierres.map((c) => (
-                    <tr key={c.id} className="hover:bg-muted/50 transition-colors">
-                      <td className="py-2.5 px-3 font-medium">{c.fecha_cierre}</td>
-                      <td className="py-2.5 px-3">{c.ejercicio}</td>
-                      <td className="py-2.5 px-3 text-muted-foreground max-w-xs truncate">{c.concepto}</td>
-                      <td className="py-2.5 px-3 text-right font-mono">{formatoMoneda(Number(c.total_ingresos))}</td>
-                      <td className="py-2.5 px-3 text-right font-mono">{formatoMoneda(Number(c.total_gastos))}</td>
-                      <td
-                        className={`py-2.5 px-3 text-right font-mono font-semibold ${
-                          Number(c.utilidad) >= 0
-                            ? "text-emerald-600 dark:text-emerald-400"
-                            : "text-red-600 dark:text-red-400"
-                        }`}
+                  {cierres.map(
+                    (
+                      cierre
+                    ) => (
+                      <tr
+                        key={
+                          cierre.id
+                        }
+                        className="transition-colors hover:bg-muted/50"
                       >
-                        {formatoMoneda(Number(c.utilidad))}
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        <Badge variant="muted">#{c.asiento_numero ?? "-"}</Badge>
-                      </td>
-                    </tr>
-                  ))}
+                        <td className="px-3 py-2.5 font-medium">
+                          {
+                            cierre.fecha_cierre
+                          }
+                        </td>
+
+                        <td className="px-3 py-2.5">
+                          {
+                            cierre.ejercicio
+                          }
+                        </td>
+
+                        <td className="max-w-xs truncate px-3 py-2.5 text-muted-foreground">
+                          {
+                            cierre.concepto
+                          }
+                        </td>
+
+                        <td className="px-3 py-2.5 text-right font-mono">
+                          {formatoMoneda(
+                            Number(
+                              cierre.total_ingresos
+                            )
+                          )}
+                        </td>
+
+                        <td className="px-3 py-2.5 text-right font-mono">
+                          {formatoMoneda(
+                            Number(
+                              cierre.total_gastos
+                            )
+                          )}
+                        </td>
+
+                        <td
+                          className={`px-3 py-2.5 text-right font-mono font-semibold ${
+                            Number(
+                              cierre.utilidad
+                            ) >=
+                            0
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : "text-red-600 dark:text-red-400"
+                          }`}
+                        >
+                          {formatoMoneda(
+                            Number(
+                              cierre.utilidad
+                            )
+                          )}
+                        </td>
+
+                        <td className="px-3 py-2.5 text-center">
+                          <Badge variant="muted">
+                            #
+                            {cierre.asiento_numero ??
+                              "-"}
+                          </Badge>
+                        </td>
+                      </tr>
+                    )
+                  )}
                 </tbody>
               </table>
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* ====================================================== */}
+      {/* PIE PARA IMPRESIÓN */}
+      {/* ====================================================== */}
+
       <footer className="hidden border-t border-border pt-8 text-center text-xs text-muted-foreground print:block">
-        <p>Las notas son parte integrante de los estados financieros.</p>
+        <p>
+          Las notas son parte
+          integrante de los
+          estados financieros.
+        </p>
+
         <div className="mt-12 grid grid-cols-3 gap-10">
-          <div className="border-t border-foreground/50 pt-2">Representante legal</div>
-          <div className="border-t border-foreground/50 pt-2">Contador</div>
-          <div className="border-t border-foreground/50 pt-2">Auditor externo</div>
+          <div className="border-t border-foreground/50 pt-2">
+            Representante legal
+          </div>
+
+          <div className="border-t border-foreground/50 pt-2">
+            Contador
+          </div>
+
+          <div className="border-t border-foreground/50 pt-2">
+            Auditor externo
+          </div>
         </div>
       </footer>
     </div>

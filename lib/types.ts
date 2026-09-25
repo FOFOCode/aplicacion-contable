@@ -108,7 +108,6 @@ export interface Usuario {
   actualizado_en?: string
 }
 
-
 export interface AsientoHistorial {
   id: string
   asiento_id: string
