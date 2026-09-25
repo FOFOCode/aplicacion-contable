@@ -1088,152 +1088,134 @@ export default function LibroDiarioPage() {
     <form onSubmit={handleGuardarPartida} className="space-y-5">
       {/* Banner de Modo Ajuste Contable */}
       {tipoPartida === "AJUSTE" && (
-        <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs flex items-center justify-between">
-          <div className="flex items-center gap-2 font-medium">
+        <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-2.5 font-medium">
             <Sliders className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
             <span>Asiento de Ajuste Contable formal en folio abierto (con trazabilidad de auditoría).</span>
           </div>
           <button
             type="button"
             onClick={handleLimpiarFormulario}
-            className="text-xs hover:underline cursor-pointer"
+            className="text-xs font-semibold hover:underline cursor-pointer"
           >
             Descartar
           </button>
         </div>
       )}
 
-      {/* Selector de Modo de Captura (Segmented Tabs) y Botón Buscar Cuenta */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-1 rounded-lg bg-muted/40 p-1 border border-border">
-          <button
-            type="button"
-            onClick={() => handleCambiarModoCaptura("SMART")}
-            className={cn(
-              "py-1.5 px-4 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer",
-              modoCaptura === "SMART"
-                ? "bg-card text-foreground shadow-xs border border-border/50"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <Zap className="size-3 text-amber-500" />
-            <span>SMART (+/-)</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleCambiarModoCaptura("CLASICO")}
-            className={cn(
-              "py-1.5 px-4 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer",
-              modoCaptura === "CLASICO"
-                ? "bg-card text-foreground shadow-xs border border-border/50"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <Sliders className="size-3 text-primary" />
-            <span>CLÁSICO (D/H)</span>
-          </button>
+      {/* 2 & 7: Barra de Configuración: Modo Captura (Smart / Clásico) y Tipo de Asiento Reacomodados */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl bg-muted/30 border border-border/70 shadow-xs">
+        {/* Selector Clásico vs Smart mejorado visualmente */}
+        <div className="flex items-center gap-2.5">
+          <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+            Modo:
+          </span>
+          <div className="inline-flex items-center rounded-lg bg-background p-1 border border-border/80 shadow-xs">
+            <button
+              type="button"
+              onClick={() => handleCambiarModoCaptura("SMART")}
+              className={cn(
+                "py-1.5 px-3.5 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 cursor-pointer",
+                modoCaptura === "SMART"
+                  ? "bg-amber-500/15 text-amber-900 dark:text-amber-200 border border-amber-500/30 shadow-xs font-bold"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              title="Modo Inteligente: Registra si la cuenta Aumenta o Disminuye"
+            >
+              <Zap className={cn("size-3.5", modoCaptura === "SMART" ? "text-amber-500 fill-amber-500" : "text-muted-foreground")} />
+              <span>Smart (+ / -)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleCambiarModoCaptura("CLASICO")}
+              className={cn(
+                "py-1.5 px-3.5 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 cursor-pointer",
+                modoCaptura === "CLASICO"
+                  ? "bg-primary/15 text-primary border border-primary/30 shadow-xs font-bold"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              title="Modo Clásico: Imputación tradicional en Debe o Haber"
+            >
+              <Sliders className={cn("size-3.5", modoCaptura === "CLASICO" ? "text-primary" : "text-muted-foreground")} />
+              <span>Clásico (D / H)</span>
+            </button>
+          </div>
         </div>
 
-        <Button
-          type="button"
-          size="sm"
-          onClick={handleAbrirFinderParaNuevaLinea}
-          className="text-xs h-8 gap-1.5 font-medium cursor-pointer shadow-xs"
-        >
-          <Search className="size-3.5" />
-          <span>Buscar Cuenta</span>
-        </Button>
-      </div>
-
-      {/* Metadatos: Doc Soporte + Tipo de Asiento */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <Label htmlFor="doc-soporte" className="text-[11px] font-medium text-muted-foreground">
-            Doc. Soporte / Factura
-          </Label>
-          <Input
-            id="doc-soporte"
-            placeholder="Ej: F-102, CCF-45..."
-            value={documentoSoporte}
-            onChange={(e) => setDocumentoSoporte(e.target.value)}
-            className="text-xs h-9 font-mono mt-1"
-          />
-        </div>
-        <div>
-          <Label htmlFor="tipo-asiento" className="text-[11px] font-medium text-muted-foreground">
-            Tipo de Asiento
-          </Label>
+        {/* Combobox Tipo de Asiento Reacomodado */}
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+            Tipo:
+          </span>
           <select
             id="tipo-asiento"
             value={tipoPartida}
             onChange={(e) => setTipoPartida(e.target.value)}
-            className="w-full text-xs h-9 px-3 rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring mt-1 cursor-pointer font-medium"
+            className="text-xs h-8.5 px-3 rounded-lg border border-input bg-background text-foreground font-semibold shadow-xs focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
           >
-            <option value="OPERACION">Operación</option>
-            <option value="AJUSTE">Ajuste</option>
-            <option value="CIERRE">Cierre</option>
+            <option value="OPERACION">Operación Regular</option>
+            <option value="AJUSTE">Ajuste Contable</option>
+            <option value="CIERRE">Cierre de Ejercicio</option>
           </select>
         </div>
       </div>
 
-      {/* Concepto / Glosa */}
+      {/* 2: Concepto o Glosa (Sin Doc Soporte y Sin sugerencias) */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
-          <Label htmlFor="concepto-modal" className="text-[11px] font-medium text-foreground">
-            Concepto o Glosa *
+          <Label htmlFor="concepto-modal" className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+            <FileText className="size-3.5 text-primary" />
+            <span>Concepto o Glosa *</span>
           </Label>
-          <span className="text-[10px] text-muted-foreground">Sistema Analítico</span>
+          <span className="text-[11px] text-muted-foreground">
+            Descripción formal del comprobante
+          </span>
         </div>
         <textarea
           id="concepto-modal"
           rows={2}
           required
-          placeholder="Ej: Compra de mercadería al contado según factura..."
+          placeholder="Describe la naturaleza, motivo y detalle de esta partida contable..."
           value={concepto}
           onChange={(e) => setConcepto(e.target.value)}
-          className="w-full text-xs p-3 rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none leading-relaxed"
+          className="w-full text-xs p-3 rounded-xl border border-input bg-background/50 focus:bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none leading-relaxed transition-all shadow-inner"
         />
-        {/* Sugerencias rápidas */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 text-[10px]">
-          <span className="text-muted-foreground shrink-0 font-medium">Sugerir:</span>
-          {GLOSAS_RAPIDAS.map((g, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => setConcepto(g)}
-              className="shrink-0 rounded-full border border-border/70 bg-muted/30 px-2 py-0.5 text-muted-foreground hover:text-foreground hover:bg-muted hover:border-border transition-colors cursor-pointer truncate max-w-[150px]"
-              title={g}
-            >
-              {g}
-            </button>
-          ))}
-        </div>
       </div>
 
-      {/* Renglones Contables: Visualización Pura sin Inputs */}
-      <div className="space-y-2 pt-3 border-t border-border">
-        <div className="flex items-center justify-between text-xs mb-2">
-          <span className="font-semibold text-foreground flex items-center gap-1.5">
-            Renglones Contables
-            <Badge variant="outline" className="text-[10px] h-4.5 px-1.5 font-mono">
+      {/* 4: Renglones Contables: Visualización Pura, Amplia y Minimalista */}
+      <div className="space-y-3 pt-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-foreground">
+              Renglones Contables
+            </span>
+            <Badge variant="outline" className="text-xs h-5 px-2 font-mono font-bold bg-muted/40">
               {lineasProcesadas.filter((l) => l.cuentaValida).length}
             </Badge>
-          </span>
-          <span className="text-[11px] text-muted-foreground font-mono">
-            {modoCaptura === "SMART" ? "Modo Asistido (+/-)" : "Modo Clásico (D/H)"}
-          </span>
+          </div>
+
+          <Button
+            type="button"
+            size="sm"
+            onClick={handleAbrirFinderParaNuevaLinea}
+            className="text-xs h-8.5 px-3.5 gap-1.5 font-semibold cursor-pointer shadow-xs"
+          >
+            <Plus className="size-3.5" />
+            <span>Buscar y Agregar Cuenta</span>
+            <kbd className="hidden sm:inline-block ml-1 text-[10px] font-mono opacity-70">Alt+A</kbd>
+          </Button>
         </div>
 
         {lineasProcesadas.filter((l) => l.cuentaValida).length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border p-6 text-center space-y-3 bg-muted/10">
-            <div className="size-10 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto">
-              <Search className="size-5" />
+          <div className="rounded-2xl border-2 border-dashed border-border/80 p-8 text-center space-y-3 bg-muted/10">
+            <div className="size-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto shadow-inner">
+              <Search className="size-6" />
             </div>
             <div className="space-y-1">
-              <p className="text-xs font-semibold text-foreground">
+              <p className="text-sm font-bold text-foreground">
                 No hay cuentas contables agregadas
               </p>
-              <p className="text-[11px] text-muted-foreground max-w-sm mx-auto">
+              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
                 Haz clic en el buscador para seleccionar cuentas, definir montos y aplicar IVA automáticamente.
               </p>
             </div>
@@ -1241,26 +1223,30 @@ export default function LibroDiarioPage() {
               type="button"
               size="sm"
               onClick={handleAbrirFinderParaNuevaLinea}
-              className="text-xs h-8 gap-1.5 font-medium cursor-pointer shadow-xs"
+              className="text-xs h-9 px-4 gap-2 font-semibold cursor-pointer shadow-sm mt-1"
             >
-              <Search className="size-3.5" />
+              <Search className="size-4" />
               <span>Abrir Buscador de Cuentas</span>
             </Button>
           </div>
         ) : (
-          <div className="rounded-xl border border-border overflow-hidden">
+          <div className="rounded-xl border border-border/80 overflow-hidden shadow-xs bg-card">
             <table className="w-full text-xs">
               <thead>
-                <tr className="bg-muted/40 border-b border-border text-muted-foreground text-[11px] font-medium">
-                  <th className="py-2 px-3 text-left w-10 font-mono">#</th>
-                  <th className="py-2 px-3 text-left">Cuenta Contable</th>
-                  <th className="py-2 px-3 text-center w-28">Movimiento</th>
-                  <th className="py-2 px-3 text-right w-28 font-mono">Debe</th>
-                  <th className="py-2 px-3 text-right w-28 font-mono">Haber</th>
-                  <th className="py-2 px-3 text-right w-20">Acciones</th>
+                <tr className="bg-muted/50 border-b border-border text-muted-foreground text-xs font-semibold">
+                  <th className="py-3 px-3.5 text-left w-12 font-mono">#</th>
+                  <th className="py-3 px-3.5 text-left">Cuenta Contable</th>
+                  <th className="py-3 px-3.5 text-center w-32">Movimiento</th>
+                  <th className="py-3 px-3.5 text-right w-36 font-mono text-emerald-600 dark:text-emerald-400">
+                    DEBE
+                  </th>
+                  <th className="py-3 px-3.5 text-right w-36 font-mono text-blue-600 dark:text-blue-400">
+                    HABER
+                  </th>
+                  <th className="py-3 px-3.5 text-right w-24">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border font-mono tabular-nums">
+              <tbody className="divide-y divide-border/60 font-mono tabular-nums">
                 {lineasProcesadas.map((linea, index) => {
                   if (!linea.cuentaValida) return null
                   const c = linea.cuenta
@@ -1268,65 +1254,101 @@ export default function LibroDiarioPage() {
                   const esHaber = linea.haber > 0
 
                   return (
-                    <tr key={linea.key} className="hover:bg-muted/20 transition-colors">
-                      <td className="py-2.5 px-3 text-muted-foreground font-bold">
+                    <tr
+                      key={linea.key}
+                      className="hover:bg-muted/30 transition-colors group"
+                    >
+                      {/* # Índice */}
+                      <td className="py-3.5 px-3.5 text-muted-foreground text-xs font-bold">
                         {index + 1}
                       </td>
-                      <td className="py-2.5 px-3 font-sans">
-                        <div className="flex flex-col">
+
+                      {/* Cuenta Contable: Código + Nombre */}
+                      <td className="py-3.5 px-3.5 font-sans">
+                        <div className="flex flex-col gap-0.5">
                           <div className="flex items-center gap-2">
-                            <span className="font-mono text-primary font-bold text-xs">
+                            <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20 shrink-0">
                               {linea.codigo}
                             </span>
-                            <span className="text-foreground font-medium truncate max-w-[180px] sm:max-w-[260px]">
+                            <span className="text-sm font-semibold text-foreground truncate max-w-[200px] sm:max-w-[300px]">
                               {c ? c.nombre : getNombreCuenta(linea.codigo)}
                             </span>
                           </div>
-                          <span className="text-[10px] text-muted-foreground truncate">
+                          <span className="text-[11px] text-muted-foreground truncate pl-0.5">
                             {c ? formatearCuentaJerarquica(c, cuentasMap).principal : ""}
                           </span>
                         </div>
                       </td>
-                      <td className="py-2.5 px-3 text-center font-sans">
+
+                      {/* Movimiento con badges de color */}
+                      <td className="py-3.5 px-3.5 text-center font-sans">
                         {modoCaptura === "SMART" ? (
                           <Badge
-                            variant={linea.operacion === "AUMENTA" ? "default" : "muted"}
-                            className="text-[10px] px-2 py-0.5 font-normal"
+                            variant="outline"
+                            className={cn(
+                              "text-xs px-2.5 py-1 font-semibold rounded-lg",
+                              linea.operacion === "AUMENTA"
+                                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                                : "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/30"
+                            )}
                           >
                             {linea.operacion === "AUMENTA" ? "+ Aumenta" : "- Disminuye"}
                           </Badge>
                         ) : (
                           <Badge
-                            variant={esDebe ? "default" : "muted"}
-                            className="text-[10px] px-2 py-0.5 font-normal"
+                            variant="outline"
+                            className={cn(
+                              "text-xs px-2.5 py-1 font-semibold rounded-lg",
+                              esDebe
+                                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                                : "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/30"
+                            )}
                           >
                             {esDebe ? "Debe (Cargo)" : "Haber (Abono)"}
                           </Badge>
                         )}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-bold text-foreground">
-                        {esDebe ? formatoMoneda(linea.debe) : "—"}
+
+                      {/* DEBE: cifra grande, legible, color diferenciado */}
+                      <td className="py-3.5 px-3.5 text-right font-mono text-sm sm:text-base font-bold">
+                        {esDebe ? (
+                          <span className="text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">
+                            {formatoMoneda(linea.debe)}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground/40 font-normal">—</span>
+                        )}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-bold text-foreground">
-                        {esHaber ? formatoMoneda(linea.haber) : "—"}
+
+                      {/* HABER: cifra grande, legible, color diferenciado */}
+                      <td className="py-3.5 px-3.5 text-right font-mono text-sm sm:text-base font-bold">
+                        {esHaber ? (
+                          <span className="text-blue-600 dark:text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-md">
+                            {formatoMoneda(linea.haber)}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground/40 font-normal">—</span>
+                        )}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-sans">
+
+                      {/* Acciones */}
+                      <td className="py-3.5 px-3.5 text-right font-sans">
                         <div className="flex items-center justify-end gap-1">
                           <button
                             type="button"
                             onClick={() => handleAbrirFinderParaEditarLinea(linea)}
-                            className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-                            title="Editar renglón en Finder"
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                            title="Editar en Finder"
                           >
-                            <Pencil className="size-3.5" />
+                            <Pencil className="size-4" />
                           </button>
                           <button
                             type="button"
                             onClick={() => handleRemoveLinea(linea.key)}
-                            className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-red-500/10 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
                             title="Eliminar renglón"
                           >
-                            <Trash2 className="size-3.5" />
+                            <Trash2 className="size-4" />
                           </button>
                         </div>
                       </td>
@@ -1338,70 +1360,95 @@ export default function LibroDiarioPage() {
           </div>
         )}
 
-        {/* Botones de Acción de Renglones */}
-        <div className="flex items-center gap-2 pt-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleAbrirFinderParaNuevaLinea}
-            className="text-xs h-8 gap-1.5 flex-1 cursor-pointer font-medium"
-          >
-            <Search className="size-3.5 text-primary" />
-            <span>Buscar Cuenta</span>
-            <kbd className="text-[10px] font-mono text-muted-foreground">Alt+A</kbd>
-          </Button>
+        {/* 5: Botones de Acción de Renglones (Sin Auto-Cuadrar) */}
+        {lineasProcesadas.filter((l) => l.cuentaValida).length > 0 && (
+          <div className="flex items-center justify-between pt-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleAbrirFinderParaNuevaLinea}
+              className="text-xs h-8.5 gap-1.5 cursor-pointer font-medium hover:bg-muted"
+            >
+              <Plus className="size-3.5" />
+              <span>Agregar otro renglón</span>
+            </Button>
 
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleAutoCuadrar}
-            className="text-xs h-8 gap-1.5 flex-1 cursor-pointer hover:border-amber-500/50 hover:bg-amber-500/10 font-medium"
-            title="Calcular y asignar la contrapartida exacta para cuadrar la partida"
-          >
-            <Sliders className="size-3.5 text-amber-500" />
-            <span>Auto-Cuadrar</span>
-            <kbd className="text-[10px] font-mono text-muted-foreground">Alt+C</kbd>
-          </Button>
-
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={handleLimpiarFormulario}
-            className="text-xs h-8 text-muted-foreground hover:text-foreground cursor-pointer px-2.5"
-          >
-            Limpiar
-          </Button>
-        </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleLimpiarFormulario}
+              className="text-xs h-8.5 text-muted-foreground hover:text-foreground cursor-pointer px-3"
+            >
+              Limpiar todo
+            </Button>
+          </div>
+        )}
       </div>
 
-      {/* Resumen de Cuadratura y Guardar */}
-      <div className="pt-3 border-t border-border flex items-center justify-between">
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-4 font-mono text-xs tabular-nums">
-            <span>D: <strong className="text-foreground">{formatoMoneda(totalesPartidaEnCurso.totalDebe)}</strong></span>
-            <span>H: <strong className="text-foreground">{formatoMoneda(totalesPartidaEnCurso.totalHaber)}</strong></span>
+      {/* 6: FOOTER DEL MODAL: RESUMEN DE CIFRAS ENTENDIBLE Y BOTÓN DE ACCIÓN */}
+      <div className="pt-4 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        {/* Métricas de Balance: DEBE, HABER y ESTADO */}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Tarjeta Total Debe */}
+          <div className="px-3.5 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex flex-col min-w-[110px]">
+            <span className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-300 tracking-wider">
+              Total Debe
+            </span>
+            <span className="font-mono text-base font-extrabold text-emerald-600 dark:text-emerald-400 tabular-nums">
+              {formatoMoneda(totalesPartidaEnCurso.totalDebe)}
+            </span>
           </div>
-          <div>
-            {totalesPartidaEnCurso.cuadrado ? (
-              <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                <CheckCircle2 className="size-3.5" /> Partida Cuadrada
-              </span>
+
+          {/* Tarjeta Total Haber */}
+          <div className="px-3.5 py-2 rounded-xl bg-blue-500/10 border border-blue-500/20 flex flex-col min-w-[110px]">
+            <span className="text-[10px] uppercase font-bold text-blue-700 dark:text-blue-300 tracking-wider">
+              Total Haber
+            </span>
+            <span className="font-mono text-base font-extrabold text-blue-600 dark:text-blue-400 tabular-nums">
+              {formatoMoneda(totalesPartidaEnCurso.totalHaber)}
+            </span>
+          </div>
+
+          {/* Indicador de Estado de Cuadratura */}
+          <div className="flex items-center pl-1">
+            {totalesPartidaEnCurso.cuadrado && totalesPartidaEnCurso.totalDebe > 0 ? (
+              <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                <div className="size-7 rounded-full bg-emerald-500/15 flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="size-4 text-emerald-500" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold leading-tight">Partida Cuadrada</span>
+                  <span className="text-[10px] text-muted-foreground">Diferencia: $0.00</span>
+                </div>
+              </div>
             ) : (
-              <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1 tabular-nums">
-                <AlertCircle className="size-3.5" /> Dif: {formatoMoneda(totalesPartidaEnCurso.diferencia)}
-              </span>
+              <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                <div className="size-7 rounded-full bg-amber-500/15 flex items-center justify-center shrink-0">
+                  <AlertCircle className="size-4 text-amber-500" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold leading-tight">
+                    Descuadre: {formatoMoneda(totalesPartidaEnCurso.diferencia)}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {totalesPartidaEnCurso.totalDebe > totalesPartidaEnCurso.totalHaber
+                      ? "Faltan abonos al Haber"
+                      : "Faltan cargos al Debe"}
+                  </span>
+                </div>
+              </div>
             )}
           </div>
         </div>
 
+        {/* Botón Principal Guardar */}
         <Button
           type="submit"
-          disabled={guardandoPartida || !totalesPartidaEnCurso.cuadrado}
-          className="text-xs h-10 px-5 font-semibold gap-1.5 shadow-xs cursor-pointer"
-          title="Guardar partida (Alt + G)"
+          disabled={guardandoPartida || !totalesPartidaEnCurso.cuadrado || totalesPartidaEnCurso.totalDebe === 0}
+          className="text-xs sm:text-sm h-11 px-6 font-bold gap-2 shadow-md cursor-pointer shrink-0 rounded-xl"
+          title="Guardar comprobante contable"
         >
           {guardandoPartida ? (
             "Guardando..."
@@ -1410,7 +1457,7 @@ export default function LibroDiarioPage() {
           ) : (
             "Guardar en Folio"
           )}
-          <ArrowRight className="size-3.5" />
+          <ArrowRight className="size-4" />
         </Button>
       </div>
     </form>
@@ -2256,7 +2303,7 @@ export default function LibroDiarioPage() {
       {/* ========================================================================= */}
       {modalCapturaOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-start justify-center p-4 pt-[4vh] overflow-y-auto">
-          <div className="bg-card text-card-foreground rounded-2xl max-w-3xl w-full shadow-2xl border border-border animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-card text-card-foreground rounded-2xl max-w-4xl w-full shadow-2xl border border-border animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <div className="flex items-center gap-3">
