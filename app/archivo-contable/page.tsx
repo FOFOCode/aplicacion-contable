@@ -2,6 +2,9 @@
 
 import { Fragment, useEffect, useMemo, useState } from "react"
 
+import { jsPDF } from "jspdf"
+import autoTable from "jspdf-autotable"
+
 import {
   Archive,
   CalendarDays,
@@ -848,578 +851,1005 @@ export default function ArchivoContablePage() {
   // PDF PROFESIONAL
   // ============================================================
 
-  async function exportarPdf(
-    anio: number
-  ) {
-    try {
-      const detalle =
-        await obtenerDetalle(
-          anio
-        )
-
-      const er =
-        detalle.estadoResultados
-
-      const bg =
-        detalle.balanceGeneral
-
-      const diarioHtml =
-        detalle.libroDiario
-          .map(
-            (asiento) => `
-              <tr class="asiento">
-                <td>${asiento.numero}</td>
-                <td>${formatoFecha(asiento.fecha)}</td>
-                <td colspan="3"><strong>${escaparXml(asiento.concepto)}</strong></td>
-              </tr>
-
-              ${asiento.lineas
-                .map(
-                  (linea) => `
-                    <tr>
-                      <td></td>
-                      <td></td>
-                      <td>
-                        ${escaparXml(linea.codigo)}
-                        -
-                        ${escaparXml(linea.nombre)}
-                      </td>
-                      <td class="numero">
-                        ${formatoMoneda(linea.debe)}
-                      </td>
-                      <td class="numero">
-                        ${formatoMoneda(linea.haber)}
-                      </td>
-                    </tr>
-                  `
-                )
-                .join("")}
-            `
-          )
-          .join("")
-
-      const mayorHtml =
-        detalle.libroMayor
-          .map(
-            (linea) => `
-              <tr>
-                <td>${escaparXml(linea.cuenta.codigo)}</td>
-                <td>${escaparXml(linea.cuenta.nombre)}</td>
-                <td class="numero">${formatoMoneda(linea.debe)}</td>
-                <td class="numero">${formatoMoneda(linea.haber)}</td>
-                <td class="numero">${formatoMoneda(Math.abs(linea.saldo))}</td>
-              </tr>
-            `
-          )
-          .join("")
-
-      const activos =
-        bg.activos ?? []
-
-      const pasivos =
-        bg.pasivos ?? []
-
-      const capital =
-        bg.capital ?? []
-
-      const filasReporte = (
-        items: LineaReporte[]
-      ) =>
-        items
-          .map(
-            (x) => `
-              <tr>
-                <td>
-                  ${escaparXml(x.cuenta.codigo)}
-                  -
-                  ${escaparXml(x.cuenta.nombre)}
-                </td>
-                <td class="numero">
-                  ${formatoMoneda(x.monto)}
-                </td>
-              </tr>
-            `
-          )
-          .join("")
-
-      const ventana =
-        window.open(
-          "",
-          "_blank",
-          "width=1200,height=900"
-        )
-
-      if (!ventana) {
-        window.alert(
-          "El navegador bloqueó la ventana del reporte. Permite ventanas emergentes para Finexa."
-        )
-        return
-      }
-
-      ventana.document.write(`
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="utf-8" />
-
-<title>Finexa - Ejercicio ${detalle.ejercicio.anio}</title>
-
-<style>
-
-@page {
-  size: A4;
-  margin: 18mm 15mm 20mm 15mm;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  font-family: Arial, Helvetica, sans-serif;
-  color: #161616;
-  font-size: 11px;
-}
-
-.header {
-  border-bottom: 2px solid #111;
-  padding-bottom: 14px;
-  margin-bottom: 22px;
-}
-
-.brand {
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: -.5px;
-}
-
-.subtitle {
-  margin-top: 3px;
-  color: #555;
-}
-
-.document-title {
-  margin-top: 18px;
-  font-size: 19px;
-  font-weight: 700;
-}
-
-.meta {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  margin-top: 12px;
-  gap: 6px 25px;
-}
-
-.section {
-  margin-top: 25px;
-  page-break-inside: avoid;
-}
-
-.section-title {
-  border-bottom: 1px solid #333;
-  padding-bottom: 5px;
-  margin-bottom: 10px;
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.summary {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-}
-
-.summary-card {
-  border: 1px solid #bbb;
-  padding: 10px;
-}
-
-.summary-label {
-  color: #666;
-  font-size: 9px;
-  text-transform: uppercase;
-}
-
-.summary-value {
-  margin-top: 4px;
-  font-size: 14px;
-  font-weight: 700;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 7px;
-}
-
-th,
-td {
-  border-bottom: 1px solid #ddd;
-  padding: 6px 5px;
-  vertical-align: top;
-}
-
-th {
-  background: #f2f2f2;
-  text-align: left;
-  font-size: 10px;
-}
-
-.numero {
-  text-align: right;
-  white-space: nowrap;
-}
-
-.asiento td {
-  background: #f7f7f7;
-  padding-top: 9px;
-  padding-bottom: 9px;
-}
-
-.result {
-  margin-top: 10px;
-  border: 1px solid #999;
-  padding: 10px;
-  display: flex;
-  justify-content: space-between;
-  font-weight: 700;
-}
-
-.signatures {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 35px;
-  margin-top: 65px;
-  page-break-inside: avoid;
-}
-
-.signature {
-  text-align: center;
-}
-
-.signature-line {
-  border-top: 1px solid #222;
-  padding-top: 7px;
-}
-
-.footer {
-  margin-top: 35px;
-  padding-top: 10px;
-  border-top: 1px solid #aaa;
-  color: #777;
-  font-size: 9px;
-  display: flex;
-  justify-content: space-between;
-}
-
-.page-break {
-  page-break-before: always;
-}
-
-</style>
-</head>
-
-<body>
-
-<div class="header">
-
-  <div class="brand">
-    Finexa
-  </div>
-
-  <div class="subtitle">
-    Gestión contable inteligente
-  </div>
-
-  <div class="document-title">
-    Reporte integral del ejercicio contable ${detalle.ejercicio.anio}
-  </div>
-
-  <div class="meta">
-
-    <div>
-      <strong>Período:</strong>
-      ${formatoFecha(detalle.ejercicio.fechaInicio)}
-      al
-      ${formatoFecha(detalle.ejercicio.fechaFin)}
-    </div>
-
-    <div>
-      <strong>Estado:</strong>
-      ${escaparXml(detalle.ejercicio.estado)}
-    </div>
-
-    <div>
-      <strong>Responsable:</strong>
-      ${escaparXml(detalle.ejercicio.responsable ?? "Contador")}
-    </div>
-
-    <div>
-      <strong>Fecha de emisión:</strong>
-      ${new Date().toLocaleString("es-SV")}
-    </div>
-
-  </div>
-
-</div>
-
-<div class="section">
-
-  <div class="section-title">
-    Resumen ejecutivo
-  </div>
-
-  <div class="summary">
-
-    <div class="summary-card">
-      <div class="summary-label">Asientos</div>
-      <div class="summary-value">${detalle.resumen.asientos}</div>
-    </div>
-
-    <div class="summary-card">
-      <div class="summary-label">Cuentas con movimiento</div>
-      <div class="summary-value">${detalle.resumen.cuentas}</div>
-    </div>
-
-    <div class="summary-card">
-      <div class="summary-label">Movimiento acumulado</div>
-      <div class="summary-value">${formatoMoneda(detalle.resumen.totalDebe)}</div>
-    </div>
-
-    <div class="summary-card">
-      <div class="summary-label">Resultado</div>
-      <div class="summary-value">${formatoMoneda(detalle.resumen.utilidad)}</div>
-    </div>
-
-  </div>
-
-</div>
-
-<div class="section page-break">
-
-  <div class="section-title">
-    Libro Diario
-  </div>
-
-  <table>
-
-    <thead>
-      <tr>
-        <th>N.º</th>
-        <th>Fecha</th>
-        <th>Cuenta / Concepto</th>
-        <th>Debe</th>
-        <th>Haber</th>
-      </tr>
-    </thead>
-
-    <tbody>
-      ${diarioHtml}
-    </tbody>
-
-  </table>
-
-</div>
-
-<div class="section page-break">
-
-  <div class="section-title">
-    Libro Mayor
-  </div>
-
-  <table>
-
-    <thead>
-      <tr>
-        <th>Código</th>
-        <th>Cuenta</th>
-        <th>Debe</th>
-        <th>Haber</th>
-        <th>Saldo</th>
-      </tr>
-    </thead>
-
-    <tbody>
-      ${mayorHtml}
-    </tbody>
-
-  </table>
-
-</div>
-
-<div class="section page-break">
-
-  <div class="section-title">
-    Estado de Resultados
-  </div>
-
-  <table>
-
-    <tbody>
-
-      <tr>
-        <td>Ventas netas</td>
-        <td class="numero">
-          ${formatoMoneda(er.totalVentas)}
-        </td>
-      </tr>
-
-      <tr>
-        <td>Costo de venta</td>
-        <td class="numero">
-          ${formatoMoneda(er.totalCostoVentas)}
-        </td>
-      </tr>
-
-      <tr>
-        <td><strong>Utilidad bruta</strong></td>
-        <td class="numero">
-          <strong>${formatoMoneda(er.utilidadBruta)}</strong>
-        </td>
-      </tr>
-
-      <tr>
-        <td>Gastos de operación</td>
-        <td class="numero">
-          ${formatoMoneda(er.totalGastosOperacion)}
-        </td>
-      </tr>
-
-      <tr>
-        <td>Ingresos financieros</td>
-        <td class="numero">
-          ${formatoMoneda(er.totalIngresosFinancieros)}
-        </td>
-      </tr>
-
-      <tr>
-        <td>Gastos financieros</td>
-        <td class="numero">
-          ${formatoMoneda(er.totalGastosFinancieros)}
-        </td>
-      </tr>
-
-    </tbody>
-
-  </table>
-
-  <div class="result">
-    <span>
-      ${Number(er.utilidad ?? 0) >= 0
-        ? "Utilidad del ejercicio"
-        : "Pérdida del ejercicio"}
-    </span>
-
-    <span>
-      ${formatoMoneda(er.utilidad)}
-    </span>
-  </div>
-
-</div>
-
-<div class="section page-break">
-
-  <div class="section-title">
-    Balance General
-  </div>
-
-  <h3>Activo</h3>
-
-  <table>
-    <tbody>
-      ${filasReporte(activos)}
-    </tbody>
-  </table>
-
-  <div class="result">
-    <span>Total Activo</span>
-    <span>${formatoMoneda(bg.totalActivo)}</span>
-  </div>
-
-  <h3 style="margin-top:25px;">
-    Pasivo
-  </h3>
-
-  <table>
-    <tbody>
-      ${filasReporte(pasivos)}
-    </tbody>
-  </table>
-
-  <h3 style="margin-top:25px;">
-    Capital contable
-  </h3>
-
-  <table>
-    <tbody>
-      ${filasReporte(capital)}
-    </tbody>
-  </table>
-
-  <div class="result">
-    <span>Total Pasivo + Capital</span>
-    <span>${formatoMoneda(bg.totalPasivoMasCapital)}</span>
-  </div>
-
-</div>
-
-<div class="signatures">
-
-  <div class="signature">
-    <div class="signature-line">
-      Representante legal
-    </div>
-  </div>
-
-  <div class="signature">
-    <div class="signature-line">
-      Contador
-    </div>
-  </div>
-
-  <div class="signature">
-    <div class="signature-line">
-      Auditor externo
-    </div>
-  </div>
-
-</div>
-
-<div class="footer">
-
-  <span>
-    Finexa · Reporte contable
-  </span>
-
-  <span>
-    Ejercicio ${detalle.ejercicio.anio}
-  </span>
-
-</div>
-
-<script>
-window.onload = function () {
-  window.print();
-}
-</script>
-
-</body>
-</html>
-      `)
-
-      ventana.document.close()
-    } catch (
-      e: unknown
-    ) {
-      window.alert(
-        e instanceof Error
-          ? e.message
-          : "No se pudo generar el reporte."
+async function exportarPdf(
+  anio: number
+) {
+  try {
+    const detalle =
+      await obtenerDetalle(anio)
+
+    const er =
+      detalle.estadoResultados
+
+    const bg =
+      detalle.balanceGeneral
+
+    const doc =
+      new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      })
+
+    const anchoPagina =
+      doc.internal.pageSize.getWidth()
+
+    const altoPagina =
+      doc.internal.pageSize.getHeight()
+
+    const margen = 15
+
+    let y = 18
+
+    // ==========================================================
+    // UTILIDADES
+    // ==========================================================
+
+    const ultimoY = () => {
+      const pdf =
+        doc as jsPDF & {
+          lastAutoTable?: {
+            finalY: number
+          }
+        }
+
+      return (
+        pdf.lastAutoTable
+          ?.finalY ?? y
       )
     }
+
+    const nuevaPagina =
+      (
+        titulo?: string
+      ) => {
+        doc.addPage()
+
+        y = 18
+
+        if (titulo) {
+          doc.setFont(
+            "helvetica",
+            "bold"
+          )
+
+          doc.setFontSize(15)
+
+          doc.text(
+            titulo,
+            margen,
+            y
+          )
+
+          y += 10
+        }
+      }
+
+    const comprobarEspacio =
+      (
+        espacioNecesario: number,
+        titulo?: string
+      ) => {
+        if (
+          y +
+            espacioNecesario >
+          altoPagina - 18
+        ) {
+          nuevaPagina(
+            titulo
+          )
+        }
+      }
+
+    const tituloSeccion =
+      (
+        texto: string
+      ) => {
+        comprobarEspacio(
+          15
+        )
+
+        doc.setFont(
+          "helvetica",
+          "bold"
+        )
+
+        doc.setFontSize(
+          13
+        )
+
+        doc.text(
+          texto,
+          margen,
+          y
+        )
+
+        y += 3
+
+        doc.setDrawColor(
+          40,
+          40,
+          40
+        )
+
+        doc.line(
+          margen,
+          y,
+          anchoPagina -
+            margen,
+          y
+        )
+
+        y += 7
+      }
+
+    const moneda = (
+      valor?: number | null
+    ) =>
+      formatoMoneda(
+        Number(valor ?? 0)
+      )
+
+    // ==========================================================
+    // PORTADA / ENCABEZADO
+    // ==========================================================
+
+    doc.setFont(
+      "helvetica",
+      "bold"
+    )
+
+    doc.setFontSize(22)
+
+    doc.text(
+      "Finexa",
+      margen,
+      y
+    )
+
+    y += 6
+
+    doc.setFont(
+      "helvetica",
+      "normal"
+    )
+
+    doc.setFontSize(9)
+
+    doc.setTextColor(
+      90,
+      90,
+      90
+    )
+
+    doc.text(
+      "Gestión contable inteligente",
+      margen,
+      y
+    )
+
+    y += 11
+
+    doc.setTextColor(
+      20,
+      20,
+      20
+    )
+
+    doc.setFont(
+      "helvetica",
+      "bold"
+    )
+
+    doc.setFontSize(17)
+
+    doc.text(
+      `Reporte integral del ejercicio contable ${detalle.ejercicio.anio}`,
+      margen,
+      y
+    )
+
+    y += 9
+
+    doc.setFontSize(9)
+
+    doc.setFont(
+      "helvetica",
+      "normal"
+    )
+
+    const columna2 =
+      108
+
+    doc.text(
+      `Período: ${formatoFecha(
+        detalle.ejercicio
+          .fechaInicio
+      )} al ${formatoFecha(
+        detalle.ejercicio
+          .fechaFin
+      )}`,
+      margen,
+      y
+    )
+
+    doc.text(
+      `Estado: ${detalle.ejercicio.estado}`,
+      columna2,
+      y
+    )
+
+    y += 5
+
+    doc.text(
+      `Responsable: ${
+        detalle.ejercicio
+          .responsable ??
+        "Contador"
+      }`,
+      margen,
+      y
+    )
+
+    doc.text(
+      `Fecha de emisión: ${new Date().toLocaleDateString(
+        "es-SV"
+      )}`,
+      columna2,
+      y
+    )
+
+    y += 8
+
+    doc.setDrawColor(
+      30,
+      30,
+      30
+    )
+
+    doc.line(
+      margen,
+      y,
+      anchoPagina -
+        margen,
+      y
+    )
+
+    y += 10
+
+    // ==========================================================
+    // RESUMEN EJECUTIVO
+    // ==========================================================
+
+    tituloSeccion(
+      "Resumen ejecutivo"
+    )
+
+    autoTable(
+      doc,
+      {
+        startY: y,
+
+        theme:
+          "grid",
+
+        styles: {
+          fontSize: 9,
+          cellPadding: 4,
+        },
+
+        headStyles: {
+          fillColor: [
+            242,
+            242,
+            242,
+          ],
+
+          textColor: [
+            40,
+            40,
+            40,
+          ],
+
+          fontStyle:
+            "bold",
+        },
+
+        head: [
+          [
+            "ASIENTOS",
+            "CUENTAS CON MOVIMIENTO",
+            "MOVIMIENTO ACUMULADO",
+            "RESULTADO",
+          ],
+        ],
+
+        body: [
+          [
+            String(
+              detalle.resumen
+                .asientos
+            ),
+
+            String(
+              detalle.resumen
+                .cuentas
+            ),
+
+            moneda(
+              detalle.resumen
+                .totalDebe
+            ),
+
+            moneda(
+              detalle.resumen
+                .utilidad
+            ),
+          ],
+        ],
+
+        margin: {
+          left: margen,
+          right: margen,
+        },
+      }
+    )
+
+    y =
+      ultimoY() + 10
+
+    // ==========================================================
+    // LIBRO DIARIO
+    // ==========================================================
+
+    nuevaPagina(
+      "Libro Diario"
+    )
+
+    const filasDiario: (
+      | string
+      | number
+    )[][] = []
+
+    for (
+      const asiento
+      of detalle.libroDiario
+    ) {
+      filasDiario.push([
+        asiento.numero,
+        formatoFecha(
+          asiento.fecha
+        ),
+        asiento.concepto,
+        "",
+        "",
+      ])
+
+      for (
+        const linea
+        of asiento.lineas
+      ) {
+        filasDiario.push([
+          "",
+          "",
+          `${linea.codigo} - ${linea.nombre}`,
+          linea.debe
+            ? moneda(
+                linea.debe
+              )
+            : "",
+
+          linea.haber
+            ? moneda(
+                linea.haber
+              )
+            : "",
+        ])
+      }
+    }
+
+    autoTable(
+      doc,
+      {
+        startY: y,
+
+        head: [
+          [
+            "N.º",
+            "Fecha",
+            "Cuenta / Concepto",
+            "Debe",
+            "Haber",
+          ],
+        ],
+
+        body:
+          filasDiario,
+
+        theme:
+          "grid",
+
+        styles: {
+          fontSize: 7.5,
+          cellPadding: 2.2,
+        },
+
+        headStyles: {
+          fillColor: [
+            235,
+            235,
+            235,
+          ],
+
+          textColor: 25,
+
+          fontStyle:
+            "bold",
+        },
+
+        columnStyles: {
+          0: {
+            cellWidth: 12,
+          },
+
+          1: {
+            cellWidth: 22,
+          },
+
+          2: {
+            cellWidth: 88,
+          },
+
+          3: {
+            cellWidth: 28,
+            halign:
+              "right",
+          },
+
+          4: {
+            cellWidth: 28,
+            halign:
+              "right",
+          },
+        },
+
+        margin: {
+          left: margen,
+          right: margen,
+          bottom: 15,
+        },
+
+        rowPageBreak:
+          "avoid",
+      }
+    )
+
+    // ==========================================================
+    // LIBRO MAYOR
+    // ==========================================================
+
+    nuevaPagina(
+      "Libro Mayor"
+    )
+
+    autoTable(
+      doc,
+      {
+        startY: y,
+
+        head: [
+          [
+            "Código",
+            "Cuenta",
+            "Debe",
+            "Haber",
+            "Saldo",
+          ],
+        ],
+
+        body:
+          detalle.libroMayor.map(
+            (linea) => [
+              linea.cuenta
+                .codigo,
+
+              linea.cuenta
+                .nombre,
+
+              moneda(
+                linea.debe
+              ),
+
+              moneda(
+                linea.haber
+              ),
+
+              moneda(
+                Math.abs(
+                  linea.saldo
+                )
+              ),
+            ]
+          ),
+
+        theme:
+          "grid",
+
+        styles: {
+          fontSize: 8,
+          cellPadding: 2.5,
+        },
+
+        headStyles: {
+          fillColor: [
+            235,
+            235,
+            235,
+          ],
+
+          textColor: 25,
+        },
+
+        columnStyles: {
+          0: {
+            cellWidth: 20,
+          },
+
+          1: {
+            cellWidth: 75,
+          },
+
+          2: {
+            halign:
+              "right",
+          },
+
+          3: {
+            halign:
+              "right",
+          },
+
+          4: {
+            halign:
+              "right",
+          },
+        },
+
+        margin: {
+          left: margen,
+          right: margen,
+        },
+      }
+    )
+
+    // ==========================================================
+    // ESTADO DE RESULTADOS
+    // ==========================================================
+
+    nuevaPagina(
+      "Estado de Resultados"
+    )
+
+    const filasEr = [
+      [
+        "Ventas netas",
+        moneda(
+          er.totalVentas
+        ),
+      ],
+
+      [
+        "Costo de venta",
+        moneda(
+          er.totalCostoVentas
+        ),
+      ],
+
+      [
+        "Utilidad bruta",
+        moneda(
+          er.utilidadBruta
+        ),
+      ],
+
+      [
+        "Gastos de operación",
+        moneda(
+          er.totalGastosOperacion
+        ),
+      ],
+
+      [
+        "Ingresos financieros",
+        moneda(
+          er.totalIngresosFinancieros
+        ),
+      ],
+
+      [
+        "Gastos financieros",
+        moneda(
+          er.totalGastosFinancieros
+        ),
+      ],
+    ]
+
+    autoTable(
+      doc,
+      {
+        startY: y,
+
+        body:
+          filasEr,
+
+        theme:
+          "grid",
+
+        styles: {
+          fontSize: 9,
+          cellPadding: 3,
+        },
+
+        columnStyles: {
+          1: {
+            halign:
+              "right",
+          },
+        },
+
+        margin: {
+          left: margen,
+          right: margen,
+        },
+      }
+    )
+
+    y =
+      ultimoY() + 8
+
+    doc.setFont(
+      "helvetica",
+      "bold"
+    )
+
+    doc.setFontSize(11)
+
+    doc.rect(
+      margen,
+      y,
+      anchoPagina -
+        margen * 2,
+      10
+    )
+
+    doc.text(
+      Number(
+        er.utilidad ?? 0
+      ) >= 0
+        ? "Utilidad del ejercicio"
+        : "Pérdida del ejercicio",
+      margen + 3,
+      y + 6.5
+    )
+
+    doc.text(
+      moneda(
+        er.utilidad
+      ),
+      anchoPagina -
+        margen -
+        3,
+      y + 6.5,
+      {
+        align:
+          "right",
+      }
+    )
+
+    // ==========================================================
+    // BALANCE GENERAL
+    // ==========================================================
+
+    nuevaPagina(
+      "Balance General"
+    )
+
+    const activos =
+      bg.activos ?? []
+
+    const pasivos =
+      bg.pasivos ?? []
+
+    const capital =
+      bg.capital ?? []
+
+    const tablaBalance =
+      (
+        titulo: string,
+        items: LineaReporte[],
+        totalTitulo: string,
+        total?: number | null
+      ) => {
+        tituloSeccion(
+          titulo
+        )
+
+        autoTable(
+          doc,
+          {
+            startY: y,
+
+            body:
+              items.map(
+                (
+                  item
+                ) => [
+                  `${item.cuenta.codigo} - ${item.cuenta.nombre}`,
+                  moneda(
+                    item.monto
+                  ),
+                ]
+              ),
+
+            theme:
+              "grid",
+
+            styles: {
+              fontSize: 8.5,
+              cellPadding: 2.5,
+            },
+
+            columnStyles: {
+              1: {
+                halign:
+                  "right",
+              },
+            },
+
+            margin: {
+              left: margen,
+              right: margen,
+            },
+          }
+        )
+
+        y =
+          ultimoY() + 3
+
+        comprobarEspacio(
+          15,
+          "Balance General"
+        )
+
+        doc.setFont(
+          "helvetica",
+          "bold"
+        )
+
+        doc.rect(
+          margen,
+          y,
+          anchoPagina -
+            margen * 2,
+          9
+        )
+
+        doc.text(
+          totalTitulo,
+          margen + 3,
+          y + 6
+        )
+
+        doc.text(
+          moneda(total),
+          anchoPagina -
+            margen -
+            3,
+          y + 6,
+          {
+            align:
+              "right",
+          }
+        )
+
+        y += 15
+      }
+
+    tablaBalance(
+      "Activo",
+      activos,
+      "Total Activo",
+      bg.totalActivo
+    )
+
+    tablaBalance(
+      "Pasivo",
+      pasivos,
+      "Total Pasivo",
+      bg.totalPasivo
+    )
+
+    tituloSeccion(
+      "Capital contable"
+    )
+
+    autoTable(
+      doc,
+      {
+        startY: y,
+
+        body:
+          capital.map(
+            (item) => [
+              `${item.cuenta.codigo} - ${item.cuenta.nombre}`,
+              moneda(
+                item.monto
+              ),
+            ]
+          ),
+
+        theme:
+          "grid",
+
+        styles: {
+          fontSize: 8.5,
+          cellPadding: 2.5,
+        },
+
+        columnStyles: {
+          1: {
+            halign:
+              "right",
+          },
+        },
+
+        margin: {
+          left: margen,
+          right: margen,
+        },
+      }
+    )
+
+    y =
+      ultimoY() + 5
+
+    comprobarEspacio(
+      45,
+      "Balance General"
+    )
+
+    doc.setFont(
+      "helvetica",
+      "bold"
+    )
+
+    doc.rect(
+      margen,
+      y,
+      anchoPagina -
+        margen * 2,
+      10
+    )
+
+    doc.text(
+      "Total Pasivo + Capital",
+      margen + 3,
+      y + 6.5
+    )
+
+    doc.text(
+      moneda(
+        bg.totalPasivoMasCapital
+      ),
+      anchoPagina -
+        margen -
+        3,
+      y + 6.5,
+      {
+        align:
+          "right",
+      }
+    )
+
+    y += 28
+
+    // ==========================================================
+    // FIRMAS
+    // ==========================================================
+
+    comprobarEspacio(
+      35
+    )
+
+    const anchoFirma =
+      48
+
+    const posiciones = [
+      margen,
+      anchoPagina / 2 -
+        anchoFirma / 2,
+      anchoPagina -
+        margen -
+        anchoFirma,
+    ]
+
+    const firmas = [
+      "Representante legal",
+      "Contador",
+      "Auditor externo",
+    ]
+
+    posiciones.forEach(
+      (
+        x,
+        indice
+      ) => {
+        doc.line(
+          x,
+          y,
+          x +
+            anchoFirma,
+          y
+        )
+
+        doc.setFont(
+          "helvetica",
+          "normal"
+        )
+
+        doc.setFontSize(
+          8
+        )
+
+        doc.text(
+          firmas[indice] ?? "",
+          x +
+            anchoFirma /
+              2,
+          y + 5,
+          {
+            align:
+              "center",
+          }
+        )
+      }
+    )
+
+    // ==========================================================
+    // METADATOS DEL PDF
+    // ==========================================================
+
+    doc.setProperties({
+      title:
+        `Reporte contable ${detalle.ejercicio.anio}`,
+
+      subject:
+        "Reporte integral de Finexa",
+
+      author:
+        "Finexa",
+
+      creator:
+        "Finexa",
+    })
+
+    // ==========================================================
+    // GUARDAR
+    // ==========================================================
+
+    doc.save(
+      `Finexa_Reporte_Contable_${detalle.ejercicio.anio}.pdf`
+    )
+  } catch (
+    e: unknown
+  ) {
+    window.alert(
+      e instanceof Error
+        ? e.message
+        : "No se pudo generar el reporte PDF."
+    )
   }
+}
 
   // ============================================================
   // EXCEL EDITABLE CON HOJAS Y FÓRMULAS
