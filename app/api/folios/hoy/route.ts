@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server"
-import { getDbPool } from "@/lib/db"
+import { NextResponse } from "next/server";
+import { getDbPool } from "@/lib/db";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
@@ -9,7 +9,7 @@ export async function GET(req: Request) {
     ? parseInt(ejercicioParam, 10)
     : parseInt(hoyStr.split("-")[0], 10)
 
-  const pool = getDbPool()
+  const pool = getDbPool();
   if (!pool) {
     return NextResponse.json({
       estado: "NO_INICIADO",
@@ -18,7 +18,7 @@ export async function GET(req: Request) {
       fecha: hoyStr,
       ejercicio,
       mensaje: "Base de datos no configurada, operando en modo local.",
-    })
+    });
   }
 
   try {
@@ -67,7 +67,7 @@ export async function GET(req: Request) {
       })
     }
 
-    const folio = resFolio.rows[0]
+    const folio = resFolio.rows[0];
 
     // 2. Obtener las partidas asociadas a este folio (o registradas en esta fecha con su folio_id)
     const resAsientos = await pool.query(
@@ -80,8 +80,11 @@ export async function GET(req: Request) {
     )
 
     // 3. Obtener líneas contables
-    const asientoIds = resAsientos.rows.map((r) => r.id)
-    let lineasByAsiento = new Map<string, Array<{ codigo: string; debe: number; haber: number }>>()
+    const asientoIds = resAsientos.rows.map((r) => r.id);
+    let lineasByAsiento = new Map<
+      string,
+      Array<{ codigo: string; debe: number; haber: number }>
+    >();
 
     if (asientoIds.length > 0) {
       const resLineas = await pool.query(
@@ -90,17 +93,17 @@ export async function GET(req: Request) {
          WHERE asiento_id = ANY($1::uuid[])
          ORDER BY asiento_id, linea_numero ASC`,
         [asientoIds],
-      )
+      );
 
       for (const l of resLineas.rows) {
         if (!lineasByAsiento.has(l.asiento_id)) {
-          lineasByAsiento.set(l.asiento_id, [])
+          lineasByAsiento.set(l.asiento_id, []);
         }
         lineasByAsiento.get(l.asiento_id)!.push({
           codigo: l.cuenta_codigo,
           debe: Number(l.debe) || 0,
           haber: Number(l.haber) || 0,
-        })
+        });
       }
     }
 
@@ -118,7 +121,7 @@ export async function GET(req: Request) {
       anulado_en: a.anulado_en,
       motivo_anulacion: a.motivo_anulacion,
       lineas: lineasByAsiento.get(a.id) || [],
-    }))
+    }));
 
     // 4. Calcular sumas y cuadratura del folio considerando partidas activas
     const partidasActivas = partidas.filter((p) => p.estado !== "ANULADO")
@@ -130,13 +133,13 @@ export async function GET(req: Request) {
       let pDebe = 0
       let pHaber = 0
       for (const l of p.lineas) {
-        pDebe += Math.round((Number(l.debe) || 0) * 100)
-        pHaber += Math.round((Number(l.haber) || 0) * 100)
+        pDebe += Math.round((Number(l.debe) || 0) * 100);
+        pHaber += Math.round((Number(l.haber) || 0) * 100);
       }
-      debeCents += pDebe
-      haberCents += pHaber
+      debeCents += pDebe;
+      haberCents += pHaber;
       if (pDebe === pHaber && pDebe > 0) {
-        partidasCuadradas++
+        partidasCuadradas++;
       }
     }
 
@@ -178,7 +181,8 @@ export async function GET(req: Request) {
       ejercicio,
     })
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Error al obtener folio diario"
-    return NextResponse.json({ error: msg }, { status: 500 })
+    const msg =
+      e instanceof Error ? e.message : "Error al obtener folio diario";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
