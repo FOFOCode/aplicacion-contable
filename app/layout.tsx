@@ -19,27 +19,6 @@ export const metadata: Metadata = {
     "Finexa es un sistema de gestión contable para el registro del Libro Diario, mayorización automática, catálogo de cuentas y generación dinámica de Estados Financieros.",
 
   generator: "Finexa",
-
-  icons: {
-    icon: [
-      {
-        url: "/icon-light-32x32.png",
-        media:
-          "(prefers-color-scheme: light)",
-      },
-      {
-        url: "/icon-dark-32x32.png",
-        media:
-          "(prefers-color-scheme: dark)",
-      },
-      {
-        url: "/icon.svg",
-        type: "image/svg+xml",
-      },
-    ],
-
-    apple: "/apple-icon.png",
-  },
 }
 
 export const viewport: Viewport = {
@@ -47,13 +26,11 @@ export const viewport: Viewport = {
 
   themeColor: [
     {
-      media:
-        "(prefers-color-scheme: light)",
+      media: "(prefers-color-scheme: light)",
       color: "white",
     },
     {
-      media:
-        "(prefers-color-scheme: dark)",
+      media: "(prefers-color-scheme: dark)",
       color: "black",
     },
   ],
@@ -76,8 +53,7 @@ export default function RootLayout({
           </AppShell>
         </ContabilidadProvider>
 
-        {process.env.NODE_ENV ===
-          "production" && (
+        {process.env.NODE_ENV === "production" && (
           <Analytics />
         )}
       </body>
