@@ -97,7 +97,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 4. INSERTAR USUARIO CONTADOR INICIAL / DEMO
+-- 4. INSERTAR USUARIOS CONTADOR INICIALES / DEMO
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM usuario WHERE email = 'contador@contable.sv') THEN
@@ -108,4 +108,14 @@ BEGIN
             'contador'
         );
     END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM usuario WHERE email = 'finexa@contable.sv') THEN
+        PERFORM sp_registrar_usuario(
+            'Usuario Finexa',
+            'finexa@contable.sv',
+            'finexa123',
+            'contador'
+        );
+    END IF;
 END $$;
+

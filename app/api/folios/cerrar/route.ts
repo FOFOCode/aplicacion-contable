@@ -45,6 +45,15 @@ export async function POST(req: Request) {
     return NextResponse.json({
       exito: true,
       mensaje: `¡Folio Diario #${resultado.numero_folio} cerrado y foliado legalmente!`,
+      folio: {
+        id: resultado.folio_id,
+        numero_folio: resultado.numero_folio,
+        fecha: resultado.fecha,
+        total_debe: Number(resultado.total_debe),
+        total_haber: Number(resultado.total_haber),
+        cantidad_partidas: Number(resultado.partidas_cerradas),
+        estado: "CERRADO",
+      },
       cierre: {
         folio_id: resultado.folio_id,
         numero_folio: resultado.numero_folio,

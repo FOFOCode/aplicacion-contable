@@ -23,6 +23,13 @@ export function formatoMoneda(n: number): string {
   }).format(n || 0)
 }
 
+export function obtenerFechaLocal(d: Date = new Date()): string {
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
 // ============================================================
 // TOTALES DE ASIENTO
 // ============================================================
@@ -1898,6 +1905,18 @@ export function esCuentaSujetaAIVA(
     cod === "4208" ||
     cod.startsWith(
       "4208"
+    ) ||
+    cod === "4303" ||
+    cod.startsWith(
+      "4303"
+    ) ||
+    cod === "5102" ||
+    cod.startsWith(
+      "5102"
+    ) ||
+    cod === "5103" ||
+    cod.startsWith(
+      "5103"
     )
 
   if (
@@ -1941,6 +1960,23 @@ export function esCuentaSujetaAIVA(
     ) {
       detalle =
         "Compra de Mercadería"
+    } else if (
+      cod.startsWith(
+        "4303"
+      )
+    ) {
+      detalle =
+        "Comisiones Bancarias"
+    } else if (
+      cod.startsWith(
+        "5102"
+      ) ||
+      cod.startsWith(
+        "5103"
+      )
+    ) {
+      detalle =
+        "Ajuste / Devolución sobre Compras"
     }
 
     return {
@@ -1976,11 +2012,27 @@ export function esCuentaSujetaAIVA(
     cod === "5203" ||
     cod.startsWith(
       "5203"
+    ) ||
+    cod === "4103" ||
+    cod.startsWith(
+      "4103"
+    ) ||
+    cod === "4104" ||
+    cod.startsWith(
+      "4104"
     )
 
   if (
     esVentaOIngresoConIVA
   ) {
+    let detalleVenta = "Venta / Ingreso"
+    if (
+      cod.startsWith("4103") ||
+      cod.startsWith("4104")
+    ) {
+      detalleVenta = "Ajuste / Devolución sobre Ventas"
+    }
+
     return {
       esSujeta: true,
 
@@ -1994,7 +2046,7 @@ export function esCuentaSujetaAIVA(
         "IVA débito fiscal",
 
       impuestoNombre:
-        "IVA Débito Fiscal (13%)",
+        `IVA Débito Fiscal 13% (${detalleVenta})`,
     }
   }
 
@@ -2071,3 +2123,37 @@ export function calcularDesgloseIVA(
     total,
   }
 }
+
+export type ModoCalculoIVA = "NO" | "MAS_IVA" | "IVA_INCLUIDO"
+
+/**
+ * Calcula el IVA 13% según la modalidad seleccionada:
+ * - NO: Sin IVA
+ * - MAS_IVA: El importe es la base neta; se suma el 13% de IVA (Total = Base + IVA)
+ * - IVA_INCLUIDO: El importe es el total bruto; se desglosa la base (Base = Total / 1.13, IVA = Total - Base)
+ */
+export function calcularIVAConModo(monto: number, modo: ModoCalculoIVA): {
+  base: number
+  iva: number
+  total: number
+} {
+  const m = redondear(Math.abs(Number(monto) || 0))
+  if (modo === "NO" || m === 0) {
+    return { base: m, iva: 0, total: m }
+  }
+
+  if (modo === "MAS_IVA") {
+    const base = m
+    const iva = redondear(base * 0.13)
+    const total = redondear(base + iva)
+    return { base, iva, total }
+  }
+
+  // IVA_INCLUIDO
+  const base = redondear(m / 1.13)
+  const ivaCalculado = redondear(base * 0.13)
+  const diff = redondear(m - (base + ivaCalculado))
+  const iva = redondear(ivaCalculado + diff)
+  return { base, iva, total: m }
+}
+

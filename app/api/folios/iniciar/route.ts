@@ -11,18 +11,35 @@ export async function POST(req: Request) {
 
   const client = await pool.connect();
   try {
-    const body = await req.json().catch(() => ({}));
-    const fecha = body.fecha || new Date().toISOString().slice(0, 10);
-    const ejercicio =
-      Number.parseInt(body.ejercicio, 10) || new Date(fecha).getFullYear();
+    const body = await req.json().catch(() => ({}))
+    const fecha = body.fecha || new Date().toISOString().slice(0, 10)
+    const ejercicio = body.ejercicio
+      ? parseInt(String(body.ejercicio), 10)
+      : parseInt(fecha.split("-")[0], 10)
 
     await client.query("BEGIN");
 
-    // Verificar si ya existe un folio para esta fecha
+    // Auto-cerrar folios abiertos de fechas anteriores al avanzar al nuevo día
+    const prevOpenFolios = await client.query(
+      `SELECT id, numero_folio, fecha FROM folio_diario 
+       WHERE ejercicio = $1 AND fecha < $2 AND estado = 'ABIERTO'
+       ORDER BY fecha ASC`,
+      [ejercicio, fecha],
+    )
+
+    for (const prev of prevOpenFolios.rows) {
+      try {
+        await client.query("SELECT * FROM sp_cerrar_folio_diario($1, 'CIERRE_AUTOMATICO_JORNADA')", [prev.id])
+      } catch (err) {
+        console.warn(`No se pudo auto-cerrar folio previo ${prev.numero_folio} (${prev.fecha}):`, err)
+      }
+    }
+
+    // Verificar si ya existe un folio para esta fecha y ejercicio
     const existing = await client.query(
       "SELECT id, numero_folio, fecha, estado FROM folio_diario WHERE fecha = $1 AND ejercicio = $2",
       [fecha, ejercicio],
-    );
+    )
 
     if (existing.rows.length > 0) {
       await client.query("COMMIT");

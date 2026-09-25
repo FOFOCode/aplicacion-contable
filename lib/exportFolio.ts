@@ -83,6 +83,7 @@ export function exportarFolioPDF(folio: FolioExportData, getNombreCuenta: (codig
     head: [["CÓDIGO", "CUENTA / DESCRIPCIÓN", "DEBE (USD)", "HABER (USD)"]],
     body: tableRows,
     theme: "grid",
+    showHead: "everyPage",
     headStyles: { fillColor: [15, 23, 42], textColor: 255, fontSize: 8, fontStyle: "bold" },
     bodyStyles: { fontSize: 8, textColor: [30, 41, 59] },
     columnStyles: {
@@ -92,13 +93,18 @@ export function exportarFolioPDF(folio: FolioExportData, getNombreCuenta: (codig
       3: { cellWidth: 33, halign: "right", font: "courier" },
     },
     styles: { overflow: "linebreak", cellPadding: 1.5 },
+    margin: { top: 20, bottom: 25, left: 14, right: 14 },
   })
 
   // 3. Bloque de Firmas al pie
-  const finalY = (doc as any).lastAutoTable.finalY + 25
+  const lastY = (doc as any).lastAutoTable?.finalY || 42
   const pageHeight = doc.internal.pageSize.getHeight()
 
-  const firmasY = finalY > pageHeight - 35 ? pageHeight - 30 : finalY
+  let firmasY = lastY + 25
+  if (firmasY + 20 > pageHeight) {
+    doc.addPage()
+    firmasY = 40
+  }
 
   doc.setFontSize(8)
   doc.setFont("helvetica", "normal")

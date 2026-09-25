@@ -1604,9 +1604,10 @@ export function ContabilidadProvider({
                 "Content-Type":
                   "application/json",
               },
-              body: JSON.stringify(
-                asiento
-              ),
+              body: JSON.stringify({
+                ...asiento,
+                ejercicio: (asiento as any).ejercicio || ejercicioSeleccionado,
+              }),
             }
           )
 

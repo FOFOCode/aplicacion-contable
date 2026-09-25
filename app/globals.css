@@ -183,6 +183,9 @@
     background: #fff !important;
     color: #111827 !important;
     font-size: 10pt;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
   }
 
   body {

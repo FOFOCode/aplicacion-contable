@@ -59,7 +59,7 @@ export async function POST(req: Request) {
 
   const client = await pool.connect()
   try {
-    const { fecha, concepto, lineas, tipo: tipoInput, documento_soporte, folio_diario_id, usuario_email } = await req.json()
+    const { fecha, concepto, lineas, tipo: tipoInput, documento_soporte, folio_diario_id, usuario_email, ejercicio: ejercicioInput } = await req.json()
     const email = usuario_email || "admin@contable.sv"
 
     if (!Array.isArray(lineas) || lineas.length < 2) {
@@ -69,22 +69,38 @@ export async function POST(req: Request) {
       )
     }
 
-    const ejercicio = fecha ? parseInt(fecha.split("-")[0], 10) : new Date().getFullYear()
+    const ejercicio = ejercicioInput
+      ? parseInt(String(ejercicioInput), 10)
+      : (fecha ? parseInt(fecha.split("-")[0], 10) : new Date().getFullYear())
 
     await client.query("BEGIN")
+
+    // Auto-cerrar folios abiertos de fechas anteriores al registrar operaciones en una nueva fecha
+    const prevOpenFolios = await client.query(
+      `SELECT id, numero_folio, fecha FROM folio_diario 
+       WHERE ejercicio = $1 AND fecha < $2 AND estado = 'ABIERTO'`,
+      [ejercicio, fecha],
+    )
+    for (const prev of prevOpenFolios.rows) {
+      try {
+        await client.query("SELECT * FROM sp_cerrar_folio_diario($1, 'CIERRE_AUTOMATICO_JORNADA')", [prev.id])
+      } catch (err) {
+        console.warn(`No se pudo auto-cerrar folio previo ${prev.numero_folio}:`, err)
+      }
+    }
 
     // Buscar folio abierto para la fecha si no vino en el body
     let targetFolioId = folio_diario_id
     if (!targetFolioId) {
       const folioRes = await client.query(
-        "SELECT id FROM folio_diario WHERE fecha = $1 AND estado = 'ABIERTO' LIMIT 1",
-        [fecha]
+        "SELECT id FROM folio_diario WHERE fecha = $1 AND ejercicio = $2 AND estado = 'ABIERTO' LIMIT 1",
+        [fecha, ejercicio]
       )
       if (folioRes.rows.length > 0) {
         targetFolioId = folioRes.rows[0].id
       } else {
         // Auto-iniciar folio para la fecha si no hay uno abierto (cero bloqueos)
-        const existFolio = await client.query("SELECT id FROM folio_diario WHERE fecha = $1 LIMIT 1", [fecha])
+        const existFolio = await client.query("SELECT id FROM folio_diario WHERE fecha = $1 AND ejercicio = $2 LIMIT 1", [fecha, ejercicio])
         if (existFolio.rows.length === 0) {
           const numFolioRes = await client.query(
             "SELECT fn_proximo_numero_folio($1) AS next_folio",

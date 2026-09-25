@@ -1207,44 +1207,10 @@ export default function EstadosFinancierosPage() {
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <CardTitle>
-                  Estado de
-                  Resultados
-                </CardTitle>
-
-                <Badge
-                  variant="default"
-                  className="border-primary/30 bg-primary/15 text-xs text-primary"
-                >
-                  Método
-                  Analítico o
-                  Pormenorizado
-                </Badge>
-
-                {er.calculadoPorSql ? (
-                  <Badge
-                    variant="success"
-                    className="flex items-center gap-1 border-emerald-500/30 bg-emerald-50 text-xs font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                  >
-                    <CircleCheck className="size-3" />
-
-                    Cálculo
-                    Oficial
-                    Validado por
-                    el Servidor
-                  </Badge>
-                ) : (
-                  <Badge
-                    variant="acreedora"
-                    className="flex items-center gap-1 border-amber-500/30 bg-amber-50 text-xs font-medium text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
-                  >
-                    Cálculo Local
-                    en Memoria
-                    (Modo Offline)
-                  </Badge>
-                )}
-              </div>
+              <CardTitle>
+                Estado de
+                Resultados
+              </CardTitle>
 
               <CardDescription className="mt-1">
                 Determinación

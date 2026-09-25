@@ -2,13 +2,12 @@ import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
 
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const hoyStr =
-    searchParams.get("fecha") || new Date().toISOString().slice(0, 10);
-  const ejercicioParam = searchParams.get("ejercicio");
+  const { searchParams } = new URL(req.url)
+  const hoyStr = searchParams.get("fecha") || new Date().toISOString().slice(0, 10)
+  const ejercicioParam = searchParams.get("ejercicio")
   const ejercicio = ejercicioParam
-    ? Number.parseInt(ejercicioParam, 10)
-    : new Date(hoyStr).getFullYear();
+    ? parseInt(ejercicioParam, 10)
+    : parseInt(hoyStr.split("-")[0], 10)
 
   const pool = getDbPool();
   if (!pool) {
@@ -17,28 +16,55 @@ export async function GET(req: Request) {
       folio: null,
       partidas: [],
       fecha: hoyStr,
+      ejercicio,
       mensaje: "Base de datos no configurada, operando en modo local.",
     });
   }
 
   try {
-    // 1. Buscar si existe un folio para la fecha solicitada
+    // 1. Buscar si existe un folio para la fecha y ejercicio solicitados
     const resFolio = await pool.query(
       `SELECT id, ejercicio, numero_folio, fecha::text, estado, 
               total_debe::float, total_haber::float, cerrado_en::text, cerrado_por, creado_en::text
        FROM folio_diario
-      WHERE fecha = $1 AND ejercicio = $2
+       WHERE fecha = $1 AND ejercicio = $2
        LIMIT 1`,
       [hoyStr, ejercicio],
-    );
+    )
+
+    // 5. Verificar si existen folios previos abiertos en este ejercicio
+    const resPrevOpen = await pool.query(
+      `SELECT id, numero_folio, fecha::text, total_debe::float, total_haber::float
+       FROM folio_diario
+       WHERE ejercicio = $1 AND fecha < $2 AND estado = 'ABIERTO'
+       ORDER BY fecha ASC`,
+      [ejercicio, hoyStr],
+    )
 
     if (resFolio.rows.length === 0) {
       return NextResponse.json({
         estado: "NO_INICIADO",
         folio: null,
         partidas: [],
+        totales: {
+          totalDebe: 0,
+          totalHaber: 0,
+          diferencia: 0,
+          cuadrado: true,
+          partidasCuadradas: 0,
+          partidasActivas: 0,
+          totalPartidas: 0,
+        },
+        foliosPreviosAbiertos: resPrevOpen.rows.map((r) => ({
+          id: r.id,
+          numero_folio: r.numero_folio,
+          fecha: r.fecha,
+          total_debe: Number(r.total_debe) || 0,
+          total_haber: Number(r.total_haber) || 0,
+        })),
         fecha: hoyStr,
-      });
+        ejercicio,
+      })
     }
 
     const folio = resFolio.rows[0];
@@ -48,11 +74,10 @@ export async function GET(req: Request) {
       `SELECT id, correlativo_global, ejercicio, numero, fecha::text, concepto, tipo, estado,
               documento_soporte, folio_diario_id, anulado_en::text, motivo_anulacion
        FROM asiento
-       WHERE (folio_diario_id = $1 OR (folio_diario_id IS NULL AND fecha = $2 AND ejercicio = $3))
-         AND ejercicio = $3
+       WHERE folio_diario_id = $1 OR (folio_diario_id IS NULL AND fecha = $2 AND ejercicio = $3)
        ORDER BY numero ASC`,
       [folio.id, hoyStr, ejercicio],
-    );
+    )
 
     // 3. Obtener líneas contables
     const asientoIds = resAsientos.rows.map((r) => r.id);
@@ -98,15 +123,15 @@ export async function GET(req: Request) {
       lineas: lineasByAsiento.get(a.id) || [],
     }));
 
-    // 4. Calcular sumas y cuadratura del folio
-    let debeCents = 0;
-    let haberCents = 0;
-    let partidasCuadradas = 0;
+    // 4. Calcular sumas y cuadratura del folio considerando partidas activas
+    const partidasActivas = partidas.filter((p) => p.estado !== "ANULADO")
+    let debeCents = 0
+    let haberCents = 0
+    let partidasCuadradas = 0
 
-    for (const p of partidas) {
-      if (p.estado === "ANULADO") continue;
-      let pDebe = 0;
-      let pHaber = 0;
+    for (const p of partidasActivas) {
+      let pDebe = 0
+      let pHaber = 0
       for (const l of p.lineas) {
         pDebe += Math.round((Number(l.debe) || 0) * 100);
         pHaber += Math.round((Number(l.haber) || 0) * 100);
@@ -118,14 +143,13 @@ export async function GET(req: Request) {
       }
     }
 
-    const diffCents = debeCents - haberCents;
-    const totalDebe = debeCents / 100;
-    const totalHaber = haberCents / 100;
-    const diferencia = Math.abs(diffCents) / 100;
+    const diffCents = debeCents - haberCents
+    const totalDebe = debeCents / 100
+    const totalHaber = haberCents / 100
+    const diferencia = Math.abs(diffCents) / 100
     const cuadrado =
       diffCents === 0 &&
-      (partidas.length === 0 ||
-        (debeCents > 0 && partidasCuadradas === partidas.length));
+      (partidasActivas.length === 0 || (debeCents > 0 && partidasCuadradas === partidasActivas.length))
 
     return NextResponse.json({
       estado: folio.estado,
@@ -134,6 +158,7 @@ export async function GET(req: Request) {
         total_debe: totalDebe,
         total_haber: totalHaber,
         cantidad_partidas: partidas.length,
+        partidas_activas: partidasActivas.length,
       },
       partidas,
       totales: {
@@ -142,10 +167,19 @@ export async function GET(req: Request) {
         diferencia,
         cuadrado,
         partidasCuadradas,
+        partidasActivas: partidasActivas.length,
         totalPartidas: partidas.length,
       },
+      foliosPreviosAbiertos: resPrevOpen.rows.map((r) => ({
+        id: r.id,
+        numero_folio: r.numero_folio,
+        fecha: r.fecha,
+        total_debe: Number(r.total_debe) || 0,
+        total_haber: Number(r.total_haber) || 0,
+      })),
       fecha: hoyStr,
-    });
+      ejercicio,
+    })
   } catch (e: unknown) {
     const msg =
       e instanceof Error ? e.message : "Error al obtener folio diario";

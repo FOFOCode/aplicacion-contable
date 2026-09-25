@@ -552,7 +552,7 @@ function toggleTheme() {
                     id="email"
                     type="email"
                     autoComplete="email"
-                    placeholder="correo@finexa.com"
+                    placeholder="finexa@contable.sv"
                     value={email}
                     onChange={(e) => {
                       setEmail(
@@ -679,6 +679,13 @@ function toggleTheme() {
               </button>
 
             </form>
+
+            <div className="mt-4 rounded-lg border border-border/70 bg-muted/40 p-2.5 text-center text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">Acceso contador:</span>{" "}
+              <code className="rounded bg-background/80 px-1.5 py-0.5 font-mono text-primary font-semibold">finexa@contable.sv</code>
+              {" · "}
+              <code className="rounded bg-background/80 px-1.5 py-0.5 font-mono text-foreground font-semibold">finexa123</code>
+            </div>
 
           </div>
 
