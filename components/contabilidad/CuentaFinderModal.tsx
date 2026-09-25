@@ -222,74 +222,82 @@ export function CuentaFinderModal({
   }, [montoNumerico, modoIVA])
 
   // Confirmar y aplicar línea al comprobante
-  const handleConfirmar = useCallback(() => {
-    if (!cuentaSeleccionada || montoNumerico <= 0) return
+  const handleConfirmar = useCallback(
+    (e?: React.MouseEvent | React.KeyboardEvent) => {
+      if (e) {
+        e.preventDefault()
+        e.stopPropagation()
+      }
+      if (!cuentaSeleccionada || montoNumerico <= 0) return
 
-    const nat = normalizarNaturaleza(cuentaSeleccionada.naturaleza)
-    const baseFinal = modoIVA === "NO" ? montoNumerico : desgloseIVA.base
-    const ivaFinal = desgloseIVA.iva
+      const nat = normalizarNaturaleza(cuentaSeleccionada.naturaleza)
+      const baseFinal = modoIVA === "NO" ? montoNumerico : desgloseIVA.base
+      const ivaFinal = desgloseIVA.iva
 
-    let debePrincipal = 0
-    let haberPrincipal = 0
-    let opPrincipal: "AUMENTA" | "DISMINUYE" = operacionSmart
+      let debePrincipal = 0
+      let haberPrincipal = 0
+      let opPrincipal: "AUMENTA" | "DISMINUYE" = operacionSmart
 
-    if (modoCaptura === "CLASICO") {
-      if (ladoClasico === "DEBE") {
-        debePrincipal = baseFinal
-        opPrincipal = nat === "deudora" ? "AUMENTA" : "DISMINUYE"
+      if (modoCaptura === "CLASICO") {
+        if (ladoClasico === "DEBE") {
+          debePrincipal = baseFinal
+          opPrincipal = nat === "deudora" ? "AUMENTA" : "DISMINUYE"
+        } else {
+          haberPrincipal = baseFinal
+          opPrincipal = nat === "acreedora" ? "AUMENTA" : "DISMINUYE"
+        }
       } else {
-        haberPrincipal = baseFinal
-        opPrincipal = nat === "acreedora" ? "AUMENTA" : "DISMINUYE"
+        const imp = inferirImputacion(cuentaSeleccionada, baseFinal, operacionSmart)
+        debePrincipal = imp.debe
+        haberPrincipal = imp.haber
       }
-    } else {
-      const imp = inferirImputacion(cuentaSeleccionada, baseFinal, operacionSmart)
-      debePrincipal = imp.debe
-      haberPrincipal = imp.haber
-    }
 
-    const resultado: ResultadoFinder = {
-      lineaPrincipal: {
-        codigo: cuentaSeleccionada.codigo,
-        monto: baseFinal,
-        operacion: opPrincipal,
-        debeDirecto: debePrincipal > 0 ? debePrincipal : undefined,
-        haberDirecto: haberPrincipal > 0 ? haberPrincipal : undefined,
-      },
-    }
-
-    // Si la cuenta es sujeta a IVA y se seleccionó modo IVA distinto de NO
-    if (infoIva.esSujeta && modoIVA !== "NO" && ivaFinal > 0 && infoIva.cuentaIvaCodigo) {
-      const esCompraOActivo = infoIva.tipo === "COMPRA"
-      // En compras/activos: IVA Crédito Fiscal (1105) es cuenta deudora -> Aumenta al DEBE
-      // En ventas/ingresos: IVA Débito Fiscal (2103) es cuenta acreedora -> Aumenta al HABER
-      resultado.lineaIva = {
-        codigo: infoIva.cuentaIvaCodigo,
-        monto: ivaFinal,
-        operacion: "AUMENTA",
-        debeDirecto: esCompraOActivo ? ivaFinal : undefined,
-        haberDirecto: esCompraOActivo ? undefined : ivaFinal,
+      const resultado: ResultadoFinder = {
+        lineaPrincipal: {
+          codigo: cuentaSeleccionada.codigo,
+          monto: baseFinal,
+          operacion: opPrincipal,
+          debeDirecto: debePrincipal > 0 ? debePrincipal : undefined,
+          haberDirecto: haberPrincipal > 0 ? haberPrincipal : undefined,
+        },
       }
-    }
 
-    onConfirmar(resultado)
-    onClose()
-  }, [
-    cuentaSeleccionada,
-    montoNumerico,
-    modoIVA,
-    desgloseIVA,
-    modoCaptura,
-    ladoClasico,
-    operacionSmart,
-    infoIva,
-    onConfirmar,
-    onClose,
-  ])
+      // Si la cuenta es sujeta a IVA y se seleccionó modo IVA distinto de NO
+      if (infoIva.esSujeta && modoIVA !== "NO" && ivaFinal > 0 && infoIva.cuentaIvaCodigo) {
+        const esCompraOActivo = infoIva.tipo === "COMPRA"
+        // En compras/activos: IVA Crédito Fiscal (1105) es cuenta deudora -> Aumenta al DEBE
+        // En ventas/ingresos: IVA Débito Fiscal (2103) es cuenta acreedora -> Aumenta al HABER
+        resultado.lineaIva = {
+          codigo: infoIva.cuentaIvaCodigo,
+          monto: ivaFinal,
+          operacion: "AUMENTA",
+          debeDirecto: esCompraOActivo ? ivaFinal : undefined,
+          haberDirecto: esCompraOActivo ? undefined : ivaFinal,
+        }
+      }
+
+      onConfirmar(resultado)
+      onClose()
+    },
+    [
+      cuentaSeleccionada,
+      montoNumerico,
+      modoIVA,
+      desgloseIVA,
+      modoCaptura,
+      ladoClasico,
+      operacionSmart,
+      infoIva,
+      onConfirmar,
+      onClose,
+    ],
+  )
 
   // Atajos de teclado en el Finder (Spotlight / iOS Style)
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") {
       e.preventDefault()
+      e.stopPropagation()
       if (cuentaSeleccionada && !lineaEnEdicion) {
         // Volver a la búsqueda si estábamos en paso 2
         setCuentaSeleccionada(null)
@@ -304,16 +312,19 @@ export function CuentaFinderModal({
     if (!cuentaSeleccionada) {
       if (e.key === "ArrowDown") {
         e.preventDefault()
+        e.stopPropagation()
         setIndiceResaltado((prev) =>
           prev < cuentasFiltradas.length - 1 ? prev + 1 : 0
         )
       } else if (e.key === "ArrowUp") {
         e.preventDefault()
+        e.stopPropagation()
         setIndiceResaltado((prev) =>
           prev > 0 ? prev - 1 : cuentasFiltradas.length - 1
         )
       } else if (e.key === "Enter") {
         e.preventDefault()
+        e.stopPropagation()
         const target = cuentasFiltradas[indiceResaltado]
         if (target) {
           handleSeleccionarCuenta(target)
@@ -323,7 +334,8 @@ export function CuentaFinderModal({
       // Si ya hay cuenta seleccionada
       if (e.key === "Enter" && montoNumerico > 0) {
         e.preventDefault()
-        handleConfirmar()
+        e.stopPropagation()
+        handleConfirmar(e)
       }
     }
   }
@@ -562,6 +574,24 @@ export function CuentaFinderModal({
                     placeholder="0.00"
                     value={montoInput}
                     onChange={(e) => setMontoInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        if (montoNumerico > 0) {
+                          handleConfirmar(e)
+                        }
+                      } else if (e.key === "Escape") {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        if (cuentaSeleccionada && !lineaEnEdicion) {
+                          setCuentaSeleccionada(null)
+                          setTimeout(() => searchInputRef.current?.focus(), 50)
+                        } else {
+                          onClose()
+                        }
+                      }
+                    }}
                     className="w-full text-xl sm:text-2xl font-mono tabular-nums pl-9 pr-4 py-2.5 rounded-xl border border-input bg-background text-foreground font-bold focus:outline-none focus:ring-2 focus:ring-primary shadow-inner"
                   />
                 </div>
@@ -780,7 +810,11 @@ export function CuentaFinderModal({
             <Button
               type="button"
               size="sm"
-              onClick={handleConfirmar}
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                handleConfirmar(e)
+              }}
               disabled={montoNumerico <= 0}
               className="text-xs h-9 px-4 gap-2 font-semibold cursor-pointer shadow-xs"
             >

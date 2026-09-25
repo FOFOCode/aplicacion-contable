@@ -434,12 +434,14 @@ export default function LibroDiarioPage() {
 
   // Abrir Finder para agregar nueva línea
   const handleAbrirFinderParaNuevaLinea = useCallback(() => {
+    setModalCapturaOpen(true)
     setLineaEnEdicionParaFinder(null)
     setFinderOpen(true)
   }, [])
 
   // Abrir Finder para editar línea existente
   const handleAbrirFinderParaEditarLinea = useCallback((linea: LineaCaptura) => {
+    setModalCapturaOpen(true)
     setLineaEnEdicionParaFinder(linea)
     setFinderOpen(true)
   }, [])
@@ -466,6 +468,7 @@ export default function LibroDiarioPage() {
   // Confirmar y aplicar resultado del Finder
   const handleConfirmarFinder = useCallback(
     (resultado: ResultadoFinder) => {
+      setModalCapturaOpen(true)
       setLineas((prev) => {
         if (lineaEnEdicionParaFinder) {
           const idx = prev.findIndex((l) => l.key === lineaEnEdicionParaFinder.key)
@@ -552,6 +555,7 @@ export default function LibroDiarioPage() {
     const faltante = totalesPartidaEnCurso.diferencia
     const ladoNecesario = totalesPartidaEnCurso.diferenciaConSigno > 0 ? "HABER" : "DEBE"
 
+    setModalCapturaOpen(true)
     setLineaEnEdicionParaFinder(null)
     setFinderOpen(true)
 
@@ -982,6 +986,7 @@ export default function LibroDiarioPage() {
 
   // Atajos de teclado globales
   useContableKeyboard({
+    disabled: finderOpen,
     onAddRow: handleAddLinea,
     onAutoBalance: handleAutoCuadrar,
     onSave: () => {
@@ -991,10 +996,18 @@ export default function LibroDiarioPage() {
     },
     onOpenHistorial: () => setIsHistorialOpen((prev) => !prev),
     onCancel: () => {
+      if (finderOpen) {
+        setFinderOpen(false)
+        setLineaEnEdicionParaFinder(null)
+        return
+      }
+      if (modalCapturaOpen) {
+        setModalCapturaOpen(false)
+        if (partidaEnEdicion) handleLimpiarFormulario()
+        return
+      }
       setModalCierreOpen(false)
       setModalReabrirOpen(false)
-      setModalCapturaOpen(false)
-      if (partidaEnEdicion) handleLimpiarFormulario()
     },
   })
 
