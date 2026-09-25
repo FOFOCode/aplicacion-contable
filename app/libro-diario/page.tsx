@@ -32,6 +32,8 @@ import {
   FileText,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   ChevronsUpDown,
   Search,
 } from "lucide-react"
@@ -46,6 +48,7 @@ import {
   formatearCuentaJerarquica,
   calcularDesgloseIVA,
   esCuentaSujetaAIVA,
+  obtenerFechaLocal,
 } from "@/lib/contabilidad"
 import {
   inferirImputacion,
@@ -108,8 +111,16 @@ interface FolioHoyData {
     diferencia: number
     cuadrado: boolean
     partidasCuadradas: number
+    partidasActivas?: number
     totalPartidas: number
   }
+  foliosPreviosAbiertos?: Array<{
+    id: string
+    numero_folio: number
+    fecha: string
+    total_debe: number
+    total_haber: number
+  }>
 }
 
 type ModoCaptura = "SMART" | "CLASICO"
@@ -124,11 +135,11 @@ const GLOSAS_RAPIDAS = [
 ]
 
 export default function LibroDiarioPage() {
-  const { cuentas, recargarAsientos } = useContabilidad()
+  const { cuentas, recargarAsientos, ejercicioSeleccionado, esEjercicioCerrado } = useContabilidad()
 
   // Estado del Folio Diario
   const [fechaSeleccionada, setFechaSeleccionada] = useState<string>(() =>
-    new Date().toISOString().slice(0, 10),
+    obtenerFechaLocal(),
   )
   const [datosFolio, setDatosFolio] = useState<FolioHoyData | null>(null)
   const [cargandoFolio, setCargandoFolio] = useState<boolean>(true)
@@ -206,29 +217,44 @@ export default function LibroDiarioPage() {
     return () => clearTimeout(timer)
   }, [notificacion])
 
-  // Carga del Folio según la fecha seleccionada
-  const cargarFolioFecha = useCallback(async (fecha: string) => {
-    setCargandoFolio(true)
-    try {
-      const res = await fetch(`/api/folios/hoy?fecha=${fecha}`, { cache: "no-store" })
-      if (!res.ok) throw new Error("Error al obtener estado del folio")
-      const data: FolioHoyData = await res.json()
-      setDatosFolio(data)
-    } catch (err: unknown) {
-      console.error(err)
-      setNotificacion({
-        tipo: "error",
-        titulo: "Error de Conexión",
-        mensaje: "Error de conexión al cargar el folio diario.",
-      })
-    } finally {
-      setCargandoFolio(false)
+  // Sincronizar fecha al cambiar de ciclo contable
+  useEffect(() => {
+    const today = new Date()
+    const todayYear = today.getFullYear()
+    if (ejercicioSeleccionado === todayYear) {
+      setFechaSeleccionada(obtenerFechaLocal(today))
+    } else {
+      setFechaSeleccionada(`${ejercicioSeleccionado}-01-01`)
     }
-  }, [])
+  }, [ejercicioSeleccionado])
+
+  // Carga del Folio según la fecha seleccionada y ejercicio
+  const cargarFolioFecha = useCallback(
+    async (fecha: string, ejercicio?: number) => {
+      setCargandoFolio(true)
+      try {
+        const ej = ejercicio ?? (fecha ? parseInt(fecha.split("-")[0], 10) : ejercicioSeleccionado)
+        const res = await fetch(`/api/folios/hoy?fecha=${fecha}&ejercicio=${ej}`, { cache: "no-store" })
+        if (!res.ok) throw new Error("Error al obtener estado del folio")
+        const data: FolioHoyData = await res.json()
+        setDatosFolio(data)
+      } catch (err: unknown) {
+        console.error(err)
+        setNotificacion({
+          tipo: "error",
+          titulo: "Error de Conexión",
+          mensaje: "Error de conexión al cargar el folio diario.",
+        })
+      } finally {
+        setCargandoFolio(false)
+      }
+    },
+    [ejercicioSeleccionado],
+  )
 
   useEffect(() => {
-    cargarFolioFecha(fechaSeleccionada)
-  }, [fechaSeleccionada, cargarFolioFecha])
+    cargarFolioFecha(fechaSeleccionada, ejercicioSeleccionado)
+  }, [fechaSeleccionada, ejercicioSeleccionado, cargarFolioFecha])
 
   // Iniciar Folio de Hoy
   const handleIniciarFolio = async () => {
@@ -238,18 +264,19 @@ export default function LibroDiarioPage() {
       const res = await fetch("/api/folios/iniciar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fecha: fechaSeleccionada }),
+        body: JSON.stringify({ fecha: fechaSeleccionada, ejercicio: ejercicioSeleccionado }),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.error || "No se pudo iniciar el folio diario")
       }
+      const data = await res.json()
       setNotificacion({
         tipo: "exito",
         titulo: "Folio Aperturado",
         mensaje: `Folio diario para el día ${fechaSeleccionada} aperturado exitosamente.`,
       })
-      await cargarFolioFecha(fechaSeleccionada)
+      await cargarFolioFecha(fechaSeleccionada, ejercicioSeleccionado)
       await recargarAsientos()
     } catch (e: unknown) {
       setNotificacion({
@@ -263,7 +290,7 @@ export default function LibroDiarioPage() {
   }
 
   // Cerrar Folio
-  const handleCerrarFolio = async () => {
+  const handleCerrarFolio = async (avanzarSiguienteDia = false) => {
     if (!datosFolio?.folio?.id) return
     setCerrandoFolio(true)
     setNotificacion(null)
@@ -281,13 +308,24 @@ export default function LibroDiarioPage() {
         throw new Error(err.error || "No se pudo cerrar el folio")
       }
       const data = await res.json()
+      const numFolio = data.folio?.numero_folio || data.cierre?.numero_folio || datosFolio.folio.numero_folio
       setNotificacion({
         tipo: "exito",
         titulo: "Jornada Cerrada",
-        mensaje: `Folio N° ${data.folio?.numero_folio} sellado e inmutable legalmente.`,
+        mensaje: `Folio N° ${numFolio} sellado e inmutable legalmente.`,
       })
       setModalCierreOpen(false)
-      await cargarFolioFecha(fechaSeleccionada)
+
+      if (avanzarSiguienteDia) {
+        const partes = fechaSeleccionada.split("-").map(Number)
+        const d = new Date(partes[0], partes[1] - 1, partes[2])
+        d.setDate(d.getDate() + 1)
+        const nuevaFecha = obtenerFechaLocal(d)
+        setFechaSeleccionada(nuevaFecha)
+        await cargarFolioFecha(nuevaFecha, ejercicioSeleccionado)
+      } else {
+        await cargarFolioFecha(fechaSeleccionada, ejercicioSeleccionado)
+      }
       await recargarAsientos()
     } catch (e: unknown) {
       setNotificacion({
@@ -298,6 +336,14 @@ export default function LibroDiarioPage() {
     } finally {
       setCerrandoFolio(false)
     }
+  }
+
+  // Navegación de un día relativo (-1 ayer / +1 mañana)
+  const handleCambiarDiaRelativo = (delta: number) => {
+    const partes = fechaSeleccionada.split("-").map(Number)
+    const d = new Date(partes[0], partes[1] - 1, partes[2])
+    d.setDate(d.getDate() + delta)
+    setFechaSeleccionada(obtenerFechaLocal(d))
   }
 
   // Reapertura de Folio
@@ -334,7 +380,7 @@ export default function LibroDiarioPage() {
       })
       setModalReabrirOpen(false)
       setMotivoReapertura("")
-      await cargarFolioFecha(fechaSeleccionada)
+      await cargarFolioFecha(fechaSeleccionada, ejercicioSeleccionado)
       await recargarAsientos()
     } catch (e: unknown) {
       setNotificacion({
@@ -349,13 +395,13 @@ export default function LibroDiarioPage() {
 
   // Atajos rápidos de fecha
   const handleSetHoy = () => {
-    setFechaSeleccionada(new Date().toISOString().slice(0, 10))
+    setFechaSeleccionada(obtenerFechaLocal(new Date()))
   }
 
   const handleSetAyer = () => {
     const d = new Date()
     d.setDate(d.getDate() - 1)
-    setFechaSeleccionada(d.toISOString().slice(0, 10))
+    setFechaSeleccionada(obtenerFechaLocal(d))
   }
 
   // Cuentas map
@@ -826,6 +872,7 @@ export default function LibroDiarioPage() {
     partidaOriginal: {
       id: string
       numero: number
+      ejercicio?: number
       lineas: Array<{ codigo: string; debe: number; haber: number }>
     },
     notaValida: string
@@ -840,6 +887,7 @@ export default function LibroDiarioPage() {
     // 1. Crear Asiento de Ajuste de Reversión
     const payloadAjuste = {
       fecha: fechaSeleccionada,
+      ejercicio: partidaOriginal.ejercicio || ejercicioSeleccionado,
       concepto: `Reversión contable de Partida #${partidaOriginal.numero}: ${notaValida}`,
       tipo: "AJUSTE",
       documento_soporte: `Reversión P-${partidaOriginal.numero}`,
@@ -878,7 +926,7 @@ export default function LibroDiarioPage() {
       mensaje: `Partida #${partidaOriginal.numero} saldada a cero mediante Asiento de Ajuste por Contrasiento.`,
     })
 
-    await Promise.all([cargarFolioFecha(fechaSeleccionada), recargarAsientos()])
+    await Promise.all([cargarFolioFecha(fechaSeleccionada, ejercicioSeleccionado), recargarAsientos()])
   }
 
 
@@ -888,6 +936,15 @@ export default function LibroDiarioPage() {
     async (e?: React.FormEvent) => {
       if (e) e.preventDefault()
       setNotificacion(null)
+
+      if (esEjercicioCerrado) {
+        setNotificacion({
+          tipo: "error",
+          titulo: "Ejercicio Cerrado",
+          mensaje: `El ejercicio fiscal ${ejercicioSeleccionado} se encuentra CERRADO o BLOQUEADO. No se pueden registrar nuevas partidas.`,
+        })
+        return
+      }
 
       if (!concepto.trim()) {
         setNotificacion({
@@ -923,6 +980,7 @@ export default function LibroDiarioPage() {
       try {
         const payload = {
           fecha: fechaSeleccionada,
+          ejercicio: ejercicioSeleccionado,
           concepto: concepto.trim(),
           tipo: tipoPartida,
           documento_soporte: documentoSoporte.trim() || undefined,
@@ -959,7 +1017,7 @@ export default function LibroDiarioPage() {
 
         handleLimpiarFormulario()
         setModalCapturaOpen(false)
-        await Promise.all([cargarFolioFecha(fechaSeleccionada), recargarAsientos()])
+        await Promise.all([cargarFolioFecha(fechaSeleccionada, ejercicioSeleccionado), recargarAsientos()])
       } catch (e: unknown) {
         setNotificacion({
           tipo: "error",
@@ -977,6 +1035,8 @@ export default function LibroDiarioPage() {
       tipoPartida,
       documentoSoporte,
       fechaSeleccionada,
+      ejercicioSeleccionado,
+      esEjercicioCerrado,
       datosFolio?.folio?.id,
       partidaEnEdicion,
       cargarFolioFecha,
@@ -1085,12 +1145,17 @@ export default function LibroDiarioPage() {
     () => (datosFolio?.partidas ? [...datosFolio.partidas].sort((a, b) => a.numero - b.numero) : []),
     [datosFolio?.partidas],
   )
+  const partidasActivas = useMemo(
+    () => partidasFolio.filter((p) => p.estado !== "ANULADO"),
+    [partidasFolio],
+  )
   const totalesFolio = datosFolio?.totales ?? {
     totalDebe: 0,
     totalHaber: 0,
     diferencia: 0,
     cuadrado: true,
     partidasCuadradas: 0,
+    partidasActivas: 0,
     totalPartidas: 0,
   }
 
@@ -1513,17 +1578,22 @@ export default function LibroDiarioPage() {
                   </Badge>
                 )}
               </div>
-              <p className="text-[11px] text-muted-foreground font-medium">
-                Altura jerárquica: A1-R (Día) · A1-R (Guardia) · A1-A (Guardia)
-              </p>
             </div>
 
             {/* Derecha: 2 Niveles Ordenados (Navegación / Exportar y Acciones Principales) */}
             <div className="flex flex-col sm:items-end gap-2.5">
               {/* Nivel 1: Selector de Fecha + Folios Anteriores + Menú Desplegable Exportar */}
               <div className="flex flex-wrap items-center gap-2">
-                {/* Selector de fecha con atajos Hoy/Ayer */}
-                <div className="flex items-center rounded-lg border border-border bg-muted/40 p-1 text-xs shadow-xs">
+                {/* Selector de fecha con atajos Hoy/Ayer y flechas día anterior/siguiente */}
+                <div className="flex items-center rounded-lg border border-border bg-muted/40 p-1 text-xs shadow-xs gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => handleCambiarDiaRelativo(-1)}
+                    className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-card transition-colors cursor-pointer"
+                    title="Día anterior"
+                  >
+                    <ChevronLeft className="size-3.5" />
+                  </button>
                   <button
                     type="button"
                     onClick={handleSetHoy}
@@ -1537,6 +1607,14 @@ export default function LibroDiarioPage() {
                     className="rounded px-2 py-0.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-card transition-colors cursor-pointer"
                   >
                     Ayer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCambiarDiaRelativo(1)}
+                    className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-card transition-colors cursor-pointer"
+                    title="Día siguiente"
+                  >
+                    <ChevronRight className="size-3.5" />
                   </button>
                   <div className="mx-1 h-3.5 w-px bg-border" />
                   <div className="flex items-center gap-1.5 px-1.5">
@@ -1656,18 +1734,18 @@ export default function LibroDiarioPage() {
                       variant="outline"
                       size="sm"
                       onClick={() => setModalCierreOpen(true)}
-                      disabled={totalesFolio.totalPartidas === 0 || !totalesFolio.cuadrado}
+                      disabled={partidasActivas.length === 0 || !totalesFolio.cuadrado || cerrandoFolio}
                       className="text-xs h-9 px-3.5 gap-2 font-medium cursor-pointer border-border bg-card/60 hover:bg-muted text-foreground disabled:opacity-40"
                       title={
-                        totalesFolio.totalPartidas === 0
-                          ? "Requiere al menos una partida para cerrar"
+                        partidasActivas.length === 0
+                          ? "Requiere al menos una partida activa para cerrar"
                           : !totalesFolio.cuadrado
-                          ? "El folio debe estar cuadrado para cerrar"
+                          ? `El folio no cuadra (Diferencia: ${formatoMoneda(totalesFolio.diferencia)})`
                           : "Cerrar y sellar jornada del día"
                       }
                     >
                       <Lock className="size-3.5 text-emerald-500" />
-                      <span>Cerrar Folio del Día</span>
+                      <span>{cerrandoFolio ? "Cerrando..." : "Cerrar Folio del Día"}</span>
                     </Button>
                   </>
                 )}
@@ -1687,6 +1765,57 @@ export default function LibroDiarioPage() {
             </div>
           </div>
         </div>
+
+        {/* Alerta de Folios Anteriores sin cerrar */}
+        {datosFolio?.foliosPreviosAbiertos && datosFolio.foliosPreviosAbiertos.length > 0 && (
+          <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3.5 sm:p-4 text-xs text-amber-900 dark:text-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-2.5">
+              <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
+              <div>
+                <p className="font-semibold text-foreground">
+                  Folio anterior pendiente de cierre ({datosFolio.foliosPreviosAbiertos[0].fecha})
+                </p>
+                <p className="text-muted-foreground text-[11px]">
+                  El Folio N° {String(datosFolio.foliosPreviosAbiertos[0].numero_folio).padStart(3, "0")} quedó abierto. Debe cerrarse formalmente o se sellará automáticamente al aperturar nuevas operaciones.
+                </p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                const prev = datosFolio.foliosPreviosAbiertos![0]
+                try {
+                  const res = await fetch("/api/folios/cerrar", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ folio_id: prev.id, cerrado_por: "CONTADOR_GENERAL" }),
+                  })
+                  if (!res.ok) {
+                    const err = await res.json().catch(() => ({}))
+                    throw new Error(err.error || "No se pudo cerrar el folio anterior")
+                  }
+                  setNotificacion({
+                    tipo: "exito",
+                    titulo: "Folio Anterior Cerrado",
+                    mensaje: `El Folio N° ${prev.numero_folio} (${prev.fecha}) fue cerrado con éxito.`,
+                  })
+                  await cargarFolioFecha(fechaSeleccionada, ejercicioSeleccionado)
+                } catch (e) {
+                  setNotificacion({
+                    tipo: "error",
+                    titulo: "Error al Cerrar",
+                    mensaje: e instanceof Error ? e.message : "Error al cerrar folio anterior",
+                  })
+                }
+              }}
+              className="text-xs h-8 gap-1.5 cursor-pointer bg-card hover:bg-muted text-foreground border-amber-500/40 shrink-0"
+            >
+              <Lock className="size-3 text-amber-600 dark:text-amber-400" />
+              <span>Cerrar Folio de {datosFolio.foliosPreviosAbiertos[0].fecha}</span>
+            </Button>
+          </div>
+        )}
 
         {/* ========================================================================= */}
         {/* 2. CONTENIDO PRINCIPAL SEGÚN EL ESTADO DEL FOLIO                          */}
@@ -1990,7 +2119,21 @@ export default function LibroDiarioPage() {
                                       <tr key={idx} className="hover:bg-muted/20">
                                         <td className="py-1.5 px-3 text-primary font-medium">{linea.codigo}</td>
                                         <td className="py-1.5 px-3 text-foreground font-sans">
-                                          {getNombreCuenta(linea.codigo)}
+                                          {(() => {
+                                            const c = cuentasMap.get(linea.codigo)
+                                            const jerarquia = c ? formatearCuentaJerarquica(c, cuentasMap) : null
+                                            const principal = jerarquia?.principal
+                                            const subcuenta = jerarquia?.subcuenta || (c ? c.nombre : getNombreCuenta(linea.codigo))
+                                            if (principal && principal.toLowerCase() !== subcuenta.toLowerCase()) {
+                                              return (
+                                                <div className="flex flex-col py-0.5 leading-tight">
+                                                  <span className="font-semibold text-foreground text-xs">{principal}</span>
+                                                  <span className="text-[11px] text-muted-foreground">{subcuenta}</span>
+                                                </div>
+                                              )
+                                            }
+                                            return <span className="font-medium text-foreground text-xs">{subcuenta}</span>
+                                          })()}
                                         </td>
                                         <td className="py-1.5 px-3 text-right text-foreground font-medium">
                                           {linea.debe > 0 ? formatoMoneda(linea.debe) : "—"}
@@ -2186,7 +2329,23 @@ export default function LibroDiarioPage() {
                                 {partida.lineas.map((l, idx) => (
                                   <tr key={idx}>
                                     <td className="py-1.5 px-3 text-primary">{l.codigo}</td>
-                                    <td className="py-1.5 px-3 text-foreground font-sans">{getNombreCuenta(l.codigo)}</td>
+                                    <td className="py-1.5 px-3 text-foreground font-sans">
+                                      {(() => {
+                                        const c = cuentasMap.get(l.codigo)
+                                        const jerarquia = c ? formatearCuentaJerarquica(c, cuentasMap) : null
+                                        const principal = jerarquia?.principal
+                                        const subcuenta = jerarquia?.subcuenta || (c ? c.nombre : getNombreCuenta(l.codigo))
+                                        if (principal && principal.toLowerCase() !== subcuenta.toLowerCase()) {
+                                          return (
+                                            <div className="flex flex-col py-0.5 leading-tight">
+                                              <span className="font-semibold text-foreground text-xs">{principal}</span>
+                                              <span className="text-[11px] text-muted-foreground">{subcuenta}</span>
+                                            </div>
+                                          )
+                                        }
+                                        return <span className="font-medium text-foreground text-xs">{subcuenta}</span>
+                                      })()}
+                                    </td>
                                     <td className="py-1.5 px-3 text-right text-foreground font-medium">
                                       {l.debe > 0 ? formatoMoneda(l.debe) : "—"}
                                     </td>
@@ -2221,7 +2380,7 @@ export default function LibroDiarioPage() {
       {/* ========================================================================= */}
       {/* 3. VISTA EXCLUSIVA PARA IMPRESIÓN (@media print)                          */}
       {/* ========================================================================= */}
-      <div className="hidden print:block fixed inset-0 bg-white p-8 z-[99999] text-black text-xs font-mono">
+      <div className="hidden print:block w-full bg-white p-4 text-black text-xs font-mono">
         <div className="text-center pb-3 border-b border-black space-y-1">
           <h1 className="text-base font-bold tracking-wider uppercase">EMPRESA COMERCIAL S.A. DE C.V.</h1>
           <p className="text-xs">LIBRO DIARIO GENERAL — SISTEMA ANALÍTICO O PORMENORIZADO</p>
@@ -2258,7 +2417,23 @@ export default function LibroDiarioPage() {
                     {partida.lineas.map((linea, idx) => (
                       <tr key={idx}>
                         <td className="py-1">{linea.codigo}</td>
-                        <td className="py-1">{getNombreCuenta(linea.codigo)}</td>
+                        <td className="py-1">
+                          {(() => {
+                            const c = cuentasMap.get(linea.codigo)
+                            const jerarquia = c ? formatearCuentaJerarquica(c, cuentasMap) : null
+                            const principal = jerarquia?.principal
+                            const subcuenta = jerarquia?.subcuenta || (c ? c.nombre : getNombreCuenta(linea.codigo))
+                            if (principal && principal.toLowerCase() !== subcuenta.toLowerCase()) {
+                              return (
+                                <div className="leading-tight">
+                                  <div className="font-bold text-black">{principal}</div>
+                                  <div className="text-[10px] text-slate-700 pl-2">{subcuenta}</div>
+                                </div>
+                              )
+                            }
+                            return <span>{subcuenta}</span>
+                          })()}
+                        </td>
                         <td className="py-1 text-right">{linea.debe > 0 ? formatoMoneda(linea.debe) : ""}</td>
                         <td className="py-1 text-right">{linea.haber > 0 ? formatoMoneda(linea.haber) : ""}</td>
                       </tr>
@@ -2430,7 +2605,7 @@ export default function LibroDiarioPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5 pt-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -2441,12 +2616,22 @@ export default function LibroDiarioPage() {
                 Cancelar
               </Button>
               <Button
+                variant="secondary"
                 size="sm"
-                onClick={handleCerrarFolio}
+                onClick={() => handleCerrarFolio(false)}
                 disabled={cerrandoFolio}
-                className="text-xs h-9 px-4 gap-1.5 font-medium cursor-pointer shadow-xs"
+                className="text-xs h-9 px-3 gap-1.5 font-medium cursor-pointer shadow-xs border border-border"
               >
-                {cerrandoFolio ? "Sellando Jornada..." : "Confirmar Cierre Legal"}
+                {cerrandoFolio ? "Sellando..." : "Confirmar Cierre Legal"}
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => handleCerrarFolio(true)}
+                disabled={cerrandoFolio}
+                className="text-xs h-9 px-4 gap-1.5 font-semibold cursor-pointer shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                <ArrowRight className="size-3.5" />
+                <span>{cerrandoFolio ? "Procesando..." : "Cerrar y Avanzar al Siguiente Día"}</span>
               </Button>
             </div>
           </div>
