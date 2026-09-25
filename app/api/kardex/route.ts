@@ -125,6 +125,8 @@ export async function POST(req: Request) {
           valor_inventario_final: parseFloat(row.r_valor_inventario_final),
           responsable: row.r_responsable,
           observaciones: row.r_observaciones,
+          es_manual: false,
+          origen: "KARDEX_AUTO",
         },
       })
     }
