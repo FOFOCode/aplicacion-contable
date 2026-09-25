@@ -33,6 +33,7 @@ import {
   ChevronDown,
   ChevronUp,
   ChevronsUpDown,
+  Search,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input, Label } from "@/components/ui/field"
@@ -53,7 +54,8 @@ import {
   type OperacionContable,
 } from "@/lib/asientoInferenceEngine"
 import { HistorialFoliosDrawer } from "@/components/contabilidad/HistorialFoliosDrawer"
-import { CuentaCombobox } from "@/components/contabilidad/CuentaCombobox"
+import { CuentaFinderModal, type ResultadoFinder } from "@/components/contabilidad/CuentaFinderModal"
+import { ModalAjusteContable } from "@/components/contabilidad/ModalAjusteContable"
 import { useContableKeyboard } from "@/hooks/useContableKeyboard"
 import { exportarFolioPDF, exportarFolioCSV } from "@/lib/exportFolio"
 import { cn } from "@/lib/utils"
@@ -138,10 +140,7 @@ export default function LibroDiarioPage() {
   const [concepto, setConcepto] = useState<string>("")
   const [documentoSoporte, setDocumentoSoporte] = useState<string>("")
   const [tipoPartida, setTipoPartida] = useState<string>("OPERACION")
-  const [lineas, setLineas] = useState<LineaCaptura[]>([
-    { key: "1", codigo: "", monto: "", operacion: "AUMENTA", debeDirecto: "", haberDirecto: "" },
-    { key: "2", codigo: "", monto: "", operacion: "AUMENTA", debeDirecto: "", haberDirecto: "" },
-  ])
+  const [lineas, setLineas] = useState<LineaCaptura[]>([])
   const [guardandoPartida, setGuardandoPartida] = useState<boolean>(false)
   const [partidaEnEdicion, setPartidaEnEdicion] = useState<{
     id: string
@@ -150,6 +149,21 @@ export default function LibroDiarioPage() {
 
   // Modal de captura
   const [modalCapturaOpen, setModalCapturaOpen] = useState(false)
+
+  // Finder de Cuentas estilo iOS / Spotlight
+  const [finderOpen, setFinderOpen] = useState(false)
+  const [lineaEnEdicionParaFinder, setLineaEnEdicionParaFinder] = useState<LineaCaptura | null>(null)
+
+  // Modal de Ajuste Contable (Principio de Inmutabilidad y Auditoría)
+  const [modalAjusteState, setModalAjusteState] = useState<{
+    isOpen: boolean
+    modo: "MODIFICAR" | "ANULAR"
+    partida: any
+  }>({
+    isOpen: false,
+    modo: "MODIFICAR",
+    partida: null,
+  })
 
   // Menú de exportación desplegable
   const [menuExportarOpen, setMenuExportarOpen] = useState(false)
@@ -418,68 +432,106 @@ export default function LibroDiarioPage() {
     setLineas((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)))
   }
 
-  // Agregar nueva línea
-  const handleAddLinea = useCallback(() => {
-    const newKey = String(Date.now() + Math.random())
-    setLineas((prev) => [
-      ...prev,
-      {
-        key: newKey,
-        codigo: "",
-        monto: "",
-        operacion: "AUMENTA",
-        debeDirecto: "",
-        haberDirecto: "",
-      },
-    ])
+  // Abrir Finder para agregar nueva línea
+  const handleAbrirFinderParaNuevaLinea = useCallback(() => {
+    setLineaEnEdicionParaFinder(null)
+    setFinderOpen(true)
   }, [])
 
-  // Eliminar línea
+  // Abrir Finder para editar línea existente
+  const handleAbrirFinderParaEditarLinea = useCallback((linea: LineaCaptura) => {
+    setLineaEnEdicionParaFinder(linea)
+    setFinderOpen(true)
+  }, [])
+
+  // Atajo legacy para teclados
+  const handleAddLinea = useCallback(() => {
+    handleAbrirFinderParaNuevaLinea()
+  }, [handleAbrirFinderParaNuevaLinea])
+
+  // Eliminar línea del comprobante
   const handleRemoveLinea = (key: string) => {
-    if (lineas.length <= 2) {
-      setNotificacion({
-        tipo: "error",
-        mensaje: "Una partida contable requiere como mínimo 2 renglones.",
-      })
-      return
-    }
     setLineas((prev) => prev.filter((l) => l.key !== key))
   }
 
-  // Auto-cuadrar partida con cálculo matemático exacto
-  const handleAutoCuadrar = useCallback(() => {
-    if (lineas.length < 2) return
-
-    // 1. Detectar el renglón objetivo a auto-balancear:
-    // Si hay algún renglón sin monto ingresado, usamos ese; de lo contrario, el último renglón.
-    let targetIndex = lineas.length - 1
-    const emptyIdx = lineas.findIndex((l) => {
-      if (modoCaptura === "CLASICO") {
-        return (l.debeDirecto === "" || l.debeDirecto === undefined) && (l.haberDirecto === "" || l.haberDirecto === undefined)
-      } else {
-        return l.monto === "" || l.monto === undefined || l.monto === 0
-      }
-    })
-    if (emptyIdx !== -1) {
-      targetIndex = emptyIdx
+  // Sugerencia de faltante para auto-cuadrar
+  const sugerenciaFaltanteParaFinder = useMemo(() => {
+    if (totalesPartidaEnCurso.diferencia <= 0) return null
+    return {
+      monto: totalesPartidaEnCurso.diferencia,
+      lado: totalesPartidaEnCurso.diferenciaConSigno > 0 ? ("HABER" as const) : ("DEBE" as const),
     }
+  }, [totalesPartidaEnCurso])
 
-    // 2. Sumar Debe y Haber de TODOS los demás renglones (excluyendo el renglón objetivo)
-    let sumaDebeOtros = 0
-    let sumaHaberOtros = 0
+  // Confirmar y aplicar resultado del Finder
+  const handleConfirmarFinder = useCallback(
+    (resultado: ResultadoFinder) => {
+      setLineas((prev) => {
+        if (lineaEnEdicionParaFinder) {
+          const idx = prev.findIndex((l) => l.key === lineaEnEdicionParaFinder.key)
+          if (idx !== -1) {
+            const updated = [...prev]
+            updated[idx] = {
+              ...updated[idx],
+              codigo: resultado.lineaPrincipal.codigo,
+              monto: resultado.lineaPrincipal.monto,
+              operacion: resultado.lineaPrincipal.operacion,
+              debeDirecto: resultado.lineaPrincipal.debeDirecto ?? "",
+              haberDirecto: resultado.lineaPrincipal.haberDirecto ?? "",
+            }
+            if (resultado.lineaIva) {
+              const ivaCod = resultado.lineaIva.codigo
+              const ivaIdx = updated.findIndex((l, i) => i !== idx && l.codigo === ivaCod)
+              const nuevaLineaIva: LineaCaptura = {
+                key: ivaIdx !== -1 ? updated[ivaIdx].key : String(Date.now() + Math.random()),
+                codigo: ivaCod,
+                monto: resultado.lineaIva.monto,
+                operacion: resultado.lineaIva.operacion,
+                debeDirecto: resultado.lineaIva.debeDirecto ?? "",
+                haberDirecto: resultado.lineaIva.haberDirecto ?? "",
+              }
+              if (ivaIdx !== -1) {
+                updated[ivaIdx] = nuevaLineaIva
+              } else {
+                updated.splice(idx + 1, 0, nuevaLineaIva)
+              }
+            }
+            return updated
+          }
+        }
 
-    lineasProcesadas.forEach((l, idx) => {
-      if (idx !== targetIndex) {
-        sumaDebeOtros += l.debe
-        sumaHaberOtros += l.haber
-      }
-    })
+        // Nueva línea
+        const lineasExistentes = prev.filter((l) => l.codigo || l.monto || l.debeDirecto || l.haberDirecto)
+        const nuevaLinea: LineaCaptura = {
+          key: String(Date.now() + Math.random()),
+          codigo: resultado.lineaPrincipal.codigo,
+          monto: resultado.lineaPrincipal.monto,
+          operacion: resultado.lineaPrincipal.operacion,
+          debeDirecto: resultado.lineaPrincipal.debeDirecto ?? "",
+          haberDirecto: resultado.lineaPrincipal.haberDirecto ?? "",
+        }
+        const nuevoArray = [...lineasExistentes, nuevaLinea]
+        if (resultado.lineaIva) {
+          const nuevaLineaIva: LineaCaptura = {
+            key: String(Date.now() + Math.random() + 1),
+            codigo: resultado.lineaIva.codigo,
+            monto: resultado.lineaIva.monto,
+            operacion: resultado.lineaIva.operacion,
+            debeDirecto: resultado.lineaIva.debeDirecto ?? "",
+            haberDirecto: resultado.lineaIva.haberDirecto ?? "",
+          }
+          nuevoArray.push(nuevaLineaIva)
+        }
+        return nuevoArray
+      })
+      setLineaEnEdicionParaFinder(null)
+    },
+    [lineaEnEdicionParaFinder]
+  )
 
-    sumaDebeOtros = redondear(sumaDebeOtros)
-    sumaHaberOtros = redondear(sumaHaberOtros)
-    const diff = redondear(sumaDebeOtros - sumaHaberOtros)
-
-    if (diff === 0 && sumaDebeOtros > 0) {
+  // Auto-cuadrar partida abriendo el finder para seleccionar la cuenta contrapartida con el faltante
+  const handleAutoCuadrar = useCallback(() => {
+    if (totalesPartidaEnCurso.cuadrado) {
       setNotificacion({
         tipo: "exito",
         titulo: "Partida Cuadrada",
@@ -488,69 +540,27 @@ export default function LibroDiarioPage() {
       return
     }
 
-    const targetLinea = lineas[targetIndex]
-    const faltante = Math.abs(diff)
-
-    if (modoCaptura === "CLASICO") {
-      if (diff > 0) {
-        // Debe > Haber: la partida requiere abono al Haber
-        const cuenta = cuentasMap.get(targetLinea.codigo)
-        const nat = normalizarNaturaleza(cuenta?.naturaleza || "deudora")
-        const op: "AUMENTA" | "DISMINUYE" = nat === "acreedora" ? "AUMENTA" : "DISMINUYE"
-        handleUpdateLinea(targetLinea.key, {
-          haberDirecto: faltante,
-          debeDirecto: "",
-          monto: faltante,
-          operacion: op,
-        })
-      } else {
-        // Haber > Debe: la partida requiere cargo al Debe
-        const cuenta = cuentasMap.get(targetLinea.codigo)
-        const nat = normalizarNaturaleza(cuenta?.naturaleza || "deudora")
-        const op: "AUMENTA" | "DISMINUYE" = nat === "deudora" ? "AUMENTA" : "DISMINUYE"
-        handleUpdateLinea(targetLinea.key, {
-          debeDirecto: faltante,
-          haberDirecto: "",
-          monto: faltante,
-          operacion: op,
-        })
-      }
-    } else {
-      // Modo Smart (+/-): Deducir operación (+ Aumenta / - Disminuye) según la naturaleza contable
-      const cuenta = cuentasMap.get(targetLinea.codigo)
-      const nat = normalizarNaturaleza(cuenta?.naturaleza || "deudora")
-
-      if (diff > 0) {
-        // Necesitamos saldo al HABER:
-        // Cuenta Acreedora al Aumentar (+) genera Haber
-        // Cuenta Deudora al Disminuir (-) genera Haber
-        const op: "AUMENTA" | "DISMINUYE" = nat === "acreedora" ? "AUMENTA" : "DISMINUYE"
-        handleUpdateLinea(targetLinea.key, {
-          monto: faltante,
-          operacion: op,
-          haberDirecto: faltante,
-          debeDirecto: "",
-        })
-      } else {
-        // Necesitamos saldo al DEBE:
-        // Cuenta Deudora al Aumentar (+) genera Debe
-        // Cuenta Acreedora al Disminuir (-) genera Debe
-        const op: "AUMENTA" | "DISMINUYE" = nat === "deudora" ? "AUMENTA" : "DISMINUYE"
-        handleUpdateLinea(targetLinea.key, {
-          monto: faltante,
-          operacion: op,
-          debeDirecto: faltante,
-          haberDirecto: "",
-        })
-      }
+    if (totalesPartidaEnCurso.diferencia <= 0) {
+      setNotificacion({
+        tipo: "error",
+        titulo: "Sin Importes",
+        mensaje: "Agregue al menos una cuenta con monto antes de auto-cuadrar.",
+      })
+      return
     }
+
+    const faltante = totalesPartidaEnCurso.diferencia
+    const ladoNecesario = totalesPartidaEnCurso.diferenciaConSigno > 0 ? "HABER" : "DEBE"
+
+    setLineaEnEdicionParaFinder(null)
+    setFinderOpen(true)
 
     setNotificacion({
       tipo: "exito",
-      titulo: "Partida Cuadrada",
-      mensaje: `Renglón #${targetIndex + 1} auto-balanceado con ${formatoMoneda(faltante)}.`,
+      titulo: "Asistente de Cuadratura",
+      mensaje: `Selecciona la contrapartida en el Finder. Monto sugerido: ${formatoMoneda(faltante)} al ${ladoNecesario}.`,
     })
-  }, [lineas, lineasProcesadas, modoCaptura, cuentasMap])
+  }, [totalesPartidaEnCurso])
 
   // Desglose automático de IVA 13% para Compras, Activo Fijo (cómputo, carros, etc.) y Ventas
   // Fórmula: Base = $X / 1.13 -> IVA = Base * 0.13
@@ -729,28 +739,56 @@ export default function LibroDiarioPage() {
     setConcepto("")
     setDocumentoSoporte("")
     setPartidaEnEdicion(null)
-    setLineas([
-      { key: "1", codigo: "", monto: "", operacion: "AUMENTA", debeDirecto: "", haberDirecto: "" },
-      { key: "2", codigo: "", monto: "", operacion: "AUMENTA", debeDirecto: "", haberDirecto: "" },
-    ])
+    setLineas([])
   }
 
-  // Cargar Partida para Edición In-situ
-  const handleEditarPartida = (partida: {
+  // Iniciar Modificación mediante Asiento de Ajuste (Modal con Nota Contable)
+  const handleIniciarAjusteModificar = (partida: {
     id: string
     numero: number
     concepto: string
-    tipo?: string
-    documento_soporte?: string
+    fecha: string
     lineas: Array<{ codigo: string; debe: number; haber: number }>
   }) => {
-    setPartidaEnEdicion({ id: partida.id, numero: partida.numero })
-    setConcepto(partida.concepto)
-    setDocumentoSoporte(partida.documento_soporte || "")
-    setTipoPartida(partida.tipo || "OPERACION")
+    setModalAjusteState({
+      isOpen: true,
+      modo: "MODIFICAR",
+      partida,
+    })
+  }
+
+  // Iniciar Anulación mediante Asiento de Ajuste de Reversión (Modal con Nota Contable)
+  const handleIniciarAjusteAnular = (partida: {
+    id: string
+    numero: number
+    concepto: string
+    fecha: string
+    lineas: Array<{ codigo: string; debe: number; haber: number }>
+  }) => {
+    setModalAjusteState({
+      isOpen: true,
+      modo: "ANULAR",
+      partida,
+    })
+  }
+
+  // Confirmar Modificación creando un Asiento de Ajuste formal (Principio de Inmutabilidad)
+  const handleConfirmarModificarConAjuste = (
+    partidaOriginal: {
+      id: string
+      numero: number
+      concepto: string
+      lineas: Array<{ codigo: string; debe: number; haber: number }>
+    },
+    notaValida: string
+  ) => {
+    setPartidaEnEdicion(null)
+    setTipoPartida("AJUSTE")
+    setDocumentoSoporte(`Ajuste P-${partidaOriginal.numero}`)
+    setConcepto(`Ajuste a Partida #${partidaOriginal.numero}: ${notaValida}`)
     setModoCaptura("CLASICO")
 
-    const nuevasLineas: LineaCaptura[] = partida.lineas.map((l, idx) => {
+    const nuevasLineas: LineaCaptura[] = partidaOriginal.lineas.map((l, idx) => {
       const c = cuentasMap.get(l.codigo)
       const nat = normalizarNaturaleza(c?.naturaleza || "deudora")
       const monto = l.debe > 0 ? l.debe : l.haber
@@ -774,42 +812,69 @@ export default function LibroDiarioPage() {
     setModalCapturaOpen(true)
     setNotificacion({
       tipo: "exito",
-      titulo: "Partida en Edición",
-      mensaje: `Cargada Partida #${partida.numero} para modificar.`,
+      titulo: "Asiento de Ajuste Preparado",
+      mensaje: `Se ha abierto el comprobante de ajuste para la Partida #${partidaOriginal.numero}. Realice los ajustes necesarios y guárdelo.`,
     })
   }
 
-  // Anular Partida
-  const handleAnularPartida = async (partida: { id: string; numero: number }) => {
-    const motivo = window.prompt(
-      `Ingrese el motivo contable de anulación para la Partida #${partida.numero}:`,
-      "Error en registro contable",
-    )
-    if (!motivo) return
+  // Confirmar Anulación creando automáticamente un Asiento de Ajuste por Contrasiento (Reversión)
+  const handleConfirmarAnularRevertirConAjuste = async (
+    partidaOriginal: {
+      id: string
+      numero: number
+      lineas: Array<{ codigo: string; debe: number; haber: number }>
+    },
+    notaValida: string
+  ) => {
+    // Invertir cargos y abonos para el asiento de ajuste
+    const lineasRevertidas = partidaOriginal.lineas.map((l) => ({
+      codigo: l.codigo,
+      debe: Number(l.haber) || 0,
+      haber: Number(l.debe) || 0,
+    }))
 
-    try {
-      const res = await fetch(`/api/asientos/${partida.id}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ motivo }),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || "No se pudo anular la partida")
-      }
-      setNotificacion({
-        tipo: "exito",
-        titulo: "Partida Anulada",
-        mensaje: `Partida #${partida.numero} anulada correctamente en el folio.`,
-      })
-      await Promise.all([cargarFolioFecha(fechaSeleccionada), recargarAsientos()])
-    } catch (e: unknown) {
-      setNotificacion({
-        tipo: "error",
-        titulo: "Error al Anular",
-        mensaje: e instanceof Error ? e.message : "Error al anular partida",
-      })
+    // 1. Crear Asiento de Ajuste de Reversión
+    const payloadAjuste = {
+      fecha: fechaSeleccionada,
+      concepto: `Reversión contable de Partida #${partidaOriginal.numero}: ${notaValida}`,
+      tipo: "AJUSTE",
+      documento_soporte: `Reversión P-${partidaOriginal.numero}`,
+      folio_diario_id: datosFolio?.folio?.id,
+      lineas: lineasRevertidas,
     }
+
+    const resAjuste = await fetch("/api/asientos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payloadAjuste),
+    })
+
+    if (!resAjuste.ok) {
+      const err = await resAjuste.json().catch(() => ({}))
+      throw new Error(err.error || "No se pudo registrar el asiento de reversión")
+    }
+
+    // 2. Marcar la partida original como anulada con el motivo contable
+    const resAnular = await fetch(`/api/asientos/${partidaOriginal.id}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        motivo: `Anulada mediante Asiento de Ajuste de Reversión: ${notaValida}`,
+      }),
+    })
+
+    if (!resAnular.ok) {
+      const err = await resAnular.json().catch(() => ({}))
+      throw new Error(err.error || "No se pudo marcar la partida como anulada")
+    }
+
+    setNotificacion({
+      tipo: "exito",
+      titulo: "Asiento de Reversión Creado",
+      mensaje: `Partida #${partidaOriginal.numero} saldada a cero mediante Asiento de Ajuste por Contrasiento.`,
+    })
+
+    await Promise.all([cargarFolioFecha(fechaSeleccionada), recargarAsientos()])
   }
 
 
@@ -1021,18 +1086,16 @@ export default function LibroDiarioPage() {
   // =========================================================================
   const renderFormularioCaptura = () => (
     <form onSubmit={handleGuardarPartida} className="space-y-5">
-      {/* Banner de Modo Edición */}
-      {partidaEnEdicion && (
-        <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs flex items-center justify-between">
-          <div className="flex items-center gap-1.5 font-medium">
-            <Pencil className="size-3.5 text-amber-600 dark:text-amber-400" />
-            <span>Modificando Partida #{partidaEnEdicion.numero} guardada en folio abierto.</span>
+      {/* Banner de Modo Ajuste Contable */}
+      {tipoPartida === "AJUSTE" && (
+        <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs flex items-center justify-between">
+          <div className="flex items-center gap-2 font-medium">
+            <Sliders className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span>Asiento de Ajuste Contable formal en folio abierto (con trazabilidad de auditoría).</span>
           </div>
           <button
             type="button"
-            onClick={() => {
-              handleLimpiarFormulario()
-            }}
+            onClick={handleLimpiarFormulario}
             className="text-xs hover:underline cursor-pointer"
           >
             Descartar
@@ -1040,7 +1103,7 @@ export default function LibroDiarioPage() {
         </div>
       )}
 
-      {/* Selector de Modo de Captura (Segmented Tabs) */}
+      {/* Selector de Modo de Captura (Segmented Tabs) y Botón Buscar Cuenta */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-1 rounded-lg bg-muted/40 p-1 border border-border">
           <button
@@ -1054,7 +1117,7 @@ export default function LibroDiarioPage() {
             )}
           >
             <Zap className="size-3 text-amber-500" />
-            <span>SMART</span>
+            <span>SMART (+/-)</span>
           </button>
           <button
             type="button"
@@ -1067,19 +1130,18 @@ export default function LibroDiarioPage() {
             )}
           >
             <Sliders className="size-3 text-primary" />
-            <span>CLÁSICO</span>
+            <span>CLÁSICO (D/H)</span>
           </button>
         </div>
 
         <Button
           type="button"
-          variant="outline"
           size="sm"
-          onClick={handleAddLinea}
-          className="text-xs h-8 gap-1.5 cursor-pointer"
+          onClick={handleAbrirFinderParaNuevaLinea}
+          className="text-xs h-8 gap-1.5 font-medium cursor-pointer shadow-xs"
         >
-          <Plus className="size-3.5" />
-          <span>Agregar Renglón</span>
+          <Search className="size-3.5" />
+          <span>Buscar Cuenta</span>
         </Button>
       </div>
 
@@ -1091,7 +1153,7 @@ export default function LibroDiarioPage() {
           </Label>
           <Input
             id="doc-soporte"
-            placeholder="Ej: F-102, CH-45..."
+            placeholder="Ej: F-102, CCF-45..."
             value={documentoSoporte}
             onChange={(e) => setDocumentoSoporte(e.target.value)}
             className="text-xs h-9 font-mono mt-1"
@@ -1148,13 +1210,13 @@ export default function LibroDiarioPage() {
         </div>
       </div>
 
-      {/* Renglones Contables */}
+      {/* Renglones Contables: Visualización Pura sin Inputs */}
       <div className="space-y-2 pt-3 border-t border-border">
         <div className="flex items-center justify-between text-xs mb-2">
           <span className="font-semibold text-foreground flex items-center gap-1.5">
             Renglones Contables
             <Badge variant="outline" className="text-[10px] h-4.5 px-1.5 font-mono">
-              {lineas.length}
+              {lineasProcesadas.filter((l) => l.cuentaValida).length}
             </Badge>
           </span>
           <span className="text-[11px] text-muted-foreground font-mono">
@@ -1162,313 +1224,119 @@ export default function LibroDiarioPage() {
           </span>
         </div>
 
-        <div className="space-y-2.5 max-h-[45vh] overflow-y-auto pr-1">
-          {lineasProcesadas.map((linea, index) => (
-            <div
-              key={linea.key}
-              className="p-3 rounded-lg border border-border bg-muted/20 hover:bg-muted/30 transition-colors space-y-2.5"
-            >
-              {/* Fila superior: Índice + Selector de Cuenta + Eliminar */}
-              <div className="flex items-center gap-2.5">
-                <span className="text-[10px] font-mono font-bold text-muted-foreground size-6 rounded-md bg-muted/60 flex items-center justify-center shrink-0">
-                  {index + 1}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <CuentaCombobox
-                    cuentas={cuentas}
-                    value={linea.codigo}
-                    onChange={(cod) => {
-                      const c = cuentasMap.get(cod)
-                      let opSugerida: "AUMENTA" | "DISMINUYE" = linea.operacion
-
-                      if (modoCaptura === "SMART" && c) {
-                        // Si la partida ya tiene otras líneas que suman al Debe más que al Haber,
-                        // deducir inteligentemente qué operación necesita esta nueva cuenta para equilibrar
-                        let sumaDebeOtros = 0
-                        let sumaHaberOtros = 0
-                        lineasProcesadas.forEach((lp) => {
-                          if (lp.key !== linea.key) {
-                            sumaDebeOtros += lp.debe
-                            sumaHaberOtros += lp.haber
-                          }
-                        })
-                        const diff = redondear(sumaDebeOtros - sumaHaberOtros)
-                        const nat = normalizarNaturaleza(c.naturaleza)
-
-                        if (diff > 0) {
-                          // Debe > Haber: la partida necesita abonar al HABER
-                          opSugerida = nat === "acreedora" ? "AUMENTA" : "DISMINUYE"
-                        } else if (diff < 0) {
-                          // Haber > Debe: la partida necesita cargar al DEBE
-                          opSugerida = nat === "deudora" ? "AUMENTA" : "DISMINUYE"
-                        }
-                      }
-
-                      handleUpdateLinea(linea.key, { codigo: cod, operacion: opSugerida })
-                      if (esCuentaSujetaAIVA(cod).esSujeta) {
-                        const monto =
-                          modoCaptura === "CLASICO"
-                            ? Number(linea.debeDirecto) || Number(linea.haberDirecto) || 0
-                            : Number(linea.monto) || 0
-                        if (monto > 0) {
-                          handleDesglosarIVA(linea.key, false, cod)
-                        }
-                      }
-                    }}
-                    placeholder="Seleccionar cuenta contable..."
-                  />
-                  {/* Jerarquía de cuenta seleccionada */}
-                  {linea.codigo && cuentasMap.get(linea.codigo) && (
-                    <div className="mt-1 flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground">
-                      <span className="text-primary font-semibold">
-                        {formatearCuentaJerarquica(cuentasMap.get(linea.codigo)!, cuentasMap).principal}
-                      </span>
-                      <span>—</span>
-                      <span className="text-foreground truncate">
-                        {cuentasMap.get(linea.codigo)!.nombre}
-                      </span>
-                    </div>
-                  )}
-                  {/* IVA indicator */}
-                  {linea.codigo && esCuentaSujetaAIVA(linea.codigo).esSujeta && (() => {
-                    const info = esCuentaSujetaAIVA(linea.codigo)
-                    const montoActual =
-                      modoCaptura === "CLASICO"
-                        ? Number(linea.debeDirecto) || Number(linea.haberDirecto) || 0
-                        : Number(linea.monto) || 0
-
-                    const lineaIva = lineas.find((l, idx) => idx !== index && l.codigo === info.cuentaIvaCodigo)
-                    const ivaMonto = lineaIva
-                      ? modoCaptura === "CLASICO"
-                        ? Number(lineaIva.debeDirecto) || Number(lineaIva.haberDirecto) || 0
-                        : Number(lineaIva.monto) || 0
-                      : 0
-
-                    const yaDesglosado =
-                      montoActual > 0 &&
-                      ivaMonto > 0 &&
-                      Math.abs(redondear(montoActual * 0.13) - ivaMonto) <= 0.02
-                    const totalEstimado = redondear(montoActual + ivaMonto)
-
-                    return (
-                      <div className="mt-1.5 flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-muted/60 border border-border text-xs">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <Zap className="size-3.5 text-amber-500 shrink-0" />
-                          {yaDesglosado ? (
-                            <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-mono">
-                              <span className="text-emerald-500 font-semibold flex items-center gap-1">
-                                <CheckCircle2 className="size-3" /> IVA 13% Desglosado:
-                              </span>
-                              <span className="text-foreground">Base {formatoMoneda(montoActual)}</span>
-                              <span className="text-muted-foreground">+</span>
-                              <span className="text-primary font-semibold">IVA {formatoMoneda(ivaMonto)}</span>
-                              <span className="text-muted-foreground text-[10px]">({formatoMoneda(totalEstimado)})</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1.5 text-[11px]">
-                              <span className="font-semibold text-foreground">
-                                {info.impuestoNombre}
-                              </span>
-                              <span className="text-muted-foreground text-[10px]">
-                                (Sujeta al 13%)
-                              </span>
-                            </div>
-                          )}
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => handleDesglosarIVA(linea.key, true)}
-                          disabled={montoActual <= 0}
-                          className={cn(
-                            "text-[10px] font-semibold px-2.5 py-1 rounded-md transition-all cursor-pointer shrink-0 disabled:opacity-40",
-                            yaDesglosado
-                              ? "text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80"
-                              : "text-amber-500 hover:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20"
-                          )}
-                          title={yaDesglosado ? "Volver a calcular desglose de IVA (13%)" : "Calcular y desglosar IVA (13%) automáticamente"}
-                        >
-                          {yaDesglosado ? "Recalcular" : "⚡ Desglosar IVA 13%"}
-                        </button>
-                      </div>
-                    )
-                  })()}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleRemoveLinea(linea.key)}
-                  disabled={lineas.length <= 2}
-                  className="text-muted-foreground hover:text-destructive p-1 rounded transition-colors disabled:opacity-20 cursor-pointer shrink-0"
-                  title="Eliminar renglón"
-                >
-                  <Trash2 className="size-3.5" />
-                </button>
-              </div>
-
-              {/* Controles de Importe según Modo */}
-              {modoCaptura === "SMART" ? (
-                <div className="grid grid-cols-12 gap-2.5 items-center pl-8">
-                  <div className="col-span-5">
-                    <select
-                      value={linea.operacion}
-                      onChange={(e) => {
-                        const op = e.target.value as "AUMENTA" | "DISMINUYE"
-                        const c = cuentasMap.get(linea.codigo)
-                        const m = Number(linea.monto) || 0
-                        if (c && m > 0) {
-                          const res = inferirImputacion(c, m, op)
-                          handleUpdateLinea(linea.key, {
-                            operacion: op,
-                            debeDirecto: res.debe > 0 ? res.debe : "",
-                            haberDirecto: res.haber > 0 ? res.haber : "",
-                          })
-                        } else {
-                          handleUpdateLinea(linea.key, { operacion: op })
-                        }
-                      }}
-                      className="w-full text-xs h-9 px-2.5 rounded-md border border-input bg-background text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring font-medium"
-                    >
-                      <option value="AUMENTA">
-                        {linea.cuenta
-                          ? linea.cuenta.naturaleza === "acreedora"
-                            ? "+ Aumenta (Haber)"
-                            : "+ Aumenta (Debe)"
-                          : "+ Aumenta"}
-                      </option>
-                      <option value="DISMINUYE">
-                        {linea.cuenta
-                          ? linea.cuenta.naturaleza === "acreedora"
-                            ? "- Disminuye (Debe)"
-                            : "- Disminuye (Haber)"
-                          : "- Disminuye"}
-                      </option>
-                    </select>
-                  </div>
-                  <div className="col-span-4 relative">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-mono text-muted-foreground">$</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={linea.monto}
-                      onChange={(e) => {
-                        const val = e.target.value === "" ? "" : parseFloat(e.target.value)
-                        const c = cuentasMap.get(linea.codigo)
-                        if (c && typeof val === "number" && val > 0) {
-                          const res = inferirImputacion(c, val, linea.operacion)
-                          handleUpdateLinea(linea.key, {
-                            monto: val,
-                            debeDirecto: res.debe > 0 ? res.debe : "",
-                            haberDirecto: res.haber > 0 ? res.haber : "",
-                          })
-                        } else {
-                          handleUpdateLinea(linea.key, {
-                            monto: val,
-                            debeDirecto: "",
-                            haberDirecto: "",
-                          })
-                        }
-                      }}
-                      onBlur={() => {
-                        if (esCuentaSujetaAIVA(linea.codigo).esSujeta) {
-                          handleDesglosarIVA(linea.key)
-                        }
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && esCuentaSujetaAIVA(linea.codigo).esSujeta) {
-                          handleDesglosarIVA(linea.key)
-                        }
-                      }}
-                      className="w-full text-xs h-9 pl-6 pr-2.5 rounded-md border border-input bg-background text-foreground font-mono tabular-nums text-right focus:outline-none focus:ring-1 focus:ring-ring"
-                    />
-                  </div>
-                  <div className="col-span-3 text-right">
-                    {linea.debe > 0 && (
-                      <Badge variant="default" className="text-[10px] font-mono px-1.5 py-0.5">
-                        D: {formatoMoneda(linea.debe)}
-                      </Badge>
-                    )}
-                    {linea.haber > 0 && (
-                      <Badge variant="muted" className="text-[10px] font-mono px-1.5 py-0.5">
-                        H: {formatoMoneda(linea.haber)}
-                      </Badge>
-                    )}
-                    {linea.debe === 0 && linea.haber === 0 && (
-                      <span className="text-[10px] text-muted-foreground font-mono">—</span>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-2.5 pl-8">
-                  <div className="relative">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] font-mono font-bold text-muted-foreground">D$</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      placeholder="Debe 0.00"
-                      value={linea.debeDirecto ?? ""}
-                      onChange={(e) => {
-                        const val = e.target.value === "" ? "" : parseFloat(e.target.value)
-                        const c = cuentasMap.get(linea.codigo)
-                        const nat = normalizarNaturaleza(c?.naturaleza || "deudora")
-                        const op: "AUMENTA" | "DISMINUYE" = nat === "deudora" ? "AUMENTA" : "DISMINUYE"
-                        handleUpdateLinea(linea.key, {
-                          debeDirecto: val,
-                          haberDirecto: val !== "" ? "" : linea.haberDirecto,
-                          monto: val,
-                          operacion: op,
-                        })
-                      }}
-                      onBlur={() => {
-                        if (esCuentaSujetaAIVA(linea.codigo).esSujeta) {
-                          handleDesglosarIVA(linea.key)
-                        }
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && esCuentaSujetaAIVA(linea.codigo).esSujeta) {
-                          handleDesglosarIVA(linea.key)
-                        }
-                      }}
-                      className="w-full text-xs h-9 pl-7 pr-2.5 rounded-md border border-input bg-background text-foreground font-mono tabular-nums text-right focus:outline-none focus:ring-1 focus:ring-ring"
-                    />
-                  </div>
-                  <div className="relative">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] font-mono font-bold text-muted-foreground">H$</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      placeholder="Haber 0.00"
-                      value={linea.haberDirecto ?? ""}
-                      onChange={(e) => {
-                        const val = e.target.value === "" ? "" : parseFloat(e.target.value)
-                        const c = cuentasMap.get(linea.codigo)
-                        const nat = normalizarNaturaleza(c?.naturaleza || "deudora")
-                        const op: "AUMENTA" | "DISMINUYE" = nat === "acreedora" ? "AUMENTA" : "DISMINUYE"
-                        handleUpdateLinea(linea.key, {
-                          haberDirecto: val,
-                          debeDirecto: val !== "" ? "" : linea.debeDirecto,
-                          monto: val,
-                          operacion: op,
-                        })
-                      }}
-                      onBlur={() => {
-                        if (esCuentaSujetaAIVA(linea.codigo).esSujeta) {
-                          handleDesglosarIVA(linea.key)
-                        }
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && esCuentaSujetaAIVA(linea.codigo).esSujeta) {
-                          handleDesglosarIVA(linea.key)
-                        }
-                      }}
-                      className="w-full text-xs h-9 pl-7 pr-2.5 rounded-md border border-input bg-background text-foreground font-mono tabular-nums text-right focus:outline-none focus:ring-1 focus:ring-ring"
-                    />
-                  </div>
-                </div>
-              )}
+        {lineasProcesadas.filter((l) => l.cuentaValida).length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border p-6 text-center space-y-3 bg-muted/10">
+            <div className="size-10 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto">
+              <Search className="size-5" />
             </div>
-          ))}
-        </div>
+            <div className="space-y-1">
+              <p className="text-xs font-semibold text-foreground">
+                No hay cuentas contables agregadas
+              </p>
+              <p className="text-[11px] text-muted-foreground max-w-sm mx-auto">
+                Haz clic en el buscador para seleccionar cuentas, definir montos y aplicar IVA automáticamente.
+              </p>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleAbrirFinderParaNuevaLinea}
+              className="text-xs h-8 gap-1.5 font-medium cursor-pointer shadow-xs"
+            >
+              <Search className="size-3.5" />
+              <span>Abrir Buscador de Cuentas</span>
+            </Button>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-border overflow-hidden">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-muted/40 border-b border-border text-muted-foreground text-[11px] font-medium">
+                  <th className="py-2 px-3 text-left w-10 font-mono">#</th>
+                  <th className="py-2 px-3 text-left">Cuenta Contable</th>
+                  <th className="py-2 px-3 text-center w-28">Movimiento</th>
+                  <th className="py-2 px-3 text-right w-28 font-mono">Debe</th>
+                  <th className="py-2 px-3 text-right w-28 font-mono">Haber</th>
+                  <th className="py-2 px-3 text-right w-20">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border font-mono tabular-nums">
+                {lineasProcesadas.map((linea, index) => {
+                  if (!linea.cuentaValida) return null
+                  const c = linea.cuenta
+                  const esDebe = linea.debe > 0
+                  const esHaber = linea.haber > 0
+
+                  return (
+                    <tr key={linea.key} className="hover:bg-muted/20 transition-colors">
+                      <td className="py-2.5 px-3 text-muted-foreground font-bold">
+                        {index + 1}
+                      </td>
+                      <td className="py-2.5 px-3 font-sans">
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-primary font-bold text-xs">
+                              {linea.codigo}
+                            </span>
+                            <span className="text-foreground font-medium truncate max-w-[180px] sm:max-w-[260px]">
+                              {c ? c.nombre : getNombreCuenta(linea.codigo)}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-muted-foreground truncate">
+                            {c ? formatearCuentaJerarquica(c, cuentasMap).principal : ""}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3 text-center font-sans">
+                        {modoCaptura === "SMART" ? (
+                          <Badge
+                            variant={linea.operacion === "AUMENTA" ? "default" : "muted"}
+                            className="text-[10px] px-2 py-0.5 font-normal"
+                          >
+                            {linea.operacion === "AUMENTA" ? "+ Aumenta" : "- Disminuye"}
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant={esDebe ? "default" : "muted"}
+                            className="text-[10px] px-2 py-0.5 font-normal"
+                          >
+                            {esDebe ? "Debe (Cargo)" : "Haber (Abono)"}
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-bold text-foreground">
+                        {esDebe ? formatoMoneda(linea.debe) : "—"}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-bold text-foreground">
+                        {esHaber ? formatoMoneda(linea.haber) : "—"}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-sans">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleAbrirFinderParaEditarLinea(linea)}
+                            className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                            title="Editar renglón en Finder"
+                          >
+                            <Pencil className="size-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveLinea(linea.key)}
+                            className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-red-500/10 transition-colors cursor-pointer"
+                            title="Eliminar renglón"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {/* Botones de Acción de Renglones */}
         <div className="flex items-center gap-2 pt-2">
@@ -1476,25 +1344,27 @@ export default function LibroDiarioPage() {
             type="button"
             variant="outline"
             size="sm"
-            onClick={handleAddLinea}
-            className="text-xs h-8 gap-1.5 flex-1 cursor-pointer"
+            onClick={handleAbrirFinderParaNuevaLinea}
+            className="text-xs h-8 gap-1.5 flex-1 cursor-pointer font-medium"
           >
-            <Plus className="size-3.5" />
-            <span>Renglón</span>
+            <Search className="size-3.5 text-primary" />
+            <span>Buscar Cuenta</span>
             <kbd className="text-[10px] font-mono text-muted-foreground">Alt+A</kbd>
           </Button>
+
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={handleAutoCuadrar}
-            className="text-xs h-8 gap-1.5 flex-1 cursor-pointer hover:border-amber-500/50 hover:bg-amber-500/10"
+            className="text-xs h-8 gap-1.5 flex-1 cursor-pointer hover:border-amber-500/50 hover:bg-amber-500/10 font-medium"
             title="Calcular y asignar la contrapartida exacta para cuadrar la partida"
           >
             <Sliders className="size-3.5 text-amber-500" />
             <span>Auto-Cuadrar</span>
             <kbd className="text-[10px] font-mono text-muted-foreground">Alt+C</kbd>
           </Button>
+
           <Button
             type="button"
             variant="ghost"
@@ -1535,8 +1405,8 @@ export default function LibroDiarioPage() {
         >
           {guardandoPartida ? (
             "Guardando..."
-          ) : partidaEnEdicion ? (
-            "Guardar Cambios"
+          ) : tipoPartida === "AJUSTE" ? (
+            "Guardar Asiento de Ajuste"
           ) : (
             "Guardar en Folio"
           )}
@@ -2023,16 +1893,16 @@ export default function LibroDiarioPage() {
                                 <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
                                   <button
                                     type="button"
-                                    onClick={() => handleEditarPartida(partida)}
-                                    title="Editar comprobante"
+                                    onClick={() => handleIniciarAjusteModificar(partida)}
+                                    title="Modificar mediante Asiento de Ajuste"
                                     className="text-muted-foreground hover:text-foreground p-1.5 rounded transition-colors cursor-pointer hover:bg-muted"
                                   >
                                     <Pencil className="size-3.5" />
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => handleAnularPartida(partida)}
-                                    title="Anular comprobante"
+                                    onClick={() => handleIniciarAjusteAnular(partida)}
+                                    title="Anular mediante Asiento de Ajuste (Reversión)"
                                     className="text-muted-foreground hover:text-destructive p-1.5 rounded transition-colors cursor-pointer hover:bg-red-500/10"
                                   >
                                     <Trash2 className="size-3.5" />
@@ -2382,20 +2252,30 @@ export default function LibroDiarioPage() {
       />
 
       {/* ========================================================================= */}
-      {/* MODAL: Registro de Comprobante (Agregar / Editar partida)                 */}
+      {/* MODAL: Registro de Comprobante (Agregar / Editar partida / Ajuste)        */}
       {/* ========================================================================= */}
       {modalCapturaOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-start justify-center p-4 pt-[5vh] overflow-y-auto">
-          <div className="bg-card text-card-foreground rounded-xl max-w-2xl w-full shadow-2xl border border-border animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-start justify-center p-4 pt-[4vh] overflow-y-auto">
+          <div className="bg-card text-card-foreground rounded-2xl max-w-3xl w-full shadow-2xl border border-border animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <div className="flex items-center gap-3">
                 <div className="size-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center shadow-xs">
-                  {partidaEnEdicion ? <Pencil className="size-4" /> : <Plus className="size-4" />}
+                  {tipoPartida === "AJUSTE" ? (
+                    <Sliders className="size-4" />
+                  ) : partidaEnEdicion ? (
+                    <Pencil className="size-4" />
+                  ) : (
+                    <Plus className="size-4" />
+                  )}
                 </div>
                 <div>
                   <h2 className="text-sm font-bold text-foreground">
-                    {partidaEnEdicion ? `Editando Partida #${partidaEnEdicion.numero}` : "Registro de comprobante"}
+                    {tipoPartida === "AJUSTE"
+                      ? "Nuevo Asiento de Ajuste Contable"
+                      : partidaEnEdicion
+                      ? `Editando Partida #${partidaEnEdicion.numero}`
+                      : "Registro de comprobante"}
                   </h2>
                   <p className="text-[11px] text-muted-foreground">
                     Folio #{String(folioActual?.numero_folio || 1).padStart(3, "0")} · {fechaLegible}
@@ -2421,6 +2301,35 @@ export default function LibroDiarioPage() {
           </div>
         </div>
       )}
+
+      {/* ========================================================================= */}
+      {/* FINDER DE CUENTAS ESTILO IOS / SPOTLIGHT (CON FONDO BLUR TOTAL)          */}
+      {/* ========================================================================= */}
+      <CuentaFinderModal
+        isOpen={finderOpen}
+        onClose={() => {
+          setFinderOpen(false)
+          setLineaEnEdicionParaFinder(null)
+        }}
+        cuentas={cuentas}
+        cuentasMap={cuentasMap}
+        modoCaptura={modoCaptura}
+        lineaEnEdicion={lineaEnEdicionParaFinder}
+        sugerenciaFaltante={sugerenciaFaltanteParaFinder}
+        onConfirmar={handleConfirmarFinder}
+      />
+
+      {/* ========================================================================= */}
+      {/* MODAL DE AJUSTE CONTABLE CON NOTA VÁLIDA (PRINCIPIO DE INMUTABILIDAD)     */}
+      {/* ========================================================================= */}
+      <ModalAjusteContable
+        isOpen={modalAjusteState.isOpen}
+        onClose={() => setModalAjusteState({ isOpen: false, modo: "MODIFICAR", partida: null })}
+        modo={modalAjusteState.modo}
+        partida={modalAjusteState.partida}
+        onConfirmarModificar={handleConfirmarModificarConAjuste}
+        onConfirmarAnularRevertir={handleConfirmarAnularRevertirConAjuste}
+      />
 
       {/* Modal Cierre */}
       {modalCierreOpen && (

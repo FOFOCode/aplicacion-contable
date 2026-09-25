@@ -636,3 +636,37 @@ export function calcularDesgloseIVA(montoBruto: number): {
     total,
   }
 }
+
+export type ModoCalculoIVA = "NO" | "MAS_IVA" | "IVA_INCLUIDO"
+
+/**
+ * Calcula el IVA 13% según la modalidad seleccionada:
+ * - NO: Sin IVA
+ * - MAS_IVA: El importe es la base neta; se suma el 13% de IVA (Total = Base + IVA)
+ * - IVA_INCLUIDO: El importe es el total bruto; se desglosa la base (Base = Total / 1.13, IVA = Total - Base)
+ */
+export function calcularIVAConModo(monto: number, modo: ModoCalculoIVA): {
+  base: number
+  iva: number
+  total: number
+} {
+  const m = redondear(Math.abs(Number(monto) || 0))
+  if (modo === "NO" || m === 0) {
+    return { base: m, iva: 0, total: m }
+  }
+
+  if (modo === "MAS_IVA") {
+    const base = m
+    const iva = redondear(base * 0.13)
+    const total = redondear(base + iva)
+    return { base, iva, total }
+  }
+
+  // IVA_INCLUIDO
+  const base = redondear(m / 1.13)
+  const ivaCalculado = redondear(base * 0.13)
+  const diff = redondear(m - (base + ivaCalculado))
+  const iva = redondear(ivaCalculado + diff)
+  return { base, iva, total: m }
+}
+
