@@ -423,8 +423,12 @@ function KardexContent() {
       const salida = esEntrada ? 0 : cantidad;
       const costoRedondeado = Number.isFinite(costo) ? redondear(costo) : 0;
       const montoDirectoRedondeado = redondear(montoDirecto);
-      const costoSalida =
-        unidades > 0 ? redondear(saldo / unidades) : costoRedondeado;
+      const costoUnitarioAritmetico =
+        fila.tipo === "DEVOLUCION_COMPRA"
+          ? costoRedondeado
+          : unidades > 0
+            ? saldo / unidades
+            : costoRedondeado;
       const costoEntrada = esApertura
         ? costoRedondeado > 0
           ? costoRedondeado
@@ -432,8 +436,11 @@ function KardexContent() {
         : costoRedondeado;
       const valorDebe = esApertura
         ? montoDirectoRedondeado
-        : redondear(entrada * costoRedondeado);
-      const valorHaber = redondear(salida * costoSalida);
+        : fila.tipo === "DEVOLUCION_VENTA"
+          ? redondear(entrada * costoUnitarioAritmetico)
+          : redondear(entrada * costoRedondeado);
+      const valorHaberCrudo = salida * costoUnitarioAritmetico;
+      const valorHaber = redondear(valorHaberCrudo);
       unidades = Math.max(0, unidades + entrada - salida);
       saldo = redondear(Math.max(0, saldo + valorDebe - valorHaber));
       debe = redondear(debe + valorDebe);
@@ -451,7 +458,7 @@ function KardexContent() {
           ? costoEntrada
           : esEntrada
             ? costoRedondeado
-            : costoSalida,
+            : redondear(costoUnitarioAritmetico),
         debe: valorDebe,
         haber: valorHaber,
         saldo,
