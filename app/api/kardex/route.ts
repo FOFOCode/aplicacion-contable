@@ -131,6 +131,190 @@ export async function POST(req: Request) {
       })
     }
 
+    // ACCIÓN: Vaciar completamente el kardex (comenzar de 0)
+    if (body.action === "vaciar_kardex" || body.action === "limpiar_kardex") {
+      const ejercicio = body.ejercicio ? parseInt(body.ejercicio, 10) : new Date().getFullYear()
+      const articuloCodigo = body.articuloCodigo || "ART-001"
+
+      const resArt = await pool.query(
+        `SELECT id FROM articulo_kardex WHERE codigo = $1 LIMIT 1`,
+        [articuloCodigo]
+      )
+      if (resArt.rows.length > 0) {
+        await pool.query(
+          `DELETE FROM kardex_movimiento WHERE articulo_id = $1 AND ejercicio = $2`,
+          [resArt.rows[0].id, ejercicio]
+        )
+      } else {
+        await pool.query(
+          `DELETE FROM kardex_movimiento WHERE ejercicio = $1`,
+          [ejercicio]
+        )
+      }
+      await pool.query(
+        `DELETE FROM inventario_toma_fisica WHERE ejercicio = $1`,
+        [ejercicio]
+      )
+      return NextResponse.json({ success: true, count: 0, movimientos: [] })
+    }
+
+    // ACCIÓN: Guardar lote de movimientos manuales en la base de datos (Persistencia de modo manual)
+    if (body.action === "guardar_manual_batch") {
+      const ejercicio = body.ejercicio ? parseInt(body.ejercicio, 10) : new Date().getFullYear()
+      const articuloCodigo = body.articuloCodigo || "ART-001"
+      const movimientos = Array.isArray(body.movimientos) ? body.movimientos : []
+
+      // Validar existencia del artículo
+      const resArt = await pool.query(
+        `SELECT id FROM articulo_kardex WHERE codigo = $1 LIMIT 1`,
+        [articuloCodigo]
+      )
+      if (resArt.rows.length === 0) {
+        return NextResponse.json({ error: `El artículo ${articuloCodigo} no existe.` }, { status: 400 })
+      }
+      const articuloId = resArt.rows[0].id
+
+      const client = await pool.connect()
+      try {
+        await client.query("BEGIN")
+
+        // Reemplazar movimientos del artículo en este ejercicio
+        await client.query(
+          `DELETE FROM kardex_movimiento WHERE articulo_id = $1 AND ejercicio = $2`,
+          [articuloId, ejercicio]
+        )
+
+        const insertedRows = []
+        const isValidUuid = (val: unknown): val is string =>
+          typeof val === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val)
+
+        // Deduplicar movimientos para evitar que se dupliquen por dobles llamadas o estado residual
+        const uniqueMovs = []
+        const seenKeys = new Set<string>()
+        for (const m of movimientos) {
+          const uIn = Math.max(0, parseFloat(m.unidadesEntrada || 0))
+          const uOut = Math.max(0, parseFloat(m.unidadesSalida || 0))
+          const key = isValidUuid(m.asientoId)
+            ? `asiento-${m.asientoId}`
+            : `${m.fecha}-${m.comprobante}-${m.tipo}-${uIn}-${uOut}`
+          if (!seenKeys.has(key)) {
+            seenKeys.add(key)
+            uniqueMovs.push(m)
+          }
+        }
+
+        for (const m of uniqueMovs) {
+          const uEntrada = Math.max(0, parseFloat(m.unidadesEntrada || 0))
+          const uSalida = Math.max(0, parseFloat(m.unidadesSalida || 0))
+          const uSaldo = Math.max(0, parseFloat(m.unidadesSaldo || 0))
+          const costoUnit = Math.max(0, parseFloat(m.costoUnitario || 0))
+          const debe = Math.max(0, parseFloat(m.debe || 0))
+          const haber = Math.max(0, parseFloat(m.haber || 0))
+          const saldo = Math.max(0, parseFloat(m.saldo || 0))
+          const fecha = m.fecha ? String(m.fecha).slice(0, 10) : new Date().toISOString().slice(0, 10)
+          const comprobante = m.comprobante ? String(m.comprobante).trim() : "COMP-001"
+          const concepto = m.concepto ? String(m.concepto).trim() : "Movimiento de almacén"
+          const tipo = m.tipo || (uEntrada > 0 ? "ENTRADA" : "SALIDA")
+          const asientoId = isValidUuid(m.asientoId) ? m.asientoId : null
+
+          const resIns = await client.query(
+            `INSERT INTO kardex_movimiento (
+              articulo_id, ejercicio, fecha, comprobante, concepto, tipo,
+              unidades_entrada, unidades_salida, unidades_saldo,
+              costo_unitario, debe, haber, saldo, asiento_id
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+            RETURNING 
+              id, 
+              articulo_id AS "articuloId", 
+              ejercicio, 
+              fecha::text AS fecha, 
+              comprobante, 
+              concepto, 
+              tipo, 
+              unidades_entrada::float AS "unidadesEntrada", 
+              unidades_salida::float AS "unidadesSalida", 
+              unidades_saldo::float AS "unidadesSaldo", 
+              costo_unitario::float AS "costoUnitario", 
+              debe::float AS debe, 
+              haber::float AS haber, 
+              saldo::float AS saldo, 
+              asiento_id AS "asientoId",
+              creado_en::text AS "creadoEn"`,
+            [
+              articuloId,
+              ejercicio,
+              fecha,
+              comprobante,
+              concepto,
+              tipo,
+              uEntrada,
+              uSalida,
+              uSaldo,
+              costoUnit,
+              debe,
+              haber,
+              saldo,
+              asientoId,
+            ]
+          )
+          insertedRows.push(resIns.rows[0])
+        }
+
+        // Si hay movimientos, sincronizar automáticamente con toma física
+        if (insertedRows.length > 0) {
+          try {
+            await client.query(
+              `SELECT * FROM sp_sincronizar_kardex_con_toma_fisica($1, $2, $3)`,
+              [
+                ejercicio,
+                "Control de Almacén y Auditoría",
+                `Inventario final sincronizado desde la tarjeta de Kardex (${articuloCodigo})`
+              ]
+            )
+          } catch (syncErr) {
+            console.error("Advertencia al sincronizar toma física en batch:", syncErr)
+          }
+        }
+
+        await client.query("COMMIT")
+
+        return NextResponse.json({
+          success: true,
+          movimientos: insertedRows,
+          count: insertedRows.length,
+        })
+      } catch (err) {
+        await client.query("ROLLBACK")
+        throw err
+      } finally {
+        client.release()
+      }
+    }
+
+    // ACCIÓN: Eliminar un movimiento específico de kardex
+    if (body.action === "eliminar_movimiento") {
+      const { id, ejercicio } = body
+      if (!id) {
+        return NextResponse.json({ error: "ID de movimiento requerido" }, { status: 400 })
+      }
+      await pool.query(`DELETE FROM kardex_movimiento WHERE id = $1`, [id])
+      if (ejercicio) {
+        try {
+          await pool.query(
+            `SELECT * FROM sp_sincronizar_kardex_con_toma_fisica($1, $2, $3)`,
+            [
+              parseInt(ejercicio, 10),
+              "Control de Almacén y Auditoría",
+              "Inventario recalculado tras eliminación de movimiento en Kardex"
+            ]
+          )
+        } catch {
+          // ignore
+        }
+      }
+      return NextResponse.json({ success: true })
+    }
+
     // ACCIÓN: Registrar nuevo movimiento de Kardex con Costo Promedio Ponderado
     const ejercicio = body.ejercicio ? parseInt(body.ejercicio, 10) : new Date().getFullYear()
     const articuloCodigo = body.articuloCodigo || "ART-001"
@@ -238,6 +422,20 @@ export async function POST(req: Request) {
       ]
     )
 
+    // Sincronizar automáticamente con toma física del ejercicio
+    try {
+      await pool.query(
+        `SELECT * FROM sp_sincronizar_kardex_con_toma_fisica($1, $2, $3)`,
+        [
+          ejercicio,
+          "Control de Almacén y Auditoría",
+          `Inventario conciliado automáticamente por registro en Kardex (${articuloCodigo})`
+        ]
+      )
+    } catch (syncErr) {
+      console.error("Advertencia al sincronizar toma física tras movimiento único:", syncErr)
+    }
+
     return NextResponse.json({
       success: true,
       movimiento: resInsert.rows[0],
@@ -247,3 +445,43 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: msg }, { status: 400 })
   }
 }
+
+export async function DELETE(req: Request) {
+  const pool = getDbPool()
+  if (!pool) {
+    return NextResponse.json({ error: "No database configured" }, { status: 503 })
+  }
+
+  try {
+    const { searchParams } = new URL(req.url)
+    const ejercicioParam = searchParams.get("ejercicio")
+    const ejercicio = ejercicioParam ? parseInt(ejercicioParam, 10) : new Date().getFullYear()
+    const articuloCodigo = searchParams.get("articulo") || "ART-001"
+
+    const resArt = await pool.query(
+      `SELECT id FROM articulo_kardex WHERE codigo = $1 LIMIT 1`,
+      [articuloCodigo]
+    )
+    if (resArt.rows.length > 0) {
+      await pool.query(
+        `DELETE FROM kardex_movimiento WHERE articulo_id = $1 AND ejercicio = $2`,
+        [resArt.rows[0].id, ejercicio]
+      )
+    } else {
+      await pool.query(
+        `DELETE FROM kardex_movimiento WHERE ejercicio = $1`,
+        [ejercicio]
+      )
+    }
+    await pool.query(
+      `DELETE FROM inventario_toma_fisica WHERE ejercicio = $1`,
+      [ejercicio]
+    )
+
+    return NextResponse.json({ success: true, message: "Kardex e inventario vaciados correctamente" })
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Error al vaciar kardex"
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
+}
+
