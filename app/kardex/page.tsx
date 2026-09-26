@@ -1925,59 +1925,75 @@ function KardexContent() {
       {pestañaPrincipal === "kardex_inventario" ? (
         <div className="space-y-4">
           {/* Header Web del Kardex */}
-          <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between border-b border-border pb-3 print:hidden">
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold tracking-tight text-foreground">
-                  Tarjeta de Kardex
-                </h1>
-                <Badge variant="outline" className="text-xs font-mono">
-                  {ejercicioSeleccionado}
-                </Badge>
-                
-                <div className="relative flex items-center ml-2 print:hidden">
-                  <Package className="size-3.5 text-muted-foreground absolute left-2 pointer-events-none" />
-                  <select
-                    value={articuloId}
-                    onChange={(e) => setArticuloId(e.target.value)}
-                    className="h-8 pl-7 pr-7 rounded-md border border-input bg-background text-xs font-medium text-foreground shadow-xs focus:ring-1 focus:ring-primary outline-none cursor-pointer appearance-none hover:bg-muted/30 transition-colors"
-                  >
-                    {ARTICULOS_KARDEX.map((art) => (
-                      <option key={art.codigo} value={art.codigo}>
-                        {art.codigo} — {art.nombre}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="size-3.5 text-muted-foreground absolute right-2 pointer-events-none" />
+          <header className="flex flex-col gap-4 border-b border-border pb-4 print:hidden">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-xl font-bold tracking-tight text-foreground">
+                    Control de Inventario
+                  </h1>
+                  <Badge variant="outline" className="text-xs font-mono">
+                    {ejercicioSeleccionado}
+                  </Badge>
                 </div>
-                <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5 text-xs font-medium ml-1">
-                  <button
-                    type="button"
-                    onClick={() => setModoKardex("automatico")}
-                    className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
-                      modoKardex === "automatico"
-                        ? "bg-background text-foreground font-semibold shadow-xs"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    Automático
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setModoKardex("manual")}
-                    className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
-                      modoKardex === "manual"
-                        ? "bg-background text-foreground font-semibold shadow-xs"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    Manual
-                  </button>
-                </div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Kardex de artículos mediante el método de costo promedio.
+                </p>
+              </div>
+
+              <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5 text-xs font-medium">
+                <button
+                  type="button"
+                  onClick={() => setModoKardex("automatico")}
+                  className={`px-3 py-1.5 rounded-md transition-all cursor-pointer ${
+                    modoKardex === "automatico"
+                      ? "bg-background text-foreground font-semibold shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Automático
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModoKardex("manual")}
+                  className={`px-3 py-1.5 rounded-md transition-all cursor-pointer ${
+                    modoKardex === "manual"
+                      ? "bg-background text-foreground font-semibold shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Manual
+                </button>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 print:hidden">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-muted/20 p-3 rounded-lg border border-border">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                  <Package className="size-4" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Artículo a consultar
+                  </label>
+                  <div className="relative flex items-center min-w-[280px]">
+                    <select
+                      value={articuloId}
+                      onChange={(e) => setArticuloId(e.target.value)}
+                      className="w-full h-8 pl-2 pr-8 rounded-md border border-input bg-background text-sm font-medium text-foreground shadow-xs focus:ring-1 focus:ring-primary outline-none cursor-pointer appearance-none hover:bg-muted/30 transition-colors"
+                    >
+                      {ARTICULOS_KARDEX.map((art) => (
+                        <option key={art.codigo} value={art.codigo}>
+                          {art.codigo} — {art.nombre}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="size-4 text-muted-foreground absolute right-2 pointer-events-none" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 print:hidden">
               {modoKardex === "manual" ? (
                 <>
                   {filasManuales.length === 0 && asientosInventario.length > 0 && (
