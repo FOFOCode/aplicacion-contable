@@ -18,6 +18,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Layers,
+  LayoutGrid,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -139,12 +140,17 @@ function XLSX_ENCODE_COL(n: number) {
 
 export default function LibroMayorPage() {
   const { mayor, asientos, ejercicioSeleccionado } = useContabilidad()
-  const [vista, setVista] = useState<"cuentasT" | "comprobacion">("cuentasT")
   
-  // Cuenta actualmente seleccionada para visualizar (inicia en null para no mostrar ninguna cuenta de inicio)
+  // 3 vistas principales:
+  // - "individual": Cuenta T en pantalla completa con menú desplegable
+  // - "todas": Apartado para observar todas las Cuentas T simplificadas y sin ruido visual
+  // - "comprobacion": Balance de Comprobación formal
+  const [vista, setVista] = useState<"individual" | "todas" | "comprobacion">("individual")
+  
+  // Cuenta actualmente seleccionada para visualizar en la vista individual (inicia en null)
   const [cuentaActivaCodigo, setCuentaActivaCodigo] = useState<string | null>(null)
   
-  // Menú desplegable contraído de inicio
+  // Menú desplegable hacia abajo (contraído de inicio)
   const [menuAbierto, setMenuAbierto] = useState(false)
   
   // Modal Finder estilo Spotlight
@@ -244,6 +250,7 @@ export default function LibroMayorPage() {
   // Manejar selección desde el Finder
   const handleSeleccionarCuentaDesdeFinder = useCallback((codigo: string | null) => {
     setCuentaActivaCodigo(codigo)
+    setVista("individual")
     setMenuAbierto(false)
   }, [])
 
@@ -415,24 +422,39 @@ export default function LibroMayorPage() {
           </div>
         </div>
 
-        {/* FILA INFERIOR: ALTERNADOR DE VISTAS + BOTÓN FINDER */}
+        {/* FILA INFERIOR: ALTERNADOR DE 3 VISTAS + BOTÓN FINDER */}
         <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
           <div className="flex flex-wrap items-center gap-2.5">
-            {/* Alternador de Vistas: Dark Container Pill como en el diseño de referencia */}
+            {/* Alternador de 3 Vistas: Dark Container Pill */}
             <div className="inline-flex rounded-xl p-1 bg-neutral-900 dark:bg-neutral-900 border border-neutral-800 text-neutral-300 shadow-2xs">
               <button
                 type="button"
-                onClick={() => setVista("cuentasT")}
+                onClick={() => setVista("individual")}
                 className={cn(
                   "flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer",
-                  vista === "cuentasT"
+                  vista === "individual"
                     ? "bg-neutral-800 text-white shadow-xs font-bold"
                     : "text-neutral-400 hover:text-white"
                 )}
               >
                 <BookOpen className="size-3.5" />
-                <span>Cuentas T (Detallado)</span>
+                <span>Cuenta T (Individual)</span>
               </button>
+              
+              <button
+                type="button"
+                onClick={() => setVista("todas")}
+                className={cn(
+                  "flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer",
+                  vista === "todas"
+                    ? "bg-neutral-800 text-white shadow-xs font-bold"
+                    : "text-neutral-400 hover:text-white"
+                )}
+              >
+                <LayoutGrid className="size-3.5" />
+                <span>Todas las Cuentas T (Simplificadas)</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setVista("comprobacion")}
@@ -472,21 +494,21 @@ export default function LibroMayorPage() {
         </div>
 
         {/* =================================================================== */}
-        {/* BARRA PROMINENTE DEL MENÚ DE CUENTAS (ALTA VISIBILIDAD)             */}
-        {/* Se ubica en posición destacada y abre hacia abajo con animación     */}
+        {/* BARRA PROMINENTE DEL MENÚ DE CUENTAS (EN VISTA INDIVIDUAL)          */}
+        {/* Mantiene estilo oscuro/neutral consistente sin tornarse blanco      */}
         {/* =================================================================== */}
-        {vista === "cuentasT" && (
+        {vista === "individual" && (
           <div className="space-y-3 print:hidden pt-1">
             <button
               type="button"
               onClick={() => setMenuAbierto((prev) => !prev)}
               className={cn(
-                "w-full p-3 sm:p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-4 text-left shadow-2xs group",
+                "w-full p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-4 text-left shadow-2xs group",
                 menuAbierto
-                  ? "bg-primary text-primary-foreground border-primary shadow-md ring-2 ring-primary/20"
+                  ? "bg-muted/50 dark:bg-neutral-800/80 border-primary/50 text-foreground ring-1 ring-primary/30"
                   : cuentaActivaMayor
-                  ? "bg-primary/5 border-primary/40 text-foreground hover:bg-primary/10 hover:border-primary/60"
-                  : "bg-card border-border hover:border-primary/50 hover:bg-muted/30 text-foreground"
+                  ? "bg-card border-primary/40 text-foreground hover:bg-muted/30 hover:border-primary/60"
+                  : "bg-card border-border hover:border-primary/40 hover:bg-muted/30 text-foreground"
               )}
             >
               <div className="flex items-center gap-3.5 min-w-0">
@@ -494,10 +516,10 @@ export default function LibroMayorPage() {
                   className={cn(
                     "size-10 rounded-xl flex items-center justify-center shrink-0 transition-colors shadow-2xs",
                     menuAbierto
-                      ? "bg-white/20 text-white"
+                      ? "bg-primary/20 text-foreground ring-1 ring-primary/40"
                       : cuentaActivaMayor
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground"
+                      ? "bg-primary/10 text-primary"
+                      : "bg-muted text-foreground group-hover:bg-primary/10 group-hover:text-primary"
                   )}
                 >
                   <Layers className="size-5" />
@@ -505,32 +527,15 @@ export default function LibroMayorPage() {
 
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span
-                      className={cn(
-                        "text-[11px] font-bold uppercase tracking-wider",
-                        menuAbierto ? "text-white/80" : "text-muted-foreground"
-                      )}
-                    >
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                       {cuentaActivaMayor ? "Cuenta T en Pantalla" : "Menú de Cuentas Mayorizadas"}
                     </span>
-                    <span
-                      className={cn(
-                        "text-[10px] font-mono px-2 py-0.5 rounded-full font-semibold",
-                        menuAbierto
-                          ? "bg-white/20 text-white"
-                          : "bg-muted text-muted-foreground"
-                      )}
-                    >
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full font-semibold bg-muted text-muted-foreground">
                       {mayor.length} cuentas
                     </span>
                   </div>
 
-                  <div
-                    className={cn(
-                      "text-sm sm:text-base font-bold truncate mt-0.5",
-                      menuAbierto ? "text-white" : "text-foreground"
-                    )}
-                  >
+                  <div className="text-sm sm:text-base font-bold truncate mt-0.5 text-foreground">
                     {cuentaActivaMayor
                       ? `${cuentaActivaMayor.cuenta.codigo} · ${cuentaActivaMayor.cuenta.nombre}`
                       : "Haz clic aquí para desplegar el catálogo y seleccionar una Cuenta T"}
@@ -553,12 +558,7 @@ export default function LibroMayorPage() {
                   </button>
                 )}
 
-                <span
-                  className={cn(
-                    "text-xs font-semibold hidden sm:inline-block",
-                    menuAbierto ? "text-white/90" : "text-primary"
-                  )}
-                >
+                <span className="text-xs font-semibold hidden sm:inline-block text-primary">
                   {menuAbierto ? "Contraer menú" : cuentaActivaMayor ? "Cambiar cuenta" : "Desplegar menú"}
                 </span>
 
@@ -566,7 +566,7 @@ export default function LibroMayorPage() {
                   className={cn(
                     "size-8 rounded-xl flex items-center justify-center transition-transform duration-300",
                     menuAbierto
-                      ? "bg-white/20 text-white rotate-180"
+                      ? "bg-primary/15 text-primary rotate-180"
                       : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary"
                   )}
                 >
@@ -696,13 +696,14 @@ export default function LibroMayorPage() {
           )
           if (coincidencia) {
             setCuentaActivaCodigo(coincidencia.cuenta.codigo)
+            setVista("individual")
           }
         }}
         onLimpiarFiltros={() => setCuentaActivaCodigo(null)}
       />
 
       {/* ===================================================================== */}
-      {/* CONTENIDO PRINCIPAL: CUENTAS T O BALANCE DE COMPROBACIÓN              */}
+      {/* CONTENIDO PRINCIPAL SEGÚN LA VISTA SELECCIONADA                       */}
       {/* ===================================================================== */}
       {mayor.length === 0 ? (
         <Card className="rounded-2xl border-border/80 shadow-2xs">
@@ -714,8 +715,10 @@ export default function LibroMayorPage() {
             </p>
           </CardContent>
         </Card>
-      ) : vista === "cuentasT" ? (
-        /* VISTA CUENTAS T: NO SE MUESTRA NINGUNA CUENTA DE INICIO */
+      ) : vista === "individual" ? (
+        /* =================================================================== */
+        /* VISTA 1: CUENTA T INDIVIDUAL EN PANTALLA COMPLETA                   */
+        /* =================================================================== */
         !cuentaActivaMayor ? (
           <div className="rounded-2xl border border-dashed border-border/80 p-12 sm:p-16 text-center space-y-4 bg-muted/5 print:hidden">
             <div className="size-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto shadow-2xs">
@@ -841,7 +844,7 @@ export default function LibroMayorPage() {
                       type="button"
                       onClick={() => setCuentaActivaCodigo(null)}
                       className="p-1.5 rounded-xl border border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-                      title="Cerrar tarjeta"
+                      title="Cerrar cuenta"
                     >
                       <X className="size-4" />
                     </button>
@@ -1054,9 +1057,174 @@ export default function LibroMayorPage() {
             )
           })()
         )
+      ) : vista === "todas" ? (
+        /* =================================================================== */
+        /* VISTA 2: TODAS LAS CUENTAS T (SIMPLIFICADAS Y MINIMALISTAS)         */
+        /* Sin ruido visual: estructura compacta, limpia y con vista a pizarra */
+        /* =================================================================== */
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl border border-border/70 bg-card/60 print:hidden text-xs">
+            <div className="flex items-center gap-2">
+              <LayoutGrid className="size-4 text-primary" />
+              <span className="font-bold text-foreground">
+                Vista Panorámica de Cuentas T
+              </span>
+              <span className="text-muted-foreground">·</span>
+              <span className="text-muted-foreground">
+                Mostrando {mayor.length} cuentas en formato simplificado. Haz clic en cualquier tarjeta para abrir su detalle completo.
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3 font-mono font-medium text-muted-foreground ml-auto">
+              <span>Débitos: {formatoMoneda(totalDebe)}</span>
+              <span>·</span>
+              <span>Créditos: {formatoMoneda(totalHaber)}</span>
+              <Badge variant={cuadraMovimientos ? "success" : "warning"} className="text-[10px]">
+                {cuadraMovimientos ? "Partida Doble Cuadrada ✓" : "Diferencia detectada"}
+              </Badge>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 lg:gap-4">
+            {mayor.map((m) => {
+              const movs = movimientosPorCuenta.get(m.cuenta.codigo) || { debe: [], haber: [] }
+              const saldoCero = m.saldo === 0
+              const contradiceNaturaleza =
+                m.cuenta.naturaleza === "deudora" ? m.saldo < 0 : m.saldo > 0
+              const sobregirada = m.cuenta.tipo === "activo" && contradiceNaturaleza
+
+              return (
+                <div
+                  key={m.cuenta.codigo}
+                  onClick={() => {
+                    setCuentaActivaCodigo(m.cuenta.codigo)
+                    setVista("individual")
+                  }}
+                  className={cn(
+                    "rounded-2xl border bg-card text-card-foreground shadow-2xs hover:shadow-xs hover:border-primary/50 transition-all cursor-pointer group flex flex-col justify-between overflow-hidden report-card",
+                    sobregirada ? "border-red-500/40 bg-red-500/[0.015]" : "border-border/80"
+                  )}
+                  title="Haz clic para abrir el detalle completo de esta cuenta"
+                >
+                  {/* Encabezado compacto */}
+                  <div className="p-3 border-b border-border/60 flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-xs font-bold px-1.5 py-0.5 rounded bg-muted text-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                          {m.cuenta.codigo}
+                        </span>
+                        <h4 className="font-bold text-xs text-foreground truncate">
+                          {m.cuenta.nombre}
+                        </h4>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground truncate block mt-0.5">
+                        {ETIQUETA_TIPO[m.cuenta.tipo]} · {m.cuenta.naturaleza}
+                      </span>
+                    </div>
+
+                    {sobregirada ? (
+                      <span className="text-[9px] font-bold text-red-600 dark:text-red-400 shrink-0">
+                        ¡Sobregiro!
+                      </span>
+                    ) : saldoCero ? (
+                      <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium shrink-0">
+                        Saldada
+                      </span>
+                    ) : (
+                      <span className="text-[9px] text-muted-foreground font-mono uppercase shrink-0">
+                        {m.naturalezaSaldo === "deudora" ? "Deudor" : "Acreedor"}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Estructura formal T simplificada */}
+                  <div className="p-2.5 flex-1 flex flex-col justify-between">
+                    <div className="rounded-lg border border-border/70 overflow-hidden text-[11px] print-accounting-table">
+                      {/* Cabecera T */}
+                      <div className="grid grid-cols-2 border-b border-border/70 bg-muted/40 text-[10px] font-bold text-muted-foreground uppercase text-center divide-x divide-border/70">
+                        <div className="py-1 px-2">Debe</div>
+                        <div className="py-1 px-2">Haber</div>
+                      </div>
+
+                      {/* Movimientos compactos */}
+                      <div className="grid grid-cols-2 divide-x divide-border/70 min-h-[90px]">
+                        {/* Lado Debe */}
+                        <div className="p-1.5 space-y-1">
+                          {movs.debe.length === 0 ? (
+                            <div className="py-6 text-center text-muted-foreground/30 text-[10px] italic">
+                              -
+                            </div>
+                          ) : (
+                            movs.debe.slice(0, 5).map((d, i) => (
+                              <div key={i} className="flex justify-between items-center text-[10px]">
+                                <span className="text-muted-foreground/70 font-mono">#{d.numero}</span>
+                                <span className="font-mono font-medium text-foreground tabular-nums">
+                                  {formatoMoneda(d.monto)}
+                                </span>
+                              </div>
+                            ))
+                          )}
+                          {movs.debe.length > 5 && (
+                            <div className="text-[9px] text-muted-foreground/60 text-center font-mono">
+                              +{movs.debe.length - 5} más
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Lado Haber */}
+                        <div className="p-1.5 space-y-1">
+                          {movs.haber.length === 0 ? (
+                            <div className="py-6 text-center text-muted-foreground/30 text-[10px] italic">
+                              -
+                            </div>
+                          ) : (
+                            movs.haber.slice(0, 5).map((h, i) => (
+                              <div key={i} className="flex justify-between items-center text-[10px]">
+                                <span className="text-muted-foreground/70 font-mono">#{h.numero}</span>
+                                <span className="font-mono font-medium text-foreground tabular-nums">
+                                  {formatoMoneda(h.monto)}
+                                </span>
+                              </div>
+                            ))
+                          )}
+                          {movs.haber.length > 5 && (
+                            <div className="text-[9px] text-muted-foreground/60 text-center font-mono">
+                              +{movs.haber.length - 5} más
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Totales Debe y Haber */}
+                      <div className="grid grid-cols-2 divide-x divide-border/70 border-t border-border/70 bg-muted/20 text-[10px] font-mono font-bold">
+                        <div className="py-1 px-1.5 text-right tabular-nums text-foreground">
+                          {formatoMoneda(m.debe)}
+                        </div>
+                        <div className="py-1 px-1.5 text-right tabular-nums text-foreground">
+                          {formatoMoneda(m.haber)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Pie de saldo neto */}
+                  <div className="px-3 py-2 bg-muted/20 border-t border-border/60 flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground text-[11px] font-medium">Saldo:</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono font-bold text-xs text-foreground tabular-nums">
+                        {formatoMoneda(Math.abs(m.saldo))}
+                      </span>
+                      <ArrowRight className="size-3 text-muted-foreground group-hover:text-primary transition-transform group-hover:translate-x-0.5" />
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
       ) : (
         /* =================================================================== */
-        /* VISTA 2: BALANCE DE COMPROBACIÓN FORMAL Y MINIMALISTA                */
+        /* VISTA 3: BALANCE DE COMPROBACIÓN FORMAL Y MINIMALISTA                */
         /* =================================================================== */
         <div className="space-y-4">
           {/* TIRA DE MÉTRICAS / RESUMEN EJECUTIVO DE COMPROBACIÓN */}
