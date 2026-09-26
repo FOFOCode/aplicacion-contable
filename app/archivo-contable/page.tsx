@@ -127,6 +127,32 @@ type EstadoResultados = {
 
   utilidadAntesImpuestos?: number
   utilidad?: number
+  calculadoPorSql?: boolean
+  analitico?: {
+    ventasTotales?: number
+    devolucionesSobreVentas?: number
+    rebajasSobreVentas?: number
+    ventasNetas?: number
+    inventarioInicial?: number
+    compras?: number
+    gastosSobreCompras?: number
+    comprasTotales?: number
+    devolucionesSobreCompras?: number
+    rebajasSobreCompras?: number
+    comprasNetas?: number
+    totalMercancias?: number
+    valorInventarioFinal?: number
+    fechaInventarioFinal?: string | null
+    responsableInventarioFinal?: string | null
+    costoVentas?: number
+    utilidadBruta?: number
+    gastosOperacion?: number
+    utilidadOperacion?: number
+    totalIngresosFinancieros?: number
+    totalGastosFinancieros?: number
+    otrosIngresos?: number
+    utilidadNeta?: number
+  }
 }
 
 type BalanceGeneral = {
@@ -451,6 +477,86 @@ function ListaReporte({
   )
 }
 
+function EstadoResultadosAnalitico({
+  er,
+}: {
+  er: EstadoResultados
+}) {
+  const a = er.analitico ?? {}
+  const utilidadNeta = Number(a.utilidadNeta ?? er.utilidad ?? 0)
+
+  return (
+    <div className="space-y-6">
+      <section>
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          1. Determinación de ventas netas
+        </h3>
+        <FilaReporte label="Ventas totales (5101)" valor={Number(a.ventasTotales ?? er.totalVentasBrutas ?? 0)} />
+        <FilaReporte label="(-) Menos: Devoluciones sobre ventas (4103)" valor={Number(a.devolucionesSobreVentas ?? er.totalDevolucionesVentas ?? 0)} />
+        <FilaReporte label="(-) Menos: Rebajas y descuentos sobre ventas (4104)" valor={Number(a.rebajasSobreVentas ?? 0)} />
+        <FilaReporte label="(=) Ventas netas" valor={Number(a.ventasNetas ?? er.totalVentas ?? 0)} fuerte />
+      </section>
+
+      <section>
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          2. Determinación de compras netas y mercancías
+        </h3>
+        <FilaReporte label="Compras (4101)" valor={Number(a.compras ?? er.totalCompras ?? 0)} />
+        <FilaReporte label="(+) Más: Gastos sobre compras (4102)" valor={Number(a.gastosSobreCompras ?? er.totalGastosCompras ?? 0)} />
+        <FilaReporte label="(=) Compras totales" valor={Number(a.comprasTotales ?? er.comprasTotales ?? 0)} />
+        <FilaReporte label="(-) Menos: Devoluciones sobre compras (5102)" valor={Number(a.devolucionesSobreCompras ?? er.totalDevolucionesCompras ?? 0)} />
+        <FilaReporte label="(-) Menos: Rebajas y descuentos sobre compras (5103)" valor={Number(a.rebajasSobreCompras ?? 0)} />
+        <FilaReporte label="(=) Compras netas" valor={Number(a.comprasNetas ?? er.comprasNetas ?? 0)} fuerte />
+        <FilaReporte label="(+) Inventario inicial de mercaderías (1104)" valor={Number(a.inventarioInicial ?? 0)} />
+        <FilaReporte label="(=) Total de mercancías disponibles" valor={Number(a.totalMercancias ?? 0)} fuerte />
+        <FilaReporte
+          label={`(-) Inventario final de mercaderías${a.fechaInventarioFinal ? ` (${formatoFecha(a.fechaInventarioFinal)})` : ""}`}
+          valor={Number(a.valorInventarioFinal ?? 0)}
+        />
+        <FilaReporte label="(=) Costo de lo vendido (Costo de ventas)" valor={Number(a.costoVentas ?? er.totalCostoVentas ?? 0)} fuerte />
+      </section>
+
+      <section>
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          3. Utilidad bruta
+        </h3>
+        <FilaReporte label="(=) Utilidad bruta (Ventas netas - Costo de ventas)" valor={Number(a.utilidadBruta ?? er.utilidadBruta ?? 0)} fuerte />
+      </section>
+
+      <section>
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          4. Gastos de operación
+        </h3>
+        <ListaReporte items={er.gastosOperacion} />
+        <FilaReporte label="(=) Total gastos de operación" valor={Number(a.gastosOperacion ?? er.totalGastosOperacion ?? 0)} fuerte />
+        <FilaReporte label="(=) Utilidad de operación" valor={Number(a.utilidadOperacion ?? er.utilidadOperacion ?? 0)} fuerte />
+      </section>
+
+      <section>
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          5. Productos y gastos financieros / otros
+        </h3>
+        <FilaReporte label="(+) Productos financieros" valor={Number(a.totalIngresosFinancieros ?? er.totalIngresosFinancieros ?? 0)} />
+        <FilaReporte label="(+) Otros ingresos" valor={Number(a.otrosIngresos ?? er.totalOtrosIngresosOperativos ?? 0)} />
+        <FilaReporte label="(-) Gastos financieros" valor={Number(a.totalGastosFinancieros ?? er.totalGastosFinancieros ?? 0)} />
+      </section>
+
+      <div
+        className={`flex items-center justify-between rounded-lg border p-4 ${
+          utilidadNeta >= 0
+            ? "border-emerald-500/30 bg-emerald-500/10"
+            : "border-red-500/30 bg-red-500/10"
+        }`}
+      >
+        <span className="font-semibold">
+          {utilidadNeta >= 0 ? "Utilidad neta del período" : "Pérdida neta del período"}
+        </span>
+        <span className="text-lg font-bold">{formatoMoneda(utilidadNeta)}</span>
+      </div>
+    </div>
+  )
+}
+
 // ============================================================
 // PÁGINA
 // ============================================================
@@ -555,23 +661,8 @@ export default function ArchivoContablePage() {
               ejercicio: any
             ) => {
               try {
-                const resDetalle =
-                  await fetch(
-                    `/api/ejercicios/${ejercicio.anio}`,
-                    {
-                      cache:
-                        "no-store",
-                    }
-                  )
-
-                if (
-                  !resDetalle.ok
-                ) {
-                  throw new Error()
-                }
-
                 const detalle: DetalleEjercicio =
-                  await resDetalle.json()
+                  await cargarDetalleCompleto(ejercicio.anio)
 
                 return {
                   anio:
@@ -721,18 +812,12 @@ export default function ArchivoContablePage() {
             ejercicio.estado ===
               estadoSeleccionado
 
-          const texto =
-            [
-              ejercicio.anio,
-              ejercicio.estado,
-              ejercicio.responsable ??
-                "",
-            ]
-              .join(" ")
+          const responsable =
+            (ejercicio.responsable ?? "")
               .toLowerCase()
 
           const coincideBusqueda =
-            texto.includes(
+            responsable.includes(
               busqueda
                 .trim()
                 .toLowerCase()
@@ -767,6 +852,36 @@ export default function ArchivoContablePage() {
       0
     )
 
+  async function cargarDetalleCompleto(anio: number): Promise<DetalleEjercicio> {
+    const [detalleRes, reporteRes] = await Promise.all([
+      fetch(`/api/ejercicios/${anio}`, { cache: "no-store" }),
+      fetch(`/api/reportes/estados-financieros?ejercicio=${anio}`, { cache: "no-store" }).catch(() => null),
+    ])
+
+    const detalle = await detalleRes.json()
+
+    if (!detalleRes.ok) {
+      throw new Error(detalle.error ?? "No se pudo obtener la información del período.")
+    }
+
+    if (reporteRes?.ok) {
+      const reporte = await reporteRes.json()
+      detalle.estadoResultados = reporte.estadoResultados ?? detalle.estadoResultados
+      detalle.balanceGeneral = reporte.balanceGeneral ?? detalle.balanceGeneral
+
+      if (detalle.resumen) {
+        detalle.resumen.utilidad = Number(reporte.estadoResultados?.utilidad ?? detalle.resumen.utilidad ?? 0)
+        detalle.resumen.totalActivo = Number(reporte.balanceGeneral?.totalActivo ?? detalle.resumen.totalActivo ?? 0)
+        detalle.resumen.totalPasivoCapital = Number(reporte.balanceGeneral?.totalPasivoMasCapital ?? detalle.resumen.totalPasivoCapital ?? 0)
+        if (reporte.controles) {
+          detalle.resumen.cuadra = Math.abs(Number(reporte.controles.diferenciaPatrimonial ?? 0)) < 0.01
+        }
+      }
+    }
+
+    return detalle as DetalleEjercicio
+  }
+
   // ============================================================
   // VER EJERCICIO
   // ============================================================
@@ -778,30 +893,9 @@ export default function ArchivoContablePage() {
     setTabActiva("resumen")
 
     try {
-      const response =
-        await fetch(
-          `/api/ejercicios/${anio}`,
-          {
-            cache: "no-store",
-          }
-        )
-
-      const data =
-        await response.json()
-
-      if (!response.ok) {
-        throw new Error(
-          data.error ??
-            "No se pudo consultar el período."
-        )
-      }
-
-      setEjercicioActivo(
-        data
-      )
-    } catch (
-      e: unknown
-    ) {
+      const data = await cargarDetalleCompleto(anio)
+      setEjercicioActivo(data)
+    } catch (e: unknown) {
       window.alert(
         e instanceof Error
           ? e.message
@@ -819,32 +913,7 @@ export default function ArchivoContablePage() {
   async function obtenerDetalle(
     anio: number
   ): Promise<DetalleEjercicio> {
-    if (
-      ejercicioActivo?.ejercicio
-        .anio === anio
-    ) {
-      return ejercicioActivo
-    }
-
-    const response =
-      await fetch(
-        `/api/ejercicios/${anio}`,
-        {
-          cache: "no-store",
-        }
-      )
-
-    const data =
-      await response.json()
-
-    if (!response.ok) {
-      throw new Error(
-        data.error ??
-          "No se pudo obtener la información del período."
-      )
-    }
-
-    return data
+    return cargarDetalleCompleto(anio)
   }
 
   // ============================================================
@@ -1044,7 +1113,7 @@ async function exportarPdf(
     doc.setFontSize(17)
 
     doc.text(
-      `Reporte integral del ejercicio contable ${detalle.ejercicio.anio}`,
+      `Reporte integral del período fiscal ${detalle.ejercicio.anio}`,
       margen,
       y
     )
@@ -1325,11 +1394,37 @@ async function exportarPdf(
     )
 
     // ==========================================================
-    // LIBRO MAYOR
+    // LIBRO MAYOR Y BALANCE DE COMPROBACIÓN
     // ==========================================================
 
     nuevaPagina(
       "Libro Mayor"
+    )
+
+    const totalDebeMayor = detalle.libroMayor.reduce(
+      (total, linea) => total + (Number(linea.debe) || 0),
+      0
+    )
+
+    const totalHaberMayor = detalle.libroMayor.reduce(
+      (total, linea) => total + (Number(linea.haber) || 0),
+      0
+    )
+
+    const totalSaldoDeudor = detalle.libroMayor.reduce(
+      (total, linea) => {
+        const saldo = (Number(linea.debe) || 0) - (Number(linea.haber) || 0)
+        return total + (saldo > 0 ? saldo : 0)
+      },
+      0
+    )
+
+    const totalSaldoAcreedor = detalle.libroMayor.reduce(
+      (total, linea) => {
+        const saldo = (Number(linea.debe) || 0) - (Number(linea.haber) || 0)
+        return total + (saldo < 0 ? Math.abs(saldo) : 0)
+      },
+      0
     )
 
     autoTable(
@@ -1343,37 +1438,29 @@ async function exportarPdf(
             "Cuenta",
             "Debe",
             "Haber",
-            "Saldo",
           ],
         ],
 
         body:
           detalle.libroMayor.map(
             (linea) => [
-              linea.cuenta
-                .codigo,
-
-              linea.cuenta
-                .nombre,
-
-              moneda(
-                linea.debe
-              ),
-
-              moneda(
-                linea.haber
-              ),
-
-              moneda(
-                Math.abs(
-                  linea.saldo
-                )
-              ),
+              linea.cuenta.codigo,
+              linea.cuenta.nombre,
+              moneda(linea.debe),
+              moneda(linea.haber),
             ]
           ),
 
-        theme:
-          "grid",
+        foot: [
+          [
+            "",
+            "TOTALES",
+            moneda(totalDebeMayor),
+            moneda(totalHaberMayor),
+          ],
+        ],
+
+        theme: "grid",
 
         styles: {
           fontSize: 8,
@@ -1381,44 +1468,78 @@ async function exportarPdf(
         },
 
         headStyles: {
-          fillColor: [
-            235,
-            235,
-            235,
-          ],
-
+          fillColor: [235, 235, 235],
           textColor: 25,
         },
 
+        footStyles: {
+          fillColor: [245, 245, 245],
+          textColor: 20,
+          fontStyle: "bold",
+        },
+
         columnStyles: {
-          0: {
-            cellWidth: 20,
-          },
-
-          1: {
-            cellWidth: 75,
-          },
-
-          2: {
-            halign:
-              "right",
-          },
-
-          3: {
-            halign:
-              "right",
-          },
-
-          4: {
-            halign:
-              "right",
-          },
+          0: { cellWidth: 22 },
+          1: { cellWidth: 92 },
+          2: { halign: "right" },
+          3: { halign: "right" },
         },
 
         margin: {
           left: margen,
           right: margen,
         },
+      }
+    )
+
+    y = ultimoY() + 9
+    comprobarEspacio(32, "Balance de comprobación")
+    tituloSeccion("Balance de comprobación")
+
+    autoTable(
+      doc,
+      {
+        startY: y,
+        head: [[
+          "Código",
+          "Cuenta",
+          "Debe",
+          "Haber",
+          "Saldo deudor",
+          "Saldo acreedor",
+        ]],
+        body: detalle.libroMayor.map((linea) => {
+          const saldo = (Number(linea.debe) || 0) - (Number(linea.haber) || 0)
+          return [
+            linea.cuenta.codigo,
+            linea.cuenta.nombre,
+            moneda(linea.debe),
+            moneda(linea.haber),
+            moneda(saldo > 0 ? saldo : 0),
+            moneda(saldo < 0 ? Math.abs(saldo) : 0),
+          ]
+        }),
+        foot: [[
+          "",
+          "TOTALES",
+          moneda(totalDebeMayor),
+          moneda(totalHaberMayor),
+          moneda(totalSaldoDeudor),
+          moneda(totalSaldoAcreedor),
+        ]],
+        theme: "grid",
+        styles: { fontSize: 6.8, cellPadding: 1.9 },
+        headStyles: { fillColor: [235, 235, 235], textColor: 25 },
+        footStyles: { fillColor: [245, 245, 245], textColor: 20, fontStyle: "bold" },
+        columnStyles: {
+          0: { cellWidth: 16 },
+          1: { cellWidth: 58 },
+          2: { cellWidth: 27, halign: "right" },
+          3: { cellWidth: 27, halign: "right" },
+          4: { cellWidth: 29, halign: "right" },
+          5: { cellWidth: 29, halign: "right" },
+        },
+        margin: { left: margen, right: margen },
       }
     )
 
@@ -1427,124 +1548,62 @@ async function exportarPdf(
     // ==========================================================
 
     nuevaPagina(
-      "Estado de Resultados"
+      "Estado de Resultados del Período"
     )
 
-    const filasEr = [
-      [
-        "Ventas netas",
-        moneda(
-          er.totalVentas
-        ),
-      ],
-
-      [
-        "Costo de venta",
-        moneda(
-          er.totalCostoVentas
-        ),
-      ],
-
-      [
-        "Utilidad bruta",
-        moneda(
-          er.utilidadBruta
-        ),
-      ],
-
-      [
-        "Gastos de operación",
-        moneda(
-          er.totalGastosOperacion
-        ),
-      ],
-
-      [
-        "Ingresos financieros",
-        moneda(
-          er.totalIngresosFinancieros
-        ),
-      ],
-
-      [
-        "Gastos financieros",
-        moneda(
-          er.totalGastosFinancieros
-        ),
-      ],
+    const a = er.analitico ?? {}
+    const filasEr: Array<[string, string]> = [
+      ["1. DETERMINACIÓN DE VENTAS NETAS", ""],
+      ["Ventas totales (5101)", moneda(a.ventasTotales ?? er.totalVentasBrutas)],
+      ["(-) Menos: Devoluciones sobre ventas (4103)", moneda(a.devolucionesSobreVentas ?? er.totalDevolucionesVentas)],
+      ["(-) Menos: Rebajas y descuentos sobre ventas (4104)", moneda(a.rebajasSobreVentas)],
+      ["(=) Ventas Netas", moneda(a.ventasNetas ?? er.totalVentas)],
+      ["2. DETERMINACIÓN DE COMPRAS NETAS Y MERCANCÍAS", ""],
+      ["Compras (4101)", moneda(a.compras ?? er.totalCompras)],
+      ["(+) Más: Gastos sobre compras (4102)", moneda(a.gastosSobreCompras ?? er.totalGastosCompras)],
+      ["(=) Compras Totales", moneda(a.comprasTotales ?? er.comprasTotales)],
+      ["(-) Menos: Devoluciones sobre compras (5102)", moneda(a.devolucionesSobreCompras ?? er.totalDevolucionesCompras)],
+      ["(-) Menos: Rebajas y descuentos sobre compras (5103)", moneda(a.rebajasSobreCompras)],
+      ["(=) Compras Netas", moneda(a.comprasNetas ?? er.comprasNetas)],
+      ["(+) Inventario Inicial de Mercaderías (1104)", moneda(a.inventarioInicial)],
+      ["(=) Total de Mercancías Disponibles", moneda(a.totalMercancias)],
+      [`(-) Inventario Final de Mercaderías${a.fechaInventarioFinal ? ` (${formatoFecha(a.fechaInventarioFinal)})` : ""}`, moneda(a.valorInventarioFinal)],
+      ["(=) Costo de lo Vendido (Costo de Ventas)", moneda(a.costoVentas ?? er.totalCostoVentas)],
+      ["3. UTILIDAD BRUTA", moneda(a.utilidadBruta ?? er.utilidadBruta)],
+      ["4. GASTOS DE OPERACIÓN", ""],
+      ...((er.gastosOperacion ?? []).map((item) => [`${item.cuenta.codigo} ${item.cuenta.nombre}`, moneda(item.monto)] as [string, string])),
+      ["(=) Total Gastos de Operación", moneda(a.gastosOperacion ?? er.totalGastosOperacion)],
+      ["(=) Utilidad de Operación", moneda(a.utilidadOperacion ?? er.utilidadOperacion)],
+      ["5. PRODUCTOS Y GASTOS FINANCIEROS / OTROS", ""],
+      ["(+) Productos financieros", moneda(a.totalIngresosFinancieros ?? er.totalIngresosFinancieros)],
+      ["(+) Otros ingresos", moneda(a.otrosIngresos ?? er.totalOtrosIngresosOperativos)],
+      ["(-) Gastos financieros", moneda(a.totalGastosFinancieros ?? er.totalGastosFinancieros)],
     ]
 
     autoTable(
       doc,
       {
         startY: y,
-
-        body:
-          filasEr,
-
-        theme:
-          "grid",
-
-        styles: {
-          fontSize: 9,
-          cellPadding: 3,
-        },
-
-        columnStyles: {
-          1: {
-            halign:
-              "right",
-          },
-        },
-
-        margin: {
-          left: margen,
-          right: margen,
-        },
+        body: filasEr,
+        theme: "grid",
+        styles: { fontSize: 8.3, cellPadding: 2.3 },
+        columnStyles: { 0: { cellWidth: 135 }, 1: { halign: "right" } },
+        margin: { left: margen, right: margen },
       }
     )
 
-    y =
-      ultimoY() + 8
-
-    doc.setFont(
-      "helvetica",
-      "bold"
-    )
-
+    y = ultimoY() + 8
+    comprobarEspacio(16, "Estado de Resultados del Período")
+    doc.setFont("helvetica", "bold")
     doc.setFontSize(11)
-
-    doc.rect(
-      margen,
-      y,
-      anchoPagina -
-        margen * 2,
-      10
-    )
-
+    doc.rect(margen, y, anchoPagina - margen * 2, 10)
+    const utilidadNetaPdf = Number(a.utilidadNeta ?? er.utilidad ?? 0)
     doc.text(
-      Number(
-        er.utilidad ?? 0
-      ) >= 0
-        ? "Utilidad del ejercicio"
-        : "Pérdida del ejercicio",
+      utilidadNetaPdf >= 0 ? "Utilidad neta del período" : "Pérdida neta del período",
       margen + 3,
       y + 6.5
     )
-
-    doc.text(
-      moneda(
-        er.utilidad
-      ),
-      anchoPagina -
-        margen -
-        3,
-      y + 6.5,
-      {
-        align:
-          "right",
-      }
-    )
+    doc.text(moneda(utilidadNetaPdf), anchoPagina - margen - 3, y + 6.5, { align: "right" })
 
     // ==========================================================
     // BALANCE GENERAL
@@ -1821,7 +1880,7 @@ async function exportarPdf(
 
     doc.setProperties({
       title:
-        `Reporte contable ${detalle.ejercicio.anio}`,
+        `Reporte contable período fiscal ${detalle.ejercicio.anio}`,
 
       subject:
         "Reporte integral de Finexa",
@@ -1859,341 +1918,498 @@ async function exportarPdf(
     anio: number
   ) {
     try {
-      const detalle =
-        await obtenerDetalle(
-          anio
-        )
+      const detalle = await obtenerDetalle(anio)
+      const diario = [...detalle.libroDiario].sort((a, b) => a.numero - b.numero)
+      const mayor = detalle.libroMayor
+      const er = detalle.estadoResultados
+      const bg = detalle.balanceGeneral
+      const a = er.analitico ?? {}
 
-      const diario =
-        detalle.libroDiario
-
-      const mayor =
-        detalle.libroMayor
-
-      const er =
-        detalle.estadoResultados
-
-      const bg =
-        detalle.balanceGeneral
-
-      const filasDiario: string[] =
-        []
-
+      const filasDiario: string[] = []
       let filaExcel = 2
 
-      for (
-        const asiento
-        of diario
-      ) {
-        for (
-          const linea
-          of asiento.lineas
-        ) {
-          filasDiario.push(`
+      for (const asiento of diario) {
+        const lineas = asiento.lineas.length
+          ? asiento.lineas
+          : [{ numero: 1, codigo: "", nombre: "", debe: 0, haber: 0 }]
+        const mergeDown = Math.max(lineas.length - 1, 0)
+
+        lineas.forEach((linea, index) => {
+          if (index === 0) {
+            filasDiario.push(`
 <Row>
-<Cell><Data ss:Type="Number">${asiento.numero}</Data></Cell>
-<Cell><Data ss:Type="String">${escaparXml(formatoFecha(asiento.fecha))}</Data></Cell>
-<Cell><Data ss:Type="String">${escaparXml(asiento.concepto)}</Data></Cell>
+<Cell${mergeDown ? ` ss:MergeDown="${mergeDown}"` : ""}><Data ss:Type="Number">${asiento.numero}</Data></Cell>
+<Cell${mergeDown ? ` ss:MergeDown="${mergeDown}"` : ""}><Data ss:Type="String">${escaparXml(formatoFecha(asiento.fecha))}</Data></Cell>
+<Cell${mergeDown ? ` ss:MergeDown="${mergeDown}"` : ""}><Data ss:Type="String">${escaparXml(asiento.concepto)}</Data></Cell>
 <Cell><Data ss:Type="String">${escaparXml(linea.codigo)}</Data></Cell>
 <Cell><Data ss:Type="String">${escaparXml(linea.nombre)}</Data></Cell>
-<Cell><Data ss:Type="Number">${Number(linea.debe) || 0}</Data></Cell>
-<Cell><Data ss:Type="Number">${Number(linea.haber) || 0}</Data></Cell>
-</Row>
-          `)
-
+<Cell ss:StyleID="Currency"><Data ss:Type="Number">${Number(linea.debe) || 0}</Data></Cell>
+<Cell ss:StyleID="Currency"><Data ss:Type="Number">${Number(linea.haber) || 0}</Data></Cell>
+</Row>` )
+          } else {
+            filasDiario.push(`
+<Row>
+<Cell ss:Index="4"><Data ss:Type="String">${escaparXml(linea.codigo)}</Data></Cell>
+<Cell><Data ss:Type="String">${escaparXml(linea.nombre)}</Data></Cell>
+<Cell ss:StyleID="Currency"><Data ss:Type="Number">${Number(linea.debe) || 0}</Data></Cell>
+<Cell ss:StyleID="Currency"><Data ss:Type="Number">${Number(linea.haber) || 0}</Data></Cell>
+</Row>` )
+          }
           filaExcel++
-        }
+        })
       }
 
-      const ultimaFilaDiario =
-        Math.max(
-          filaExcel - 1,
-          2
-        )
+      const ultimaFilaDiario = Math.max(filaExcel - 1, 2)
 
-      const filasMayor =
-        mayor
-          .map(
-            (m) => `
+      const totalDebeMayorExcel = mayor.reduce(
+        (total, m) => total + (Number(m.debe) || 0),
+        0
+      )
+      const totalHaberMayorExcel = mayor.reduce(
+        (total, m) => total + (Number(m.haber) || 0),
+        0
+      )
+      const totalSaldoDeudorExcel = mayor.reduce((total, m) => {
+        const saldo = (Number(m.debe) || 0) - (Number(m.haber) || 0)
+        return total + (saldo > 0 ? saldo : 0)
+      }, 0)
+      const totalSaldoAcreedorExcel = mayor.reduce((total, m) => {
+        const saldo = (Number(m.debe) || 0) - (Number(m.haber) || 0)
+        return total + (saldo < 0 ? Math.abs(saldo) : 0)
+      }, 0)
+
+      const primeraFilaMayorExcel = 3
+      const ultimaFilaMayorExcel = Math.max(
+        primeraFilaMayorExcel + mayor.length - 1,
+        primeraFilaMayorExcel
+      )
+      const filaTotalesMayorExcel = primeraFilaMayorExcel + mayor.length
+
+      const filasMayorComprobacion = mayor.map((m, index) => {
+        const fila = primeraFilaMayorExcel + index
+        const saldo = (Number(m.debe) || 0) - (Number(m.haber) || 0)
+
+        return `
 <Row>
 <Cell><Data ss:Type="String">${escaparXml(m.cuenta.codigo)}</Data></Cell>
 <Cell><Data ss:Type="String">${escaparXml(m.cuenta.nombre)}</Data></Cell>
-<Cell><Data ss:Type="Number">${Number(m.debe) || 0}</Data></Cell>
-<Cell><Data ss:Type="Number">${Number(m.haber) || 0}</Data></Cell>
-<Cell ss:Formula="=RC[-2]-RC[-1]"><Data ss:Type="Number">${Number(m.saldo) || 0}</Data></Cell>
-</Row>
-          `
-          )
-          .join("")
+<Cell ss:StyleID="Currency"><Data ss:Type="Number">${Number(m.debe) || 0}</Data></Cell>
+<Cell ss:StyleID="Currency"><Data ss:Type="Number">${Number(m.haber) || 0}</Data></Cell>
+<Cell><Data ss:Type="String"></Data></Cell>
+<Cell><Data ss:Type="String">${escaparXml(m.cuenta.codigo)}</Data></Cell>
+<Cell><Data ss:Type="String">${escaparXml(m.cuenta.nombre)}</Data></Cell>
+<Cell ss:StyleID="Currency" ss:Formula="=R${fila}C3"><Data ss:Type="Number">${Number(m.debe) || 0}</Data></Cell>
+<Cell ss:StyleID="Currency" ss:Formula="=R${fila}C4"><Data ss:Type="Number">${Number(m.haber) || 0}</Data></Cell>
+<Cell ss:StyleID="Currency" ss:Formula="=IF(RC[-2]&gt;RC[-1],RC[-2]-RC[-1],0)"><Data ss:Type="Number">${saldo > 0 ? saldo : 0}</Data></Cell>
+<Cell ss:StyleID="CurrencyRed" ss:Formula="=IF(RC[-2]&gt;RC[-3],RC[-2]-RC[-3],0)"><Data ss:Type="Number">${saldo < 0 ? Math.abs(saldo) : 0}</Data></Cell>
+</Row>`
+      }).join("")
+
+      let filaERActual = 4
+      let filasER = ""
+
+      const tituloER = (titulo: string) => {
+        filasER += `
+<Row><Cell ss:StyleID="Section"><Data ss:Type="String">${escaparXml(titulo)}</Data></Cell><Cell ss:StyleID="Section"><Data ss:Type="String"></Data></Cell></Row>`
+        const fila = filaERActual
+        filaERActual++
+        return fila
+      }
+
+      const filaER = (
+        concepto: string,
+        monto: number,
+        negrita = false,
+        formula?: string
+      ) => {
+        const fila = filaERActual
+        filasER += `
+<Row>
+<Cell${negrita ? ' ss:StyleID="Bold"' : ''}><Data ss:Type="String">${escaparXml(concepto)}</Data></Cell>
+<Cell ss:StyleID="Currency"${formula ? ` ss:Formula="${formula}"` : ""}><Data ss:Type="Number">${Number(monto) || 0}</Data></Cell>
+</Row>`
+        filaERActual++
+        return fila
+      }
+
+      tituloER("1. DETERMINACIÓN DE VENTAS NETAS")
+      const rVentasTotales = filaER(
+        "Ventas totales (5101)",
+        Number(a.ventasTotales ?? er.totalVentasBrutas ?? 0)
+      )
+      const rDevVentas = filaER(
+        "(-) Menos: Devoluciones sobre ventas (4103)",
+        Number(a.devolucionesSobreVentas ?? er.totalDevolucionesVentas ?? 0)
+      )
+      const rRebVentas = filaER(
+        "(-) Menos: Rebajas y descuentos sobre ventas (4104)",
+        Number(a.rebajasSobreVentas ?? 0)
+      )
+      const rVentasNetas = filaER(
+        "(=) VENTAS NETAS",
+        Number(a.ventasNetas ?? er.totalVentas ?? 0),
+        true,
+        `=R${rVentasTotales}C2-R${rDevVentas}C2-R${rRebVentas}C2`
+      )
+
+      tituloER("2. DETERMINACIÓN DE COMPRAS NETAS Y MERCANCÍAS")
+      const rCompras = filaER(
+        "Compras (4101)",
+        Number(a.compras ?? er.totalCompras ?? 0)
+      )
+      const rGastosCompras = filaER(
+        "(+) Más: Gastos sobre compras (4102)",
+        Number(a.gastosSobreCompras ?? er.totalGastosCompras ?? 0)
+      )
+      const rComprasTotales = filaER(
+        "(=) Compras Totales",
+        Number(a.comprasTotales ?? er.comprasTotales ?? 0),
+        false,
+        `=R${rCompras}C2+R${rGastosCompras}C2`
+      )
+      const rDevCompras = filaER(
+        "(-) Menos: Devoluciones sobre compras (5102)",
+        Number(a.devolucionesSobreCompras ?? er.totalDevolucionesCompras ?? 0)
+      )
+      const rRebCompras = filaER(
+        "(-) Menos: Rebajas y descuentos sobre compras (5103)",
+        Number(a.rebajasSobreCompras ?? 0)
+      )
+      const rComprasNetas = filaER(
+        "(=) COMPRAS NETAS",
+        Number(a.comprasNetas ?? er.comprasNetas ?? 0),
+        true,
+        `=R${rComprasTotales}C2-R${rDevCompras}C2-R${rRebCompras}C2`
+      )
+      const rInventarioInicial = filaER(
+        "(+) Inventario Inicial de Mercaderías (1104)",
+        Number(a.inventarioInicial ?? 0)
+      )
+      const rMercancias = filaER(
+        "(=) TOTAL DE MERCANCÍAS DISPONIBLES",
+        Number(a.totalMercancias ?? 0),
+        true,
+        `=R${rComprasNetas}C2+R${rInventarioInicial}C2`
+      )
+      const rInventarioFinal = filaER(
+        `(-) Inventario Final de Mercaderías${a.fechaInventarioFinal ? ` (${formatoFecha(a.fechaInventarioFinal)})` : ""}`,
+        Number(a.valorInventarioFinal ?? 0)
+      )
+      const rCostoVendido = filaER(
+        "(=) COSTO DE LO VENDIDO (Costo de Ventas)",
+        Number(a.costoVentas ?? er.totalCostoVentas ?? 0),
+        true,
+        `=R${rMercancias}C2-R${rInventarioFinal}C2`
+      )
+
+      tituloER("3. UTILIDAD BRUTA")
+      const rUtilidadBruta = filaER(
+        "(=) UTILIDAD BRUTA (Ventas Netas - Costo de Ventas)",
+        Number(a.utilidadBruta ?? er.utilidadBruta ?? 0),
+        true,
+        `=R${rVentasNetas}C2-R${rCostoVendido}C2`
+      )
+
+      tituloER("4. GASTOS DE OPERACIÓN")
+      const primeraFilaGastosOperacion = filaERActual
+      for (const gasto of er.gastosOperacion ?? []) {
+        filaER(`${gasto.cuenta.codigo} ${gasto.cuenta.nombre}`, gasto.monto)
+      }
+      const ultimaFilaGastosOperacion = filaERActual - 1
+      const formulaGastosOperacion =
+        ultimaFilaGastosOperacion >= primeraFilaGastosOperacion
+          ? `=SUM(R${primeraFilaGastosOperacion}C2:R${ultimaFilaGastosOperacion}C2)`
+          : "=0"
+      const rTotalGastosOperacion = filaER(
+        "(=) TOTAL GASTOS DE OPERACIÓN",
+        Number(a.gastosOperacion ?? er.totalGastosOperacion ?? 0),
+        true,
+        formulaGastosOperacion
+      )
+      const rUtilidadOperacion = filaER(
+        "(=) UTILIDAD DE OPERACIÓN",
+        Number(a.utilidadOperacion ?? er.utilidadOperacion ?? 0),
+        true,
+        `=R${rUtilidadBruta}C2-R${rTotalGastosOperacion}C2`
+      )
+
+      tituloER("5. PRODUCTOS Y GASTOS FINANCIEROS / OTROS")
+      const rProductosFin = filaER(
+        "(+) Productos financieros",
+        Number(a.totalIngresosFinancieros ?? er.totalIngresosFinancieros ?? 0)
+      )
+      const rOtrosIngresos = filaER(
+        "(+) Otros ingresos",
+        Number(a.otrosIngresos ?? er.totalOtrosIngresosOperativos ?? 0)
+      )
+      const rGastosFin = filaER(
+        "(-) Gastos financieros",
+        Number(a.totalGastosFinancieros ?? er.totalGastosFinancieros ?? 0)
+      )
+      const utilidadNetaValor = Number(a.utilidadNeta ?? er.utilidad ?? 0)
+      const rUtilidadNeta = filaER(
+        utilidadNetaValor >= 0
+          ? "UTILIDAD NETA DEL PERÍODO"
+          : "PÉRDIDA NETA DEL PERÍODO",
+        utilidadNetaValor,
+        true,
+        `=R${rUtilidadOperacion}C2+R${rProductosFin}C2+R${rOtrosIngresos}C2-R${rGastosFin}C2`
+      )
+
+      type BalanceFila = {
+        concepto: string
+        monto?: number
+        tipo: "titulo" | "subtitulo" | "normal" | "total" | "vacio"
+        formula?: string
+      }
+
+      const activosIzq: BalanceFila[] = []
+      activosIzq.push({ concepto: "ACTIVO", tipo: "titulo" })
+      activosIzq.push({ concepto: "Activo corriente", tipo: "subtitulo" })
+
+      const inicioActivoCorriente = activosIzq.length + 2
+      for (const x of bg.activosCorrientes ?? []) {
+        activosIzq.push({
+          concepto: `${x.cuenta.codigo} ${x.cuenta.nombre}`,
+          monto: x.monto,
+          tipo: "normal",
+        })
+      }
+      const finActivoCorriente = activosIzq.length + 1
+      const filaTotalActivoCorriente = activosIzq.length + 2
+      activosIzq.push({
+        concepto: "Total activo corriente",
+        monto: Number(bg.totalActivoCorriente ?? 0),
+        tipo: "total",
+        formula:
+          finActivoCorriente >= inicioActivoCorriente
+            ? `=SUM(R${inicioActivoCorriente}C2:R${finActivoCorriente}C2)`
+            : "=0",
+      })
+
+      activosIzq.push({ concepto: "Activo no corriente", tipo: "subtitulo" })
+      const inicioActivoNoCorriente = activosIzq.length + 2
+      for (const x of bg.activosNoCorrientes ?? []) {
+        activosIzq.push({
+          concepto: `${x.cuenta.codigo} ${x.cuenta.nombre}`,
+          monto: x.monto,
+          tipo: "normal",
+        })
+      }
+      const finActivoNoCorriente = activosIzq.length + 1
+      const filaTotalActivoNoCorriente = activosIzq.length + 2
+      activosIzq.push({
+        concepto: "Total activo no corriente",
+        monto: Number(bg.totalActivoNoCorriente ?? 0),
+        tipo: "total",
+        formula:
+          finActivoNoCorriente >= inicioActivoNoCorriente
+            ? `=SUM(R${inicioActivoNoCorriente}C2:R${finActivoNoCorriente}C2)`
+            : "=0",
+      })
+
+      const filaTotalActivo = activosIzq.length + 2
+      activosIzq.push({
+        concepto: "TOTAL ACTIVO",
+        monto: Number(bg.totalActivo ?? 0),
+        tipo: "total",
+        formula: `=R${filaTotalActivoCorriente}C2+R${filaTotalActivoNoCorriente}C2`,
+      })
+
+      const pasivoCapitalDer: BalanceFila[] = []
+      pasivoCapitalDer.push({ concepto: "PASIVO", tipo: "titulo" })
+      pasivoCapitalDer.push({ concepto: "Pasivo corriente", tipo: "subtitulo" })
+
+      const inicioPasivoCorriente = pasivoCapitalDer.length + 2
+      for (const x of bg.pasivosCorrientes ?? []) {
+        pasivoCapitalDer.push({
+          concepto: `${x.cuenta.codigo} ${x.cuenta.nombre}`,
+          monto: x.monto,
+          tipo: "normal",
+        })
+      }
+      const finPasivoCorriente = pasivoCapitalDer.length + 1
+      const filaTotalPasivoCorriente = pasivoCapitalDer.length + 2
+      pasivoCapitalDer.push({
+        concepto: "Total pasivo corriente",
+        monto: Number(bg.totalPasivoCorriente ?? 0),
+        tipo: "total",
+        formula:
+          finPasivoCorriente >= inicioPasivoCorriente
+            ? `=SUM(R${inicioPasivoCorriente}C5:R${finPasivoCorriente}C5)`
+            : "=0",
+      })
+
+      pasivoCapitalDer.push({ concepto: "Pasivo no corriente", tipo: "subtitulo" })
+      const inicioPasivoNoCorriente = pasivoCapitalDer.length + 2
+      for (const x of bg.pasivosNoCorrientes ?? []) {
+        pasivoCapitalDer.push({
+          concepto: `${x.cuenta.codigo} ${x.cuenta.nombre}`,
+          monto: x.monto,
+          tipo: "normal",
+        })
+      }
+      const finPasivoNoCorriente = pasivoCapitalDer.length + 1
+      const filaTotalPasivoNoCorriente = pasivoCapitalDer.length + 2
+      pasivoCapitalDer.push({
+        concepto: "Total pasivo no corriente",
+        monto: Number(bg.totalPasivoNoCorriente ?? 0),
+        tipo: "total",
+        formula:
+          finPasivoNoCorriente >= inicioPasivoNoCorriente
+            ? `=SUM(R${inicioPasivoNoCorriente}C5:R${finPasivoNoCorriente}C5)`
+            : "=0",
+      })
+
+      const filaTotalPasivo = pasivoCapitalDer.length + 2
+      pasivoCapitalDer.push({
+        concepto: "TOTAL PASIVO",
+        monto: Number(bg.totalPasivo ?? 0),
+        tipo: "total",
+        formula: `=R${filaTotalPasivoCorriente}C5+R${filaTotalPasivoNoCorriente}C5`,
+      })
+
+      pasivoCapitalDer.push({ concepto: "", tipo: "vacio" })
+      pasivoCapitalDer.push({ concepto: "CAPITAL CONTABLE", tipo: "titulo" })
+
+      const inicioCapital = pasivoCapitalDer.length + 2
+      for (const x of bg.capital ?? []) {
+        pasivoCapitalDer.push({
+          concepto: `${x.cuenta.codigo} ${x.cuenta.nombre}`,
+          monto: x.monto,
+          tipo: "normal",
+        })
+      }
+      const filaResultadoNetoBalance = pasivoCapitalDer.length + 2
+      pasivoCapitalDer.push({
+        concepto:
+          Number(er.utilidad ?? 0) >= 0
+            ? "Resultado neto del período"
+            : "Pérdida neta del período",
+        monto: Number(er.utilidad ?? 0),
+        tipo: "normal",
+        formula: `='Estado de Resultados'!R${rUtilidadNeta}C2`,
+      })
+      const finCapital = filaResultadoNetoBalance
+      const filaTotalCapital = pasivoCapitalDer.length + 2
+      pasivoCapitalDer.push({
+        concepto: "TOTAL CAPITAL CONTABLE",
+        monto: Number(bg.totalCapitalContable ?? 0),
+        tipo: "total",
+        formula:
+          finCapital >= inicioCapital
+            ? `=SUM(R${inicioCapital}C5:R${finCapital}C5)`
+            : "=0",
+      })
+      const filaTotalPasivoCapital = pasivoCapitalDer.length + 2
+      pasivoCapitalDer.push({
+        concepto: "TOTAL PASIVO + CAPITAL",
+        monto: Number(bg.totalPasivoMasCapital ?? 0),
+        tipo: "total",
+        formula: `=R${filaTotalPasivo}C5+R${filaTotalCapital}C5`,
+      })
+
+      const balanceCell = (fila?: BalanceFila) => {
+        if (!fila || fila.tipo === "vacio") {
+          return '<Cell><Data ss:Type="String"></Data></Cell><Cell><Data ss:Type="String"></Data></Cell>'
+        }
+
+        const style =
+          fila.tipo === "titulo"
+            ? "Section"
+            : fila.tipo === "subtitulo" || fila.tipo === "total"
+              ? "Bold"
+              : "Default"
+
+        const monto =
+          fila.monto === undefined
+            ? '<Cell><Data ss:Type="String"></Data></Cell>'
+            : `<Cell ss:StyleID="Currency"${fila.formula ? ` ss:Formula="${fila.formula}"` : ""}><Data ss:Type="Number">${Number(fila.monto) || 0}</Data></Cell>`
+
+        return `<Cell ss:StyleID="${style}"><Data ss:Type="String">${escaparXml(fila.concepto)}</Data></Cell>${monto}`
+      }
+
+      const filasBalance: string[] = []
+      const totalFilasBalance = Math.max(activosIzq.length, pasivoCapitalDer.length)
+      for (let i = 0; i < totalFilasBalance; i++) {
+        filasBalance.push(
+          `<Row>${balanceCell(activosIzq[i])}<Cell><Data ss:Type="String"></Data></Cell>${balanceCell(pasivoCapitalDer[i])}</Row>`
+        )
+      }
 
       const xml = `
 <?xml version="1.0"?>
 <?mso-application progid="Excel.Sheet"?>
-
-<Workbook
- xmlns="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:o="urn:schemas-microsoft-com:office:office"
- xmlns:x="urn:schemas-microsoft-com:office:excel"
- xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
-
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
 <Styles>
-
-<Style ss:ID="Header">
-<Font ss:Bold="1"/>
-<Interior ss:Color="#D9EAF7" ss:Pattern="Solid"/>
-</Style>
-
-<Style ss:ID="Title">
-<Font ss:Bold="1" ss:Size="16"/>
-</Style>
-
-<Style ss:ID="Currency">
-<NumberFormat ss:Format="$#,##0.00"/>
-</Style>
-
-<Style ss:ID="Bold">
-<Font ss:Bold="1"/>
-</Style>
-
+<Style ss:ID="Default"><Alignment ss:Vertical="Center"/></Style>
+<Style ss:ID="Header"><Font ss:Bold="1"/><Interior ss:Color="#D9EAF7" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/></Borders></Style>
+<Style ss:ID="Title"><Font ss:Bold="1" ss:Size="16"/></Style>
+<Style ss:ID="Currency"><NumberFormat ss:Format="$#,##0.00;[Red]-$#,##0.00"/></Style>
+<Style ss:ID="CurrencyRed"><Font ss:Color="#C00000"/><NumberFormat ss:Format="$#,##0.00"/></Style>
+<Style ss:ID="Bold"><Font ss:Bold="1"/></Style>
+<Style ss:ID="Section"><Font ss:Bold="1"/><Interior ss:Color="#EAF2F8" ss:Pattern="Solid"/></Style>
 </Styles>
 
-<Worksheet ss:Name="Resumen">
-
-<Table>
-
-<Row>
-<Cell ss:StyleID="Title">
-<Data ss:Type="String">FINEXA - EJERCICIO ${detalle.ejercicio.anio}</Data>
-</Cell>
-</Row>
-
+<Worksheet ss:Name="Resumen"><Table>
+<Row><Cell ss:StyleID="Title"><Data ss:Type="String">FINEXA - PERÍODO FISCAL ${detalle.ejercicio.anio}</Data></Cell></Row>
 <Row></Row>
+<Row><Cell ss:StyleID="Header"><Data ss:Type="String">Concepto</Data></Cell><Cell ss:StyleID="Header"><Data ss:Type="String">Valor</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">Período fiscal</Data></Cell><Cell><Data ss:Type="String">${formatoFecha(detalle.ejercicio.fechaInicio)} - ${formatoFecha(detalle.ejercicio.fechaFin)}</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">Estado</Data></Cell><Cell><Data ss:Type="String">${escaparXml(detalle.ejercicio.estado)}</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">Asientos registrados</Data></Cell><Cell><Data ss:Type="Number">${detalle.resumen.asientos}</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">Cuentas con movimiento</Data></Cell><Cell><Data ss:Type="Number">${detalle.resumen.cuentas}</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">Total Debe</Data></Cell><Cell ss:StyleID="Currency" ss:Formula="='Libro Diario'!R${ultimaFilaDiario + 1}C6"><Data ss:Type="Number">${detalle.resumen.totalDebe}</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">Total Haber</Data></Cell><Cell ss:StyleID="Currency" ss:Formula="='Libro Diario'!R${ultimaFilaDiario + 1}C7"><Data ss:Type="Number">${detalle.resumen.totalHaber}</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">Resultado neto del período</Data></Cell><Cell ss:StyleID="Currency" ss:Formula="='Estado de Resultados'!R${rUtilidadNeta}C2"><Data ss:Type="Number">${Number(a.utilidadNeta ?? er.utilidad ?? detalle.resumen.utilidad ?? 0)}</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">Total Activo</Data></Cell><Cell ss:StyleID="Currency" ss:Formula="='Balance General'!R${filaTotalActivo}C2"><Data ss:Type="Number">${Number(bg.totalActivo ?? detalle.resumen.totalActivo ?? 0)}</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">Pasivo + Capital</Data></Cell><Cell ss:StyleID="Currency" ss:Formula="='Balance General'!R${filaTotalPasivoCapital}C5"><Data ss:Type="Number">${Number(bg.totalPasivoMasCapital ?? detalle.resumen.totalPasivoCapital ?? 0)}</Data></Cell></Row>
+</Table></Worksheet>
 
-<Row>
-<Cell ss:StyleID="Header"><Data ss:Type="String">Concepto</Data></Cell>
-<Cell ss:StyleID="Header"><Data ss:Type="String">Valor</Data></Cell>
-</Row>
-
-<Row>
-<Cell><Data ss:Type="String">Período</Data></Cell>
-<Cell><Data ss:Type="String">${formatoFecha(detalle.ejercicio.fechaInicio)} - ${formatoFecha(detalle.ejercicio.fechaFin)}</Data></Cell>
-</Row>
-
-<Row>
-<Cell><Data ss:Type="String">Estado</Data></Cell>
-<Cell><Data ss:Type="String">${escaparXml(detalle.ejercicio.estado)}</Data></Cell>
-</Row>
-
-<Row>
-<Cell><Data ss:Type="String">Asientos registrados</Data></Cell>
-<Cell><Data ss:Type="Number">${detalle.resumen.asientos}</Data></Cell>
-</Row>
-
-<Row>
-<Cell><Data ss:Type="String">Cuentas con movimiento</Data></Cell>
-<Cell><Data ss:Type="Number">${detalle.resumen.cuentas}</Data></Cell>
-</Row>
-
-<Row>
-<Cell><Data ss:Type="String">Total Debe</Data></Cell>
-<Cell ss:StyleID="Currency"><Data ss:Type="Number">${detalle.resumen.totalDebe}</Data></Cell>
-</Row>
-
-<Row>
-<Cell><Data ss:Type="String">Total Haber</Data></Cell>
-<Cell ss:StyleID="Currency"><Data ss:Type="Number">${detalle.resumen.totalHaber}</Data></Cell>
-</Row>
-
-<Row>
-<Cell><Data ss:Type="String">Resultado del ejercicio</Data></Cell>
-<Cell ss:StyleID="Currency"><Data ss:Type="Number">${detalle.resumen.utilidad}</Data></Cell>
-</Row>
-
-<Row>
-<Cell><Data ss:Type="String">Total Activo</Data></Cell>
-<Cell ss:StyleID="Currency"><Data ss:Type="Number">${detalle.resumen.totalActivo}</Data></Cell>
-</Row>
-
-<Row>
-<Cell><Data ss:Type="String">Pasivo + Capital</Data></Cell>
-<Cell ss:StyleID="Currency"><Data ss:Type="Number">${detalle.resumen.totalPasivoCapital}</Data></Cell>
-</Row>
-
-</Table>
-
-</Worksheet>
-
-<Worksheet ss:Name="Libro Diario">
-
-<Table>
-
-<Row>
-<Cell ss:StyleID="Header"><Data ss:Type="String">N°</Data></Cell>
-<Cell ss:StyleID="Header"><Data ss:Type="String">Fecha</Data></Cell>
-<Cell ss:StyleID="Header"><Data ss:Type="String">Concepto</Data></Cell>
-<Cell ss:StyleID="Header"><Data ss:Type="String">Código</Data></Cell>
-<Cell ss:StyleID="Header"><Data ss:Type="String">Cuenta</Data></Cell>
-<Cell ss:StyleID="Header"><Data ss:Type="String">Debe</Data></Cell>
-<Cell ss:StyleID="Header"><Data ss:Type="String">Haber</Data></Cell>
-</Row>
-
+<Worksheet ss:Name="Libro Diario"><Table>
+<Row><Cell ss:StyleID="Header"><Data ss:Type="String">N°</Data></Cell><Cell ss:StyleID="Header"><Data ss:Type="String">Fecha</Data></Cell><Cell ss:StyleID="Header"><Data ss:Type="String">Concepto</Data></Cell><Cell ss:StyleID="Header"><Data ss:Type="String">Código</Data></Cell><Cell ss:StyleID="Header"><Data ss:Type="String">Cuenta</Data></Cell><Cell ss:StyleID="Header"><Data ss:Type="String">Debe</Data></Cell><Cell ss:StyleID="Header"><Data ss:Type="String">Haber</Data></Cell></Row>
 ${filasDiario.join("")}
+<Row><Cell ss:Index="5" ss:StyleID="Bold"><Data ss:Type="String">TOTALES</Data></Cell><Cell ss:StyleID="Currency" ss:Formula="=SUM(R2C6:R${ultimaFilaDiario}C6)"><Data ss:Type="Number">${detalle.resumen.totalDebe}</Data></Cell><Cell ss:StyleID="Currency" ss:Formula="=SUM(R2C7:R${ultimaFilaDiario}C7)"><Data ss:Type="Number">${detalle.resumen.totalHaber}</Data></Cell></Row>
+</Table></Worksheet>
 
+<Worksheet ss:Name="Libro Mayor"><Table>
 <Row>
-<Cell ss:Index="5" ss:StyleID="Bold">
-<Data ss:Type="String">TOTALES</Data>
-</Cell>
-
-<Cell
- ss:StyleID="Currency"
- ss:Formula="=SUM(R2C6:R${ultimaFilaDiario}C6)">
-<Data ss:Type="Number">${detalle.resumen.totalDebe}</Data>
-</Cell>
-
-<Cell
- ss:StyleID="Currency"
- ss:Formula="=SUM(R2C7:R${ultimaFilaDiario}C7)">
-<Data ss:Type="Number">${detalle.resumen.totalHaber}</Data>
-</Cell>
+<Cell ss:StyleID="Section"><Data ss:Type="String">LIBRO MAYOR</Data></Cell><Cell ss:StyleID="Section"><Data ss:Type="String"></Data></Cell><Cell ss:StyleID="Section"><Data ss:Type="String"></Data></Cell><Cell ss:StyleID="Section"><Data ss:Type="String"></Data></Cell>
+<Cell><Data ss:Type="String"></Data></Cell>
+<Cell ss:StyleID="Section"><Data ss:Type="String">BALANCE DE COMPROBACIÓN</Data></Cell><Cell ss:StyleID="Section"><Data ss:Type="String"></Data></Cell><Cell ss:StyleID="Section"><Data ss:Type="String"></Data></Cell><Cell ss:StyleID="Section"><Data ss:Type="String"></Data></Cell><Cell ss:StyleID="Section"><Data ss:Type="String"></Data></Cell><Cell ss:StyleID="Section"><Data ss:Type="String"></Data></Cell>
 </Row>
-
-</Table>
-
-</Worksheet>
-
-<Worksheet ss:Name="Libro Mayor">
-
-<Table>
-
 <Row>
-<Cell ss:StyleID="Header"><Data ss:Type="String">Código</Data></Cell>
-<Cell ss:StyleID="Header"><Data ss:Type="String">Cuenta</Data></Cell>
-<Cell ss:StyleID="Header"><Data ss:Type="String">Debe</Data></Cell>
-<Cell ss:StyleID="Header"><Data ss:Type="String">Haber</Data></Cell>
-<Cell ss:StyleID="Header"><Data ss:Type="String">Saldo</Data></Cell>
+<Cell ss:StyleID="Header"><Data ss:Type="String">Código</Data></Cell><Cell ss:StyleID="Header"><Data ss:Type="String">Cuenta</Data></Cell><Cell ss:StyleID="Header"><Data ss:Type="String">Debe</Data></Cell><Cell ss:StyleID="Header"><Data ss:Type="String">Haber</Data></Cell>
+<Cell><Data ss:Type="String"></Data></Cell>
+<Cell ss:StyleID="Header"><Data ss:Type="String">Código</Data></Cell><Cell ss:StyleID="Header"><Data ss:Type="String">Cuenta</Data></Cell><Cell ss:StyleID="Header"><Data ss:Type="String">Debe</Data></Cell><Cell ss:StyleID="Header"><Data ss:Type="String">Haber</Data></Cell><Cell ss:StyleID="Header"><Data ss:Type="String">Saldo deudor</Data></Cell><Cell ss:StyleID="Header"><Data ss:Type="String">Saldo acreedor</Data></Cell>
 </Row>
-
-${filasMayor}
-
-</Table>
-
-</Worksheet>
-
-<Worksheet ss:Name="Estado de Resultados">
-
-<Table>
-
+${filasMayorComprobacion}
 <Row>
-<Cell ss:StyleID="Header"><Data ss:Type="String">Concepto</Data></Cell>
-<Cell ss:StyleID="Header"><Data ss:Type="String">Monto</Data></Cell>
+<Cell><Data ss:Type="String"></Data></Cell><Cell ss:StyleID="Bold"><Data ss:Type="String">TOTALES</Data></Cell><Cell ss:StyleID="Currency" ss:Formula="=SUM(R${primeraFilaMayorExcel}C3:R${ultimaFilaMayorExcel}C3)"><Data ss:Type="Number">${totalDebeMayorExcel}</Data></Cell><Cell ss:StyleID="Currency" ss:Formula="=SUM(R${primeraFilaMayorExcel}C4:R${ultimaFilaMayorExcel}C4)"><Data ss:Type="Number">${totalHaberMayorExcel}</Data></Cell>
+<Cell><Data ss:Type="String"></Data></Cell>
+<Cell><Data ss:Type="String"></Data></Cell><Cell ss:StyleID="Bold"><Data ss:Type="String">TOTALES</Data></Cell><Cell ss:StyleID="Currency" ss:Formula="=SUM(R${primeraFilaMayorExcel}C8:R${ultimaFilaMayorExcel}C8)"><Data ss:Type="Number">${totalDebeMayorExcel}</Data></Cell><Cell ss:StyleID="Currency" ss:Formula="=SUM(R${primeraFilaMayorExcel}C9:R${ultimaFilaMayorExcel}C9)"><Data ss:Type="Number">${totalHaberMayorExcel}</Data></Cell><Cell ss:StyleID="Currency" ss:Formula="=SUM(R${primeraFilaMayorExcel}C10:R${ultimaFilaMayorExcel}C10)"><Data ss:Type="Number">${totalSaldoDeudorExcel}</Data></Cell><Cell ss:StyleID="CurrencyRed" ss:Formula="=SUM(R${primeraFilaMayorExcel}C11:R${ultimaFilaMayorExcel}C11)"><Data ss:Type="Number">${totalSaldoAcreedorExcel}</Data></Cell>
 </Row>
+</Table></Worksheet>
 
-<Row>
-<Cell><Data ss:Type="String">Ventas netas</Data></Cell>
-<Cell ss:StyleID="Currency"><Data ss:Type="Number">${Number(er.totalVentas) || 0}</Data></Cell>
-</Row>
-
-<Row>
-<Cell><Data ss:Type="String">Costo de venta</Data></Cell>
-<Cell ss:StyleID="Currency"><Data ss:Type="Number">${Number(er.totalCostoVentas) || 0}</Data></Cell>
-</Row>
-
-<Row>
-<Cell ss:StyleID="Bold"><Data ss:Type="String">Utilidad bruta</Data></Cell>
-<Cell ss:StyleID="Currency" ss:Formula="=R2C2-R3C2">
-<Data ss:Type="Number">${Number(er.utilidadBruta) || 0}</Data>
-</Cell>
-</Row>
-
-<Row>
-<Cell><Data ss:Type="String">Gastos de operación</Data></Cell>
-<Cell ss:StyleID="Currency"><Data ss:Type="Number">${Number(er.totalGastosOperacion) || 0}</Data></Cell>
-</Row>
-
-<Row>
-<Cell><Data ss:Type="String">Ingresos financieros</Data></Cell>
-<Cell ss:StyleID="Currency"><Data ss:Type="Number">${Number(er.totalIngresosFinancieros) || 0}</Data></Cell>
-</Row>
-
-<Row>
-<Cell><Data ss:Type="String">Gastos financieros</Data></Cell>
-<Cell ss:StyleID="Currency"><Data ss:Type="Number">${Number(er.totalGastosFinancieros) || 0}</Data></Cell>
-</Row>
-
-<Row>
-<Cell ss:StyleID="Bold"><Data ss:Type="String">Resultado del ejercicio</Data></Cell>
-<Cell ss:StyleID="Currency"><Data ss:Type="Number">${Number(er.utilidad) || 0}</Data></Cell>
-</Row>
-
-</Table>
-
-</Worksheet>
-
-<Worksheet ss:Name="Balance General">
-
-<Table>
-
-<Row>
-<Cell ss:StyleID="Header"><Data ss:Type="String">Concepto</Data></Cell>
-<Cell ss:StyleID="Header"><Data ss:Type="String">Monto</Data></Cell>
-</Row>
-
-<Row>
-<Cell ss:StyleID="Bold"><Data ss:Type="String">Activo corriente</Data></Cell>
-<Cell ss:StyleID="Currency"><Data ss:Type="Number">${Number(bg.totalActivoCorriente) || 0}</Data></Cell>
-</Row>
-
-<Row>
-<Cell ss:StyleID="Bold"><Data ss:Type="String">Activo no corriente</Data></Cell>
-<Cell ss:StyleID="Currency"><Data ss:Type="Number">${Number(bg.totalActivoNoCorriente) || 0}</Data></Cell>
-</Row>
-
-<Row>
-<Cell ss:StyleID="Bold"><Data ss:Type="String">TOTAL ACTIVO</Data></Cell>
-<Cell ss:StyleID="Currency" ss:Formula="=SUM(R2C2:R3C2)">
-<Data ss:Type="Number">${Number(bg.totalActivo) || 0}</Data>
-</Cell>
-</Row>
-
+<Worksheet ss:Name="Estado de Resultados"><Table>
+<Row><Cell ss:StyleID="Title"><Data ss:Type="String">ESTADO DE RESULTADOS DEL PERÍODO ${anio}</Data></Cell></Row>
 <Row></Row>
+<Row><Cell ss:StyleID="Header"><Data ss:Type="String">Concepto</Data></Cell><Cell ss:StyleID="Header"><Data ss:Type="String">Monto</Data></Cell></Row>
+${filasER}
+</Table></Worksheet>
 
-<Row>
-<Cell ss:StyleID="Bold"><Data ss:Type="String">Pasivo corriente</Data></Cell>
-<Cell ss:StyleID="Currency"><Data ss:Type="Number">${Number(bg.totalPasivoCorriente) || 0}</Data></Cell>
-</Row>
-
-<Row>
-<Cell ss:StyleID="Bold"><Data ss:Type="String">Pasivo no corriente</Data></Cell>
-<Cell ss:StyleID="Currency"><Data ss:Type="Number">${Number(bg.totalPasivoNoCorriente) || 0}</Data></Cell>
-</Row>
-
-<Row>
-<Cell ss:StyleID="Bold"><Data ss:Type="String">Capital contable</Data></Cell>
-<Cell ss:StyleID="Currency"><Data ss:Type="Number">${Number(bg.totalCapitalContable) || 0}</Data></Cell>
-</Row>
-
-<Row>
-<Cell ss:StyleID="Bold"><Data ss:Type="String">TOTAL PASIVO + CAPITAL</Data></Cell>
-<Cell ss:StyleID="Currency" ss:Formula="=SUM(R6C2:R8C2)">
-<Data ss:Type="Number">${Number(bg.totalPasivoMasCapital) || 0}</Data>
-</Cell>
-</Row>
-
-</Table>
-
-</Worksheet>
-
-</Workbook>
-      `
+<Worksheet ss:Name="Balance General"><Table>
+<Row><Cell ss:StyleID="Header"><Data ss:Type="String">ACTIVO</Data></Cell><Cell ss:StyleID="Header"><Data ss:Type="String">Monto</Data></Cell><Cell><Data ss:Type="String"></Data></Cell><Cell ss:StyleID="Header"><Data ss:Type="String">PASIVO Y CAPITAL</Data></Cell><Cell ss:StyleID="Header"><Data ss:Type="String">Monto</Data></Cell></Row>
+${filasBalance.join("")}
+</Table></Worksheet>
+</Workbook>`
 
       descargarArchivo(
         xml,
         "application/vnd.ms-excel",
-        `Finexa_Ejercicio_${anio}.xls`
+        `Finexa_Periodo_Fiscal_${anio}.xls`
       )
-    } catch (
-      e: unknown
-    ) {
+    } catch (e: unknown) {
       window.alert(
         e instanceof Error
           ? e.message
@@ -2228,7 +2444,7 @@ ${filasMayor}
             <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
               Consulta y análisis de períodos fiscales registrados en Finexa.
               Accede al Libro Diario, Libro Mayor, Estados Financieros y
-              documentación histórica de cada ejercicio.
+              documentación histórica de cada período fiscal.
             </p>
 
           </div>
@@ -2277,7 +2493,7 @@ ${filasMayor}
             </p>
 
             <p className="mt-1 text-sm text-muted-foreground">
-              Ejercicios disponibles para consulta
+              Períodos fiscales disponibles para consulta
             </p>
 
           </CardContent>
@@ -2301,7 +2517,7 @@ ${filasMayor}
             </p>
 
             <p className="mt-1 text-sm text-muted-foreground">
-              Ejercicios finalizados
+              Períodos fiscales finalizados
             </p>
 
           </CardContent>
@@ -2346,7 +2562,7 @@ ${filasMayor}
           </CardTitle>
 
           <CardDescription>
-            Localiza ejercicios por año, estado o responsable.
+            Filtra por período fiscal, estado o responsable. La búsqueda libre se utiliza únicamente para localizar al responsable.
           </CardDescription>
 
         </CardHeader>
@@ -2366,7 +2582,7 @@ ${filasMayor}
                     e.target.value
                   )
                 }
-                placeholder="Buscar período..."
+                placeholder="Buscar por responsable..."
                 className="h-10 w-full rounded-lg border border-input bg-background pl-10 pr-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
               />
 
@@ -2402,10 +2618,7 @@ ${filasMayor}
                         ejercicio.anio
                       }
                     >
-                      Ejercicio{" "}
-                      {
-                        ejercicio.anio
-                      }
+                      Período fiscal {ejercicio.anio}
                     </option>
                   )
                 )}
@@ -2519,10 +2732,7 @@ ${filasMayor}
                           <div className="flex flex-wrap items-center gap-2">
 
                             <h3 className="text-lg font-semibold">
-                              Ejercicio{" "}
-                              {
-                                ejercicio.anio
-                              }
+                              Período fiscal {ejercicio.anio}
                             </h3>
 
                             <EstadoBadge
@@ -2594,7 +2804,7 @@ ${filasMayor}
                         <div>
 
                           <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                            Resultado del ejercicio
+                            Resultado neto del período
                           </p>
 
                           <p
@@ -2773,11 +2983,7 @@ ${filasMayor}
                 <div className="flex items-center gap-3">
 
                   <h2 className="text-xl font-bold">
-                    Ejercicio{" "}
-                    {
-                      ejercicioActivo
-                        .ejercicio.anio
-                    }
+                    Período fiscal {ejercicioActivo.ejercicio.anio}
                   </h2>
 
                   <EstadoBadge
@@ -2964,7 +3170,7 @@ ${filasMayor}
                         <div className="flex justify-between">
 
                           <span className="text-muted-foreground">
-                            Resultado del ejercicio
+                            Resultado neto del período
                           </span>
 
                           <span
@@ -3047,7 +3253,7 @@ ${filasMayor}
                     </CardTitle>
 
                     <CardDescription>
-                      Partidas registradas durante el ejercicio fiscal.
+                      Partidas registradas durante el período fiscal.
                     </CardDescription>
 
                   </CardHeader>
@@ -3196,267 +3402,186 @@ ${filasMayor}
 
               {/* LIBRO MAYOR */}
 
-              {tabActiva ===
-                "mayor" && (
+              {tabActiva === "mayor" && (
                 <Card>
-
                   <CardHeader>
-
-                    <CardTitle>
-                      Libro Mayor
-                    </CardTitle>
-
+                    <CardTitle>Libro Mayor</CardTitle>
                     <CardDescription>
-                      Saldos acumulados por cuenta durante el período.
+                      Movimientos acumulados por cuenta durante el período.
                     </CardDescription>
-
                   </CardHeader>
 
-                  <CardContent>
-
+                  <CardContent className="space-y-8">
                     <div className="overflow-x-auto">
-
-                      <table className="w-full min-w-[750px] text-sm">
-
+                      <table className="w-full min-w-[650px] text-sm">
                         <thead>
-
                           <tr className="border-b border-border text-left text-muted-foreground">
-
-                            <th className="px-3 py-3">
-                              Código
-                            </th>
-
-                            <th className="px-3 py-3">
-                              Cuenta
-                            </th>
-
-                            <th className="px-3 py-3 text-right">
-                              Debe
-                            </th>
-
-                            <th className="px-3 py-3 text-right">
-                              Haber
-                            </th>
-
-                            <th className="px-3 py-3 text-right">
-                              Saldo
-                            </th>
-
+                            <th className="px-3 py-3">Código</th>
+                            <th className="px-3 py-3">Cuenta</th>
+                            <th className="px-3 py-3 text-right">Debe</th>
+                            <th className="px-3 py-3 text-right">Haber</th>
                           </tr>
-
                         </thead>
-
                         <tbody>
-
-                          {ejercicioActivo.libroMayor.map(
-                            (linea) => (
-                              <tr
-                                key={
-                                  linea
-                                    .cuenta
-                                    .codigo
-                                }
-                                className="border-b border-border/50"
-                              >
-
-                                <td className="px-3 py-3 font-medium text-primary">
-                                  {
-                                    linea
-                                      .cuenta
-                                      .codigo
-                                  }
-                                </td>
-
-                                <td className="px-3 py-3">
-                                  {
-                                    linea
-                                      .cuenta
-                                      .nombre
-                                  }
-                                </td>
-
-                                <td className="px-3 py-3 text-right">
-                                  {formatoMoneda(
-                                    linea.debe
-                                  )}
-                                </td>
-
-                                <td className="px-3 py-3 text-right">
-                                  {formatoMoneda(
-                                    linea.haber
-                                  )}
-                                </td>
-
-                                <td className="px-3 py-3 text-right font-medium">
-                                  {formatoMoneda(
-                                    Math.abs(
-                                      linea.saldo
-                                    )
-                                  )}
-                                </td>
-
-                              </tr>
-                            )
-                          )}
-
+                          {ejercicioActivo.libroMayor.map((linea) => (
+                            <tr
+                              key={linea.cuenta.codigo}
+                              className="border-b border-border/50"
+                            >
+                              <td className="px-3 py-3 font-medium text-primary">
+                                {linea.cuenta.codigo}
+                              </td>
+                              <td className="px-3 py-3">
+                                {linea.cuenta.nombre}
+                              </td>
+                              <td className="px-3 py-3 text-right">
+                                {formatoMoneda(linea.debe)}
+                              </td>
+                              <td className="px-3 py-3 text-right">
+                                {formatoMoneda(linea.haber)}
+                              </td>
+                            </tr>
+                          ))}
                         </tbody>
-
+                        <tfoot>
+                          <tr className="border-t-2 border-border font-bold">
+                            <td colSpan={2} className="px-3 py-3 text-right">
+                              Totales de mayorización
+                            </td>
+                            <td className="px-3 py-3 text-right">
+                              {formatoMoneda(
+                                ejercicioActivo.libroMayor.reduce(
+                                  (total, linea) => total + (Number(linea.debe) || 0),
+                                  0
+                                )
+                              )}
+                            </td>
+                            <td className="px-3 py-3 text-right">
+                              {formatoMoneda(
+                                ejercicioActivo.libroMayor.reduce(
+                                  (total, linea) => total + (Number(linea.haber) || 0),
+                                  0
+                                )
+                              )}
+                            </td>
+                          </tr>
+                        </tfoot>
                       </table>
-
                     </div>
 
-                  </CardContent>
+                    <div className="border-t border-border pt-6">
+                      <div className="mb-4">
+                        <h3 className="font-semibold">Balance de comprobación</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Comprobación de sumas y saldos deudores y acreedores del período.
+                        </p>
+                      </div>
 
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[900px] text-sm">
+                          <thead>
+                            <tr className="border-b border-border text-left text-muted-foreground">
+                              <th className="px-3 py-3">Código</th>
+                              <th className="px-3 py-3">Cuenta</th>
+                              <th className="px-3 py-3 text-right">Debe</th>
+                              <th className="px-3 py-3 text-right">Haber</th>
+                              <th className="px-3 py-3 text-right">Saldo deudor</th>
+                              <th className="px-3 py-3 text-right">Saldo acreedor</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {ejercicioActivo.libroMayor.map((linea) => {
+                              const saldo =
+                                (Number(linea.debe) || 0) -
+                                (Number(linea.haber) || 0)
+
+                              return (
+                                <tr
+                                  key={`comprobacion-${linea.cuenta.codigo}`}
+                                  className="border-b border-border/50"
+                                >
+                                  <td className="px-3 py-3 font-medium text-primary">
+                                    {linea.cuenta.codigo}
+                                  </td>
+                                  <td className="px-3 py-3">
+                                    {linea.cuenta.nombre}
+                                  </td>
+                                  <td className="px-3 py-3 text-right">
+                                    {formatoMoneda(linea.debe)}
+                                  </td>
+                                  <td className="px-3 py-3 text-right">
+                                    {formatoMoneda(linea.haber)}
+                                  </td>
+                                  <td className="px-3 py-3 text-right">
+                                    {formatoMoneda(saldo > 0 ? saldo : 0)}
+                                  </td>
+                                  <td className="px-3 py-3 text-right text-red-500">
+                                    {formatoMoneda(saldo < 0 ? Math.abs(saldo) : 0)}
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                          <tfoot>
+                            <tr className="border-t-2 border-border font-bold">
+                              <td colSpan={2} className="px-3 py-3 text-right">
+                                Totales
+                              </td>
+                              <td className="px-3 py-3 text-right">
+                                {formatoMoneda(
+                                  ejercicioActivo.libroMayor.reduce(
+                                    (total, linea) => total + (Number(linea.debe) || 0),
+                                    0
+                                  )
+                                )}
+                              </td>
+                              <td className="px-3 py-3 text-right">
+                                {formatoMoneda(
+                                  ejercicioActivo.libroMayor.reduce(
+                                    (total, linea) => total + (Number(linea.haber) || 0),
+                                    0
+                                  )
+                                )}
+                              </td>
+                              <td className="px-3 py-3 text-right">
+                                {formatoMoneda(
+                                  ejercicioActivo.libroMayor.reduce((total, linea) => {
+                                    const saldo =
+                                      (Number(linea.debe) || 0) -
+                                      (Number(linea.haber) || 0)
+                                    return total + (saldo > 0 ? saldo : 0)
+                                  }, 0)
+                                )}
+                              </td>
+                              <td className="px-3 py-3 text-right text-red-500">
+                                {formatoMoneda(
+                                  ejercicioActivo.libroMayor.reduce((total, linea) => {
+                                    const saldo =
+                                      (Number(linea.debe) || 0) -
+                                      (Number(linea.haber) || 0)
+                                    return total + (saldo < 0 ? Math.abs(saldo) : 0)
+                                  }, 0)
+                                )}
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </div>
+                  </CardContent>
                 </Card>
               )}
 
               {/* ESTADO DE RESULTADOS */}
 
-              {tabActiva ===
-                "resultados" && (
+              {tabActiva === "resultados" && (
                 <Card>
-
                   <CardHeader>
-
-                    <CardTitle>
-                      Estado de Resultados
-                    </CardTitle>
-
-                    <CardDescription>
-                      Resultado económico obtenido durante el ejercicio fiscal.
-                    </CardDescription>
-
+                    <CardTitle>Estado de Resultados del Período</CardTitle>
                   </CardHeader>
-
-                  <CardContent className="space-y-5">
-
-                    <section>
-
-                      <h3 className="mb-2 text-sm font-semibold">
-                        Ventas
-                      </h3>
-
-                      <ListaReporte
-                        items={
-                          ejercicioActivo
-                            .estadoResultados
-                            .ventas
-                        }
-                      />
-
-                      <FilaReporte
-                        label="Ventas netas"
-                        valor={
-                          ejercicioActivo
-                            .estadoResultados
-                            .totalVentas ??
-                          0
-                        }
-                        fuerte
-                      />
-
-                    </section>
-
-                    <section>
-
-                      <h3 className="mb-2 text-sm font-semibold">
-                        Costo de venta
-                      </h3>
-
-                      <ListaReporte
-                        items={
-                          ejercicioActivo
-                            .estadoResultados
-                            .costoVentas
-                        }
-                      />
-
-                      <FilaReporte
-                        label="Total costo de venta"
-                        valor={
-                          ejercicioActivo
-                            .estadoResultados
-                            .totalCostoVentas ??
-                          0
-                        }
-                        fuerte
-                      />
-
-                    </section>
-
-                    <FilaReporte
-                      label="Utilidad bruta"
-                      valor={
-                        ejercicioActivo
-                          .estadoResultados
-                          .utilidadBruta ??
-                        0
-                      }
-                      fuerte
-                    />
-
-                    <section>
-
-                      <h3 className="mb-2 text-sm font-semibold">
-                        Gastos de operación
-                      </h3>
-
-                      <ListaReporte
-                        items={
-                          ejercicioActivo
-                            .estadoResultados
-                            .gastosOperacion
-                        }
-                      />
-
-                      <FilaReporte
-                        label="Total gastos de operación"
-                        valor={
-                          ejercicioActivo
-                            .estadoResultados
-                            .totalGastosOperacion ??
-                          0
-                        }
-                      />
-
-                    </section>
-
-                    <div
-                      className={`flex items-center justify-between rounded-lg border p-4 ${
-                        (
-                          ejercicioActivo
-                            .estadoResultados
-                            .utilidad ??
-                          0
-                        ) >= 0
-                          ? "border-emerald-500/30 bg-emerald-500/10"
-                          : "border-red-500/30 bg-red-500/10"
-                      }`}
-                    >
-
-                      <span className="font-semibold">
-                        {(
-                          ejercicioActivo
-                            .estadoResultados
-                            .utilidad ??
-                          0
-                        ) >= 0
-                          ? "Utilidad del ejercicio"
-                          : "Pérdida del ejercicio"}
-                      </span>
-
-                      <span className="text-lg font-bold">
-                        {formatoMoneda(
-                          ejercicioActivo
-                            .estadoResultados
-                            .utilidad
-                        )}
-                      </span>
-
-                    </div>
-
+                  <CardContent>
+                    <EstadoResultadosAnalitico er={ejercicioActivo.estadoResultados} />
                   </CardContent>
-
                 </Card>
               )}
 

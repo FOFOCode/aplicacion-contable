@@ -1,11 +1,15 @@
-import { NextResponse } from "next/server"
-import { getDbPool } from "@/lib/db"
+import { NextResponse } from "next/server";
+import { getDbPool } from "@/lib/db";
 
 export async function POST(req: Request) {
-  const pool = getDbPool()
-  if (!pool) return NextResponse.json({ error: "No database configured" }, { status: 503 })
+  const pool = getDbPool();
+  if (!pool)
+    return NextResponse.json(
+      { error: "No database configured" },
+      { status: 503 },
+    );
 
-  const client = await pool.connect()
+  const client = await pool.connect();
   try {
     const body = await req.json().catch(() => ({}))
     const fecha = body.fecha || new Date().toISOString().slice(0, 10)
@@ -13,7 +17,7 @@ export async function POST(req: Request) {
       ? parseInt(String(body.ejercicio), 10)
       : parseInt(fecha.split("-")[0], 10)
 
-    await client.query("BEGIN")
+    await client.query("BEGIN");
 
     // Auto-cerrar folios abiertos de fechas anteriores al avanzar al nuevo día
     const prevOpenFolios = await client.query(
@@ -38,16 +42,16 @@ export async function POST(req: Request) {
     )
 
     if (existing.rows.length > 0) {
-      await client.query("COMMIT")
-      return NextResponse.json(existing.rows[0])
+      await client.query("COMMIT");
+      return NextResponse.json(existing.rows[0]);
     }
 
     // Obtener siguiente consecutivo anual
     const numRes = await client.query(
       "SELECT fn_proximo_numero_folio($1) AS next_folio",
       [ejercicio],
-    )
-    const numeroFolio = numRes.rows[0]?.next_folio || 1
+    );
+    const numeroFolio = numRes.rows[0]?.next_folio || 1;
 
     // Crear el folio
     const insertRes = await client.query(
@@ -55,23 +59,24 @@ export async function POST(req: Request) {
        VALUES ($1, $2, $3, 'ABIERTO')
        RETURNING id, ejercicio, numero_folio, fecha::text, estado, total_debe::float, total_haber::float, creado_en::text`,
       [ejercicio, numeroFolio, fecha],
-    )
+    );
 
-    const nuevoFolio = insertRes.rows[0]
+    const nuevoFolio = insertRes.rows[0];
 
     // Asociar asientos huérfanos que ya se hayan creado para esta fecha
     await client.query(
       "UPDATE asiento SET folio_diario_id = $1 WHERE fecha = $2 AND folio_diario_id IS NULL",
       [nuevoFolio.id, fecha],
-    )
+    );
 
-    await client.query("COMMIT")
-    return NextResponse.json(nuevoFolio)
+    await client.query("COMMIT");
+    return NextResponse.json(nuevoFolio);
   } catch (e: unknown) {
-    await client.query("ROLLBACK")
-    const msg = e instanceof Error ? e.message : "Error al iniciar folio diario"
-    return NextResponse.json({ error: msg }, { status: 500 })
+    await client.query("ROLLBACK");
+    const msg =
+      e instanceof Error ? e.message : "Error al iniciar folio diario";
+    return NextResponse.json({ error: msg }, { status: 500 });
   } finally {
-    client.release()
+    client.release();
   }
 }

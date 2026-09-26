@@ -81,6 +81,11 @@ function normalizar(
     .trim()
 }
 
+function nombreCuentaValido(nombre: string): boolean {
+  // Puede contener números y signos, pero debe incluir al menos una letra.
+  return /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(nombre.trim())
+}
+
 export default function CatalogoPage() {
   const {
     cuentas,
@@ -662,6 +667,14 @@ export default function CatalogoPage() {
         return
       }
 
+      if (!nombreCuentaValido(nombre)) {
+        setFormError(
+          "El nombre oficial debe contener al menos una letra. No se permiten nombres formados únicamente por números o símbolos."
+        )
+
+        return
+      }
+
       if (
         cuentas.some(
           (cuenta) =>
@@ -776,6 +789,14 @@ export default function CatalogoPage() {
       if (!nombre) {
         setEditError(
           "El nombre de la cuenta no puede estar vacío."
+        )
+
+        return
+      }
+
+      if (!nombreCuentaValido(nombre)) {
+        setEditError(
+          "El nombre de la cuenta debe contener al menos una letra. No se permiten nombres formados únicamente por números o símbolos."
         )
 
         return

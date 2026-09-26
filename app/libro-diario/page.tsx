@@ -1,6 +1,12 @@
-"use client"
+"use client";
 
-import React, { useState, useMemo, useEffect, useRef, useCallback } from "react"
+import React, {
+  useState,
+  useMemo,
+  useEffect,
+  useRef,
+  useCallback,
+} from "react";
 import {
   FolderOpen,
   Plus,
@@ -61,47 +67,47 @@ import { exportarFolioPDF, exportarFolioCSV } from "@/lib/exportFolio"
 import { cn } from "@/lib/utils"
 
 interface LineaCaptura {
-  key: string
-  codigo: string
-  monto: number | ""
-  operacion: "AUMENTA" | "DISMINUYE"
-  debeDirecto?: number | ""
-  haberDirecto?: number | ""
+  key: string;
+  codigo: string;
+  monto: number | "";
+  operacion: "AUMENTA" | "DISMINUYE";
+  debeDirecto?: number | "";
+  haberDirecto?: number | "";
 }
 
 interface FolioHoyData {
-  estado: "NO_INICIADO" | "ABIERTO" | "CERRADO"
+  estado: "NO_INICIADO" | "ABIERTO" | "CERRADO";
   folio: {
-    id: string
-    ejercicio: number
-    numero_folio: number
-    fecha: string
-    estado: "ABIERTO" | "CERRADO"
-    total_debe: number
-    total_haber: number
-    cerrado_en?: string | null
-    cerrado_por?: string | null
-    cantidad_partidas: number
-  } | null
+    id: string;
+    ejercicio: number;
+    numero_folio: number;
+    fecha: string;
+    estado: "ABIERTO" | "CERRADO";
+    total_debe: number;
+    total_haber: number;
+    cerrado_en?: string | null;
+    cerrado_por?: string | null;
+    cantidad_partidas: number;
+  } | null;
   partidas: Array<{
-    id: string
-    correlativo_global?: number
-    ejercicio: number
-    numero: number
-    fecha: string
-    concepto: string
-    tipo?: string
-    estado?: string
-    documento_soporte?: string
-    folio_diario_id?: string
-    anulado_en?: string
-    motivo_anulacion?: string
+    id: string;
+    correlativo_global?: number;
+    ejercicio: number;
+    numero: number;
+    fecha: string;
+    concepto: string;
+    tipo?: string;
+    estado?: string;
+    documento_soporte?: string;
+    folio_diario_id?: string;
+    anulado_en?: string;
+    motivo_anulacion?: string;
     lineas: Array<{
-      codigo: string
-      debe: number
-      haber: number
-    }>
-  }>
+      codigo: string;
+      debe: number;
+      haber: number;
+    }>;
+  }>;
   totales: {
     totalDebe: number
     totalHaber: number
@@ -112,7 +118,7 @@ interface FolioHoyData {
   }
 }
 
-type ModoCaptura = "SMART" | "CLASICO"
+type ModoCaptura = "SMART" | "CLASICO";
 
 const GLOSAS_RAPIDAS = [
   "Compra de mercadería al contado según factura (Sistema Analítico)",
@@ -121,7 +127,7 @@ const GLOSAS_RAPIDAS = [
   "Devolución de mercadería a proveedor",
   "Pago de servicios públicos del periodo",
   "Abono de cliente recibido en transferencia bancaria",
-]
+];
 
 export default function LibroDiarioPage() {
   const { cuentas, recargarAsientos } = useContabilidad()
@@ -143,9 +149,9 @@ export default function LibroDiarioPage() {
   const [lineas, setLineas] = useState<LineaCaptura[]>([])
   const [guardandoPartida, setGuardandoPartida] = useState<boolean>(false)
   const [partidaEnEdicion, setPartidaEnEdicion] = useState<{
-    id: string
-    numero: number
-  } | null>(null)
+    id: string;
+    numero: number;
+  } | null>(null);
 
   // Modal de captura
   const [modalCapturaOpen, setModalCapturaOpen] = useState(false)
@@ -251,8 +257,8 @@ export default function LibroDiarioPage() {
 
   // Iniciar Folio de Hoy
   const handleIniciarFolio = async () => {
-    setIniciandoFolio(true)
-    setNotificacion(null)
+    setIniciandoFolio(true);
+    setNotificacion(null);
     try {
       const res = await fetch("/api/folios/iniciar", {
         method: "POST",
@@ -260,8 +266,8 @@ export default function LibroDiarioPage() {
         body: JSON.stringify({ fecha: fechaSeleccionada }),
       })
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || "No se pudo iniciar el folio diario")
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "No se pudo iniciar el folio diario");
       }
       setNotificacion({
         tipo: "exito",
@@ -275,11 +281,11 @@ export default function LibroDiarioPage() {
         tipo: "error",
         titulo: "Error al Iniciar",
         mensaje: e instanceof Error ? e.message : "Error al iniciar folio",
-      })
+      });
     } finally {
-      setIniciandoFolio(false)
+      setIniciandoFolio(false);
     }
-  }
+  };
 
   // Cerrar Folio
   const handleCerrarFolio = async () => {
@@ -294,10 +300,10 @@ export default function LibroDiarioPage() {
           folio_id: datosFolio.folio.id,
           cerrado_por: "CONTADOR_GENERAL",
         }),
-      })
+      });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || "No se pudo cerrar el folio")
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "No se pudo cerrar el folio");
       }
       const data = await res.json()
       setNotificacion({
@@ -313,15 +319,15 @@ export default function LibroDiarioPage() {
         tipo: "error",
         titulo: "Error de Cierre",
         mensaje: e instanceof Error ? e.message : "Error al cerrar folio",
-      })
+      });
     } finally {
-      setCerrandoFolio(false)
+      setCerrandoFolio(false);
     }
-  }
+  };
 
   // Reapertura de Folio
   const handleReabrirFolio = async () => {
-    if (!datosFolio?.folio?.id) return
+    if (!datosFolio?.folio?.id) return;
     if (!motivoReapertura.trim()) {
       setNotificacion({
         tipo: "error",
@@ -330,8 +336,8 @@ export default function LibroDiarioPage() {
       })
       return
     }
-    setReabriendoFolio(true)
-    setNotificacion(null)
+    setReabriendoFolio(true);
+    setNotificacion(null);
     try {
       const res = await fetch("/api/folios/reabrir", {
         method: "POST",
@@ -341,10 +347,10 @@ export default function LibroDiarioPage() {
           motivo: motivoReapertura.trim(),
           autorizado_por: "AUDITOR_CONTABLE",
         }),
-      })
+      });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || "No se pudo reabrir el folio")
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "No se pudo reabrir el folio");
       }
       setNotificacion({
         tipo: "exito",
@@ -360,11 +366,11 @@ export default function LibroDiarioPage() {
         tipo: "error",
         titulo: "Error al Reabrir",
         mensaje: e instanceof Error ? e.message : "Error al reabrir folio",
-      })
+      });
     } finally {
-      setReabriendoFolio(false)
+      setReabriendoFolio(false);
     }
-  }
+  };
 
   // Atajos rápidos de fecha
   const handleSetHoy = () => {
@@ -379,39 +385,39 @@ export default function LibroDiarioPage() {
 
   // Cuentas map
   const cuentasMap = useMemo(() => {
-    const map = new Map<string, Cuenta>()
-    cuentas.forEach((c) => map.set(c.codigo, c))
-    return map
-  }, [cuentas])
+    const map = new Map<string, Cuenta>();
+    cuentas.forEach((c) => map.set(c.codigo, c));
+    return map;
+  }, [cuentas]);
 
   const getNombreCuenta = useCallback(
     (codigo: string) => {
-      const c = cuentasMap.get(codigo)
-      if (!c) return "Cuenta desconocida"
-      return formatearCuentaJerarquica(c, cuentasMap).textoCompleto
+      const c = cuentasMap.get(codigo);
+      if (!c) return "Cuenta desconocida";
+      return formatearCuentaJerarquica(c, cuentasMap).textoCompleto;
     },
     [cuentasMap],
-  )
+  );
 
   // Procesamiento de líneas de captura
   const lineasProcesadas = useMemo(() => {
     return lineas.map((linea) => {
-      const c = cuentasMap.get(linea.codigo)
-      let debe = 0
-      let haber = 0
-      let razon = ""
+      const c = cuentasMap.get(linea.codigo);
+      let debe = 0;
+      let haber = 0;
+      let razon = "";
 
       if (modoCaptura === "CLASICO") {
-        debe = Number(linea.debeDirecto) || 0
-        haber = Number(linea.haberDirecto) || 0
-        razon = "Entrada manual directa"
+        debe = Number(linea.debeDirecto) || 0;
+        haber = Number(linea.haberDirecto) || 0;
+        razon = "Entrada manual directa";
       } else {
-        const montoNum = Number(linea.monto) || 0
+        const montoNum = Number(linea.monto) || 0;
         if (c && montoNum > 0) {
-          const resultado = inferirImputacion(c, montoNum, linea.operacion)
-          debe = resultado.debe
-          haber = resultado.haber
-          razon = resultado.explicacion
+          const resultado = inferirImputacion(c, montoNum, linea.operacion);
+          debe = resultado.debe;
+          haber = resultado.haber;
+          razon = resultado.explicacion;
         }
       }
 
@@ -422,34 +428,36 @@ export default function LibroDiarioPage() {
         haber,
         razon,
         cuentaValida: !!c,
-      }
-    })
-  }, [lineas, cuentasMap, modoCaptura])
+      };
+    });
+  }, [lineas, cuentasMap, modoCaptura]);
 
   // Totales de la partida en curso
   const totalesPartidaEnCurso = useMemo(() => {
-    let tDebe = 0
-    let tHaber = 0
+    let tDebe = 0;
+    let tHaber = 0;
     lineasProcesadas.forEach((l) => {
-      tDebe += l.debe
-      tHaber += l.haber
-    })
-    const tDebeRed = redondear(tDebe)
-    const tHaberRed = redondear(tHaber)
-    const diff = redondear(Math.abs(tDebeRed - tHaberRed))
+      tDebe += l.debe;
+      tHaber += l.haber;
+    });
+    const tDebeRed = redondear(tDebe);
+    const tHaberRed = redondear(tHaber);
+    const diff = redondear(Math.abs(tDebeRed - tHaberRed));
     return {
       totalDebe: tDebeRed,
       totalHaber: tHaberRed,
       diferencia: diff,
       cuadrado: diff === 0 && tDebeRed > 0,
       diferenciaConSigno: redondear(tDebeRed - tHaberRed),
-    }
-  }, [lineasProcesadas])
+    };
+  }, [lineasProcesadas]);
 
   // Modificar línea
   const handleUpdateLinea = (key: string, patch: Partial<LineaCaptura>) => {
-    setLineas((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)))
-  }
+    setLineas((prev) =>
+      prev.map((l) => (l.key === key ? { ...l, ...patch } : l)),
+    );
+  };
 
   // Abrir Finder para agregar nueva línea
   const handleAbrirFinderParaNuevaLinea = useCallback(() => {
@@ -587,51 +595,54 @@ export default function LibroDiarioPage() {
   const handleDesglosarIVA = useCallback(
     (lineaKey: string, forzar = false, codigoOverride?: string) => {
       setLineas((prevLineas) => {
-        const targetIndex = prevLineas.findIndex((l) => l.key === lineaKey)
-        if (targetIndex === -1) return prevLineas
+        const targetIndex = prevLineas.findIndex((l) => l.key === lineaKey);
+        if (targetIndex === -1) return prevLineas;
 
-        const targetLinea = prevLineas[targetIndex]
-        const codigo = codigoOverride || targetLinea.codigo
-        const infoIva = esCuentaSujetaAIVA(codigo)
-        if (!infoIva.esSujeta) return prevLineas
+        const targetLinea = prevLineas[targetIndex];
+        const codigo = codigoOverride || targetLinea.codigo;
+        const infoIva = esCuentaSujetaAIVA(codigo);
+        if (!infoIva.esSujeta) return prevLineas;
 
         // Obtener el importe bruto ingresado en la línea
-        let montoBruto = 0
+        let montoBruto = 0;
         if (modoCaptura === "CLASICO") {
           montoBruto =
             Number(targetLinea.debeDirecto) ||
             Number(targetLinea.haberDirecto) ||
-            0
+            0;
         } else {
-          montoBruto = Number(targetLinea.monto) || 0
+          montoBruto = Number(targetLinea.monto) || 0;
         }
 
-        if (montoBruto <= 0) return prevLineas
+        if (montoBruto <= 0) return prevLineas;
 
         // Verificar si la línea ya fue desglosada previamente para no aplicar / 1.13 en bucle
         const ivaIndex = prevLineas.findIndex(
-          (l, idx) => idx !== targetIndex && l.codigo === infoIva.cuentaIvaCodigo,
-        )
+          (l, idx) =>
+            idx !== targetIndex && l.codigo === infoIva.cuentaIvaCodigo,
+        );
 
         if (!forzar && ivaIndex !== -1) {
-          const lineaIva = prevLineas[ivaIndex]
+          const lineaIva = prevLineas[ivaIndex];
           const ivaActual =
             modoCaptura === "CLASICO"
-              ? Number(lineaIva.debeDirecto) || Number(lineaIva.haberDirecto) || 0
-              : Number(lineaIva.monto) || 0
+              ? Number(lineaIva.debeDirecto) ||
+                Number(lineaIva.haberDirecto) ||
+                0
+              : Number(lineaIva.monto) || 0;
 
           // Si el IVA actual coincide exactamente con montoBruto * 0.13 (+- $0.02),
           // significa que montoBruto YA es la base neta y el IVA ya está extraído.
           if (Math.abs(redondear(montoBruto * 0.13) - ivaActual) <= 0.02) {
-            return prevLineas
+            return prevLineas;
           }
         }
 
         // Aplicar cálculo exacto:
         // Base = $X / 1.13 -> IVA = Base * 0.13
-        const { base, iva, total } = calcularDesgloseIVA(montoBruto)
-        const updated = [...prevLineas]
-        const esCompraOActivo = infoIva.tipo === "COMPRA"
+        const { base, iva, total } = calcularDesgloseIVA(montoBruto);
+        const updated = [...prevLineas];
+        const esCompraOActivo = infoIva.tipo === "COMPRA";
 
         // 1. Ajustar la línea de compra/activo/venta al monto neto (disminuido en el monto del IVA)
         // Mantener sincronizados AMBOS formatos (Smart y Clásico)
@@ -642,7 +653,7 @@ export default function LibroDiarioPage() {
           operacion: "AUMENTA",
           debeDirecto: esCompraOActivo ? base : "",
           haberDirecto: esCompraOActivo ? "" : base,
-        }
+        };
 
         // 2. Insertar o actualizar la línea de IVA correspondiente (1105 o 2103)
         if (ivaIndex !== -1) {
@@ -653,31 +664,33 @@ export default function LibroDiarioPage() {
             operacion: "AUMENTA",
             debeDirecto: esCompraOActivo ? iva : "",
             haberDirecto: esCompraOActivo ? "" : iva,
-          }
+          };
         } else {
           // Si la línea siguiente está vacía, usarla; si no, insertar una nueva línea inmediatamente después
-          const nextIdx = targetIndex + 1
-          const nextLinea = updated[nextIdx]
+          const nextIdx = targetIndex + 1;
+          const nextLinea = updated[nextIdx];
           const nextEsVacia =
             nextLinea &&
             !nextLinea.codigo &&
             (!nextLinea.monto || nextLinea.monto === 0) &&
             (!nextLinea.debeDirecto || nextLinea.debeDirecto === 0) &&
-            (!nextLinea.haberDirecto || nextLinea.haberDirecto === 0)
+            (!nextLinea.haberDirecto || nextLinea.haberDirecto === 0);
 
           const nuevaLineaIva: LineaCaptura = {
-            key: nextEsVacia ? nextLinea.key : String(Date.now() + Math.random()),
+            key: nextEsVacia
+              ? nextLinea.key
+              : String(Date.now() + Math.random()),
             codigo: infoIva.cuentaIvaCodigo,
             monto: iva,
             operacion: "AUMENTA",
             debeDirecto: esCompraOActivo ? iva : "",
             haberDirecto: esCompraOActivo ? "" : iva,
-          }
+          };
 
           if (nextEsVacia) {
-            updated[nextIdx] = nuevaLineaIva
+            updated[nextIdx] = nuevaLineaIva;
           } else {
-            updated.splice(nextIdx, 0, nuevaLineaIva)
+            updated.splice(nextIdx, 0, nuevaLineaIva);
           }
         }
 
@@ -686,7 +699,7 @@ export default function LibroDiarioPage() {
         // En ventas: se cobrará entrada de dinero (Caja/Banco AUMENTA -> Debe)
         const hayRenglonVacio = updated.some(
           (l) => !l.codigo && !l.monto && !l.debeDirecto && !l.haberDirecto,
-        )
+        );
         if (!hayRenglonVacio) {
           updated.push({
             key: String(Date.now() + Math.random() + 1),
@@ -695,7 +708,7 @@ export default function LibroDiarioPage() {
             operacion: esCompraOActivo ? "DISMINUYE" : "AUMENTA",
             debeDirecto: "",
             haberDirecto: "",
-          })
+          });
         }
 
         setTimeout(() => {
@@ -706,52 +719,52 @@ export default function LibroDiarioPage() {
           })
         }, 50)
 
-        return updated
-      })
+        return updated;
+      });
     },
     [modoCaptura],
-  )
+  );
 
   // Conversión bidireccional limpia al alternar entre Modo Smart (+/-) y Modo Clásico (D/H)
   const handleCambiarModoCaptura = useCallback(
     (nuevoModo: ModoCaptura) => {
-      if (nuevoModo === modoCaptura) return
-      setModoCaptura(nuevoModo)
+      if (nuevoModo === modoCaptura) return;
+      setModoCaptura(nuevoModo);
       setLineas((prev) =>
         prev.map((l) => {
-          const c = cuentasMap.get(l.codigo)
+          const c = cuentasMap.get(l.codigo);
           if (nuevoModo === "SMART") {
-            const d = Number(l.debeDirecto) || 0
-            const h = Number(l.haberDirecto) || 0
+            const d = Number(l.debeDirecto) || 0;
+            const h = Number(l.haberDirecto) || 0;
             if (d > 0 || h > 0) {
-              const nat = normalizarNaturaleza(c?.naturaleza || "deudora")
-              const monto = d > 0 ? d : h
-              let operacion: "AUMENTA" | "DISMINUYE" = "AUMENTA"
+              const nat = normalizarNaturaleza(c?.naturaleza || "deudora");
+              const monto = d > 0 ? d : h;
+              let operacion: "AUMENTA" | "DISMINUYE" = "AUMENTA";
               if (d > 0) {
-                operacion = nat === "deudora" ? "AUMENTA" : "DISMINUYE"
+                operacion = nat === "deudora" ? "AUMENTA" : "DISMINUYE";
               } else {
-                operacion = nat === "acreedora" ? "AUMENTA" : "DISMINUYE"
+                operacion = nat === "acreedora" ? "AUMENTA" : "DISMINUYE";
               }
-              return { ...l, monto, operacion }
+              return { ...l, monto, operacion };
             }
-            return l
+            return l;
           } else {
-            const m = Number(l.monto) || 0
+            const m = Number(l.monto) || 0;
             if (m > 0 && c) {
-              const res = inferirImputacion(c, m, l.operacion)
+              const res = inferirImputacion(c, m, l.operacion);
               return {
                 ...l,
                 debeDirecto: res.debe > 0 ? res.debe : "",
                 haberDirecto: res.haber > 0 ? res.haber : "",
-              }
+              };
             }
-            return l
+            return l;
           }
         }),
-      )
+      );
     },
     [modoCaptura, cuentasMap],
-  )
+  );
 
   // Limpiar Formulario
   const handleLimpiarFormulario = () => {
@@ -813,9 +826,9 @@ export default function LibroDiarioPage() {
       const monto = l.debe > 0 ? l.debe : l.haber
       let operacion: "AUMENTA" | "DISMINUYE" = "AUMENTA"
       if (l.debe > 0) {
-        operacion = nat === "deudora" ? "AUMENTA" : "DISMINUYE"
+        operacion = nat === "deudora" ? "AUMENTA" : "DISMINUYE";
       } else {
-        operacion = nat === "acreedora" ? "AUMENTA" : "DISMINUYE"
+        operacion = nat === "acreedora" ? "AUMENTA" : "DISMINUYE";
       }
       return {
         key: String(idx + 1),
@@ -824,8 +837,8 @@ export default function LibroDiarioPage() {
         operacion,
         debeDirecto: l.debe > 0 ? l.debe : "",
         haberDirecto: l.haber > 0 ? l.haber : "",
-      }
-    })
+      };
+    });
 
     setLineas(nuevasLineas)
     setModalCapturaOpen(true)
@@ -901,8 +914,8 @@ export default function LibroDiarioPage() {
   // Guardar Partida en el Folio Abierto (POST o PUT)
   const handleGuardarPartida = useCallback(
     async (e?: React.FormEvent) => {
-      if (e) e.preventDefault()
-      setNotificacion(null)
+      if (e) e.preventDefault();
+      setNotificacion(null);
 
       if (!concepto.trim()) {
         setNotificacion({
@@ -924,17 +937,17 @@ export default function LibroDiarioPage() {
 
       const lineasValidas = lineasProcesadas.filter(
         (l) => l.cuentaValida && (l.debe > 0 || l.haber > 0),
-      )
+      );
       if (lineasValidas.length < 2) {
         setNotificacion({
           tipo: "error",
           titulo: "Renglones Insuficientes",
           mensaje: "La partida requiere al menos 2 cuentas con montos válidos.",
-        })
-        return
+        });
+        return;
       }
 
-      setGuardandoPartida(true)
+      setGuardandoPartida(true);
       try {
         const payload = {
           fecha: fechaSeleccionada,
@@ -947,21 +960,23 @@ export default function LibroDiarioPage() {
             debe: l.debe,
             haber: l.haber,
           })),
-        }
+        };
 
-        const isEditing = !!partidaEnEdicion
-        const url = isEditing ? `/api/asientos/${partidaEnEdicion.id}` : "/api/asientos"
-        const method = isEditing ? "PUT" : "POST"
+        const isEditing = !!partidaEnEdicion;
+        const url = isEditing
+          ? `/api/asientos/${partidaEnEdicion.id}`
+          : "/api/asientos";
+        const method = isEditing ? "PUT" : "POST";
 
         const res = await fetch(url, {
           method,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
-        })
+        });
 
         if (!res.ok) {
-          const err = await res.json().catch(() => ({}))
-          throw new Error(err.error || "Error al procesar la partida")
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || "Error al procesar la partida");
         }
 
         setNotificacion({
@@ -980,9 +995,9 @@ export default function LibroDiarioPage() {
           tipo: "error",
           titulo: "Error al Procesar",
           mensaje: e instanceof Error ? e.message : "Error al procesar partida",
-        })
+        });
       } finally {
-        setGuardandoPartida(false)
+        setGuardandoPartida(false);
       }
     },
     [
@@ -997,7 +1012,7 @@ export default function LibroDiarioPage() {
       cargarFolioFecha,
       recargarAsientos,
     ],
-  )
+  );
 
   // Atajos de teclado globales
   useContableKeyboard({
@@ -1005,7 +1020,7 @@ export default function LibroDiarioPage() {
     onAutoBalance: handleAutoCuadrar,
     onSave: () => {
       if (datosFolio?.estado === "ABIERTO") {
-        handleGuardarPartida()
+        handleGuardarPartida();
       }
     },
     onOpenHistorial: () => setIsHistorialOpen((prev) => !prev),
@@ -1015,11 +1030,11 @@ export default function LibroDiarioPage() {
       setModalCapturaOpen(false)
       if (partidaEnEdicion) handleLimpiarFormulario()
     },
-  })
+  });
 
   // Exportar PDF
   const handleExportPDF = () => {
-    if (!datosFolio?.folio) return
+    if (!datosFolio?.folio) return;
     exportarFolioPDF(
       {
         numero_folio: datosFolio.folio.numero_folio,
@@ -1031,12 +1046,12 @@ export default function LibroDiarioPage() {
         partidas: datosFolio.partidas || [],
       },
       getNombreCuenta,
-    )
-  }
+    );
+  };
 
   // Exportar CSV
   const handleExportCSV = () => {
-    if (!datosFolio?.folio) return
+    if (!datosFolio?.folio) return;
     exportarFolioCSV(
       {
         numero_folio: datosFolio.folio.numero_folio,
@@ -1048,8 +1063,8 @@ export default function LibroDiarioPage() {
         partidas: datosFolio.partidas || [],
       },
       getNombreCuenta,
-    )
-  }
+    );
+  };
 
   // Toggle colapsar partida
   const toggleColapsarPartida = (id: string) => {
@@ -1075,20 +1090,23 @@ export default function LibroDiarioPage() {
 
   // Helpers
   const fechaLegible = useMemo(() => {
-    if (!fechaSeleccionada) return ""
-    const [y, m, d] = fechaSeleccionada.split("-").map(Number)
+    if (!fechaSeleccionada) return "";
+    const [y, m, d] = fechaSeleccionada.split("-").map(Number);
     return new Date(y, m - 1, d).toLocaleDateString("es-ES", {
       weekday: "long",
       year: "numeric",
       month: "long",
       day: "numeric",
-    })
-  }, [fechaSeleccionada])
+    });
+  }, [fechaSeleccionada]);
 
-  const estadoFolio = datosFolio?.estado ?? "NO_INICIADO"
-  const folioActual = datosFolio?.folio ?? null
+  const estadoFolio = datosFolio?.estado ?? "NO_INICIADO";
+  const folioActual = datosFolio?.folio ?? null;
   const partidasFolio = useMemo(
-    () => (datosFolio?.partidas ? [...datosFolio.partidas].sort((a, b) => a.numero - b.numero) : []),
+    () =>
+      datosFolio?.partidas
+        ? [...datosFolio.partidas].sort((a, b) => a.numero - b.numero)
+        : [],
     [datosFolio?.partidas],
   )
   const totalesFolio = datosFolio?.totales ?? {
@@ -1098,7 +1116,7 @@ export default function LibroDiarioPage() {
     cuadrado: true,
     partidasCuadradas: 0,
     totalPartidas: 0,
-  }
+  };
 
   // =========================================================================
   // RENDER: Formulario de captura (reutilizado en modal)
@@ -1670,8 +1688,10 @@ export default function LibroDiarioPage() {
                   Jornada Contable del {fechaLegible}
                 </h2>
                 <p className="text-xs sm:text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
-                  El Folio Diario para esta fecha aún no ha sido aperturado. Inicia la jornada de trabajo para
-                  habilitar la captura de comprobantes, foliar los asientos y operar con rigor de partida doble.
+                  El Folio Diario para esta fecha aún no ha sido aperturado.
+                  Inicia la jornada de trabajo para habilitar la captura de
+                  comprobantes, foliar los asientos y operar con rigor de
+                  partida doble.
                 </p>
               </div>
 
@@ -1683,7 +1703,9 @@ export default function LibroDiarioPage() {
                   className="w-full sm:w-auto text-sm px-6 h-11 gap-2 font-medium shadow-xs cursor-pointer"
                 >
                   <Plus className="size-4" />
-                  {iniciandoFolio ? "Aperturando Folio..." : "Iniciar Folio de Hoy"}
+                  {iniciandoFolio
+                    ? "Aperturando Folio..."
+                    : "Iniciar Folio de Hoy"}
                 </Button>
                 <Button
                   size="lg"
@@ -1835,8 +1857,8 @@ export default function LibroDiarioPage() {
                 <div className="max-h-[calc(100vh-22rem)] overflow-y-auto">
                   <div className="divide-y divide-border">
                     {partidasFolio.map((partida) => {
-                      let pDebe = 0
-                      let pHaber = 0
+                      let pDebe = 0;
+                      let pHaber = 0;
                       partida.lineas.forEach((l) => {
                         pDebe += Number(l.debe) || 0
                         pHaber += Number(l.haber) || 0
@@ -1965,7 +1987,7 @@ export default function LibroDiarioPage() {
                             </div>
                           )}
                         </div>
-                      )
+                      );
                     })}
                   </div>
 
@@ -2009,22 +2031,33 @@ export default function LibroDiarioPage() {
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <h2 className="text-lg sm:text-xl font-bold tracking-tight text-foreground">
-                        Folio Diario N° {String(folioActual?.numero_folio).padStart(3, "0")} — Sellado Legalmente
+                        Folio Diario N°{" "}
+                        {String(folioActual?.numero_folio).padStart(3, "0")} —
+                        Sellado Legalmente
                       </h2>
                       <Badge variant="muted" className="text-xs">
                         INMUTABLE
                       </Badge>
                     </div>
                     <p className="text-xs sm:text-sm text-muted-foreground max-w-2xl leading-relaxed">
-                      La jornada contable del {fechaLegible} ha sido cerrada de forma definitiva. Todos los comprobantes
-                      han sido foliados e inmovilizados por el trigger de base de datos bajo estrictos estándares de auditoría fiscal y mercantil.
+                      La jornada contable del {fechaLegible} ha sido cerrada de
+                      forma definitiva. Todos los comprobantes han sido foliados
+                      e inmovilizados por el trigger de base de datos bajo
+                      estrictos estándares de auditoría fiscal y mercantil.
                     </p>
                     <div className="flex flex-wrap items-center gap-4 text-xs font-mono tabular-nums text-muted-foreground pt-2">
-                      <span>Cerrado en: {folioActual?.cerrado_en ? new Date(folioActual.cerrado_en).toLocaleString() : "Cierre formal"}</span>
+                      <span>
+                        Cerrado en:{" "}
+                        {folioActual?.cerrado_en
+                          ? new Date(folioActual.cerrado_en).toLocaleString()
+                          : "Cierre formal"}
+                      </span>
                       <span>•</span>
                       <span>Total Asientos: {partidasFolio.length}</span>
                       <span>•</span>
-                      <span>Sumas Iguales: {formatoMoneda(totalesFolio.totalDebe)}</span>
+                      <span>
+                        Sumas Iguales: {formatoMoneda(totalesFolio.totalDebe)}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -2081,8 +2114,8 @@ export default function LibroDiarioPage() {
 
               <div className="max-h-[calc(100vh-24rem)] overflow-y-auto divide-y divide-border">
                 {partidasFolio.map((partida) => {
-                  let pDebe = 0
-                  let pHaber = 0
+                  let pDebe = 0;
+                  let pHaber = 0;
                   partida.lineas.forEach((l) => {
                     pDebe += Number(l.debe) || 0
                     pHaber += Number(l.haber) || 0
@@ -2160,7 +2193,7 @@ export default function LibroDiarioPage() {
                         </div>
                       )}
                     </div>
-                  )
+                  );
                 })}
               </div>
 
@@ -2182,26 +2215,37 @@ export default function LibroDiarioPage() {
       {/* ========================================================================= */}
       <div className="hidden print:block fixed inset-0 bg-white p-8 z-[99999] text-black text-xs font-mono">
         <div className="text-center pb-3 border-b border-black space-y-1">
-          <h1 className="text-base font-bold tracking-wider uppercase">EMPRESA COMERCIAL S.A. DE C.V.</h1>
-          <p className="text-xs">LIBRO DIARIO GENERAL — SISTEMA ANALÍTICO O PORMENORIZADO</p>
+          <h1 className="text-base font-bold tracking-wider uppercase">
+            EMPRESA COMERCIAL S.A. DE C.V.
+          </h1>
+          <p className="text-xs">
+            LIBRO DIARIO GENERAL — SISTEMA ANALÍTICO O PORMENORIZADO
+          </p>
           <p className="text-[11px]">
-            Folio Oficial N° {String(folioActual?.numero_folio || 1).padStart(6, "0")} · Jornada: {fechaLegible}
+            Folio Oficial N°{" "}
+            {String(folioActual?.numero_folio || 1).padStart(6, "0")} · Jornada:{" "}
+            {fechaLegible}
           </p>
         </div>
 
         <div className="mt-4 space-y-6">
           {partidasFolio.map((partida) => {
-            let pDebe = 0
-            let pHaber = 0
+            let pDebe = 0;
+            let pHaber = 0;
             partida.lineas.forEach((l) => {
-              pDebe += Number(l.debe) || 0
-              pHaber += Number(l.haber) || 0
-            })
+              pDebe += Number(l.debe) || 0;
+              pHaber += Number(l.haber) || 0;
+            });
 
             return (
-              <div key={partida.id} className="break-inside-avoid border-b border-dashed border-slate-300 pb-3">
+              <div
+                key={partida.id}
+                className="break-inside-avoid border-b border-dashed border-slate-300 pb-3"
+              >
                 <div className="flex justify-between font-bold text-xs mb-1">
-                  <span>PARTIDA #{partida.numero} — {partida.concepto}</span>
+                  <span>
+                    PARTIDA #{partida.numero} — {partida.concepto}
+                  </span>
                   <span>{partida.fecha}</span>
                 </div>
                 <table className="w-full text-xs">
@@ -2225,14 +2269,20 @@ export default function LibroDiarioPage() {
                   </tbody>
                   <tfoot>
                     <tr className="font-bold border-t border-black">
-                      <td colSpan={2} className="py-1 text-right">Sumas Partida #{partida.numero}:</td>
-                      <td className="py-1 text-right">{formatoMoneda(pDebe)}</td>
-                      <td className="py-1 text-right">{formatoMoneda(pHaber)}</td>
+                      <td colSpan={2} className="py-1 text-right">
+                        Sumas Partida #{partida.numero}:
+                      </td>
+                      <td className="py-1 text-right">
+                        {formatoMoneda(pDebe)}
+                      </td>
+                      <td className="py-1 text-right">
+                        {formatoMoneda(pHaber)}
+                      </td>
                     </tr>
                   </tfoot>
                 </table>
               </div>
-            )
+            );
           })}
         </div>
 
@@ -2252,7 +2302,9 @@ export default function LibroDiarioPage() {
             <div className="border-t border-black pt-1">AUDITOR INTERNO</div>
           </div>
           <div>
-            <div className="border-t border-black pt-1">REPRESENTANTE LEGAL</div>
+            <div className="border-t border-black pt-1">
+              REPRESENTANTE LEGAL
+            </div>
           </div>
         </div>
       </div>
@@ -2265,8 +2317,8 @@ export default function LibroDiarioPage() {
         onClose={() => setIsHistorialOpen(false)}
         cuentas={cuentas}
         onSelectFecha={(f) => {
-          setFechaSeleccionada(f)
-          setIsHistorialOpen(false)
+          setFechaSeleccionada(f);
+          setIsHistorialOpen(false);
         }}
       />
 
@@ -2364,28 +2416,46 @@ export default function LibroDiarioPage() {
                 </h3>
                 <p className="text-xs text-muted-foreground leading-relaxed">
                   Esta acción congela permanentemente el Folio Diario N°{" "}
-                  <strong>{String(folioActual?.numero_folio || 1).padStart(3, "0")}</strong> correspondiente al{" "}
-                  <strong>{fechaLegible}</strong>.
+                  <strong>
+                    {String(folioActual?.numero_folio || 1).padStart(3, "0")}
+                  </strong>{" "}
+                  correspondiente al <strong>{fechaLegible}</strong>.
                 </p>
               </div>
             </div>
 
             <div className="rounded-lg border border-border bg-muted/40 p-4 space-y-2 text-xs font-mono tabular-nums">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Total Partidas a Foliar:</span>
-                <span className="font-bold text-foreground">{totalesFolio.totalPartidas}</span>
+                <span className="text-muted-foreground">
+                  Total Partidas a Foliar:
+                </span>
+                <span className="font-bold text-foreground">
+                  {totalesFolio.totalPartidas}
+                </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Total Débitos (Debe):</span>
-                <span className="font-bold text-foreground">{formatoMoneda(totalesFolio.totalDebe)}</span>
+                <span className="text-muted-foreground">
+                  Total Débitos (Debe):
+                </span>
+                <span className="font-bold text-foreground">
+                  {formatoMoneda(totalesFolio.totalDebe)}
+                </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Total Créditos (Haber):</span>
-                <span className="font-bold text-foreground">{formatoMoneda(totalesFolio.totalHaber)}</span>
+                <span className="text-muted-foreground">
+                  Total Créditos (Haber):
+                </span>
+                <span className="font-bold text-foreground">
+                  {formatoMoneda(totalesFolio.totalHaber)}
+                </span>
               </div>
               <div className="flex justify-between pt-1 border-t border-border">
-                <span className="text-muted-foreground">Estado Partida Doble:</span>
-                <span className="text-emerald-600 dark:text-emerald-400 font-bold">Cuadrada ($0.00)</span>
+                <span className="text-muted-foreground">
+                  Estado Partida Doble:
+                </span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                  Cuadrada ($0.00)
+                </span>
               </div>
             </div>
 
@@ -2425,14 +2495,18 @@ export default function LibroDiarioPage() {
                   Reapertura Extraordinaria de Auditoría
                 </h3>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Para modificar o adicionar asientos a un folio cerrado se requiere registrar una justificación fiscal
-                  u operativa en la bitácora de auditoría.
+                  Para modificar o adicionar asientos a un folio cerrado se
+                  requiere registrar una justificación fiscal u operativa en la
+                  bitácora de auditoría.
                 </p>
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="motivo-reapertura" className="text-xs font-semibold text-foreground">
+              <Label
+                htmlFor="motivo-reapertura"
+                className="text-xs font-semibold text-foreground"
+              >
                 Motivo / Justificación de Auditoría *
               </Label>
               <textarea
@@ -2451,8 +2525,8 @@ export default function LibroDiarioPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  setModalReabrirOpen(false)
-                  setMotivoReapertura("")
+                  setModalReabrirOpen(false);
+                  setMotivoReapertura("");
                 }}
                 disabled={reabriendoFolio}
                 className="text-xs h-9 cursor-pointer"
@@ -2521,5 +2595,5 @@ export default function LibroDiarioPage() {
         </div>
       )}
     </div>
-  )
+  );
 }
