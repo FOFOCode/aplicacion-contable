@@ -110,6 +110,7 @@ RETURNS TABLE (
     fecha DATE,
     estado VARCHAR
 ) AS $$
+#variable_conflict use_column
 DECLARE
     v_folio RECORD;
 BEGIN
@@ -126,7 +127,7 @@ BEGIN
         RAISE EXCEPTION 'El Folio Diario #% ya se encuentra ABIERTO.', v_folio.numero_folio;
     END IF;
 
-    IF EXISTS (SELECT 1 FROM ejercicio_fiscal WHERE ejercicio = v_folio.ejercicio AND estado <> 'ABIERTO') THEN
+    IF EXISTS (SELECT 1 FROM ejercicio_fiscal ef WHERE ef.ejercicio = v_folio.ejercicio AND ef.estado <> 'ABIERTO') THEN
         RAISE EXCEPTION 'No se puede reabrir el folio porque el ejercicio fiscal % está cerrado.', v_folio.ejercicio;
     END IF;
 

@@ -1172,6 +1172,33 @@ export function ContabilidadProvider({
   ])
 
   // ============================================================
+  // SINCRONIZACIÓN AUTOMÁTICA EN TIEMPO REAL CON SUPABASE
+  // ============================================================
+
+  useEffect(() => {
+    if (!hidratado || !dbConnected) {
+      return
+    }
+
+    const sincronizar = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        void recargarTodo()
+      }
+    }
+
+    window.addEventListener("focus", sincronizar)
+    document.addEventListener("visibilitychange", sincronizar)
+
+    const intervalId = setInterval(sincronizar, 20000)
+
+    return () => {
+      window.removeEventListener("focus", sincronizar)
+      document.removeEventListener("visibilitychange", sincronizar)
+      clearInterval(intervalId)
+    }
+  }, [hidratado, dbConnected, recargarTodo])
+
+  // ============================================================
   // PERSISTENCIA LOCAL
   // ============================================================
 
