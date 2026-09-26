@@ -1936,9 +1936,6 @@ function KardexContent() {
                     {ejercicioSeleccionado}
                   </Badge>
                 </div>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Kardex de artículos mediante el método de costo promedio.
-                </p>
               </div>
 
               <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5 text-xs font-medium">
