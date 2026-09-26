@@ -38,8 +38,6 @@ import {
   FileText,
   ChevronDown,
   ChevronUp,
-  ChevronLeft,
-  ChevronRight,
   ChevronsUpDown,
   Search,
 } from "lucide-react"
@@ -54,7 +52,6 @@ import {
   formatearCuentaJerarquica,
   calcularDesgloseIVA,
   esCuentaSujetaAIVA,
-  obtenerFechaLocal,
 } from "@/lib/contabilidad"
 import {
   inferirImputacion,
@@ -117,16 +114,8 @@ interface FolioHoyData {
     diferencia: number
     cuadrado: boolean
     partidasCuadradas: number
-    partidasActivas?: number
     totalPartidas: number
   }
-  foliosPreviosAbiertos?: Array<{
-    id: string
-    numero_folio: number
-    fecha: string
-    total_debe: number
-    total_haber: number
-  }>
 }
 
 type ModoCaptura = "SMART" | "CLASICO";
@@ -141,11 +130,11 @@ const GLOSAS_RAPIDAS = [
 ];
 
 export default function LibroDiarioPage() {
-  const { cuentas, recargarAsientos, ejercicioSeleccionado, esEjercicioCerrado } = useContabilidad()
+  const { cuentas, recargarAsientos } = useContabilidad()
 
   // Estado del Folio Diario
   const [fechaSeleccionada, setFechaSeleccionada] = useState<string>(() =>
-    obtenerFechaLocal(),
+    new Date().toISOString().slice(0, 10),
   )
   const [datosFolio, setDatosFolio] = useState<FolioHoyData | null>(null)
   const [cargandoFolio, setCargandoFolio] = useState<boolean>(true)
@@ -162,6 +151,12 @@ export default function LibroDiarioPage() {
   const [partidaEnEdicion, setPartidaEnEdicion] = useState<{
     id: string;
     numero: number;
+  } | null>(null);
+  const [partidaAjustando, setPartidaAjustando] = useState<{
+    id: string;
+    numero: number;
+    concepto: string;
+    notaValida: string;
   } | null>(null);
 
   // Modal de captura
@@ -223,44 +218,29 @@ export default function LibroDiarioPage() {
     return () => clearTimeout(timer)
   }, [notificacion])
 
-  // Sincronizar fecha al cambiar de ciclo contable
-  useEffect(() => {
-    const today = new Date()
-    const todayYear = today.getFullYear()
-    if (ejercicioSeleccionado === todayYear) {
-      setFechaSeleccionada(obtenerFechaLocal(today))
-    } else {
-      setFechaSeleccionada(`${ejercicioSeleccionado}-01-01`)
+  // Carga del Folio según la fecha seleccionada
+  const cargarFolioFecha = useCallback(async (fecha: string, silencioso = false) => {
+    if (!silencioso) setCargandoFolio(true)
+    try {
+      const res = await fetch(`/api/folios/hoy?fecha=${fecha}`, { cache: "no-store" })
+      if (!res.ok) throw new Error("Error al obtener estado del folio")
+      const data: FolioHoyData = await res.json()
+      setDatosFolio(data)
+    } catch (err: unknown) {
+      console.error(err)
+      setNotificacion({
+        tipo: "error",
+        titulo: "Error de Conexión",
+        mensaje: "Error de conexión al cargar el folio diario.",
+      })
+    } finally {
+      if (!silencioso) setCargandoFolio(false)
     }
-  }, [ejercicioSeleccionado])
-
-  // Carga del Folio según la fecha seleccionada y ejercicio
-  const cargarFolioFecha = useCallback(
-    async (fecha: string, ejercicio?: number) => {
-      setCargandoFolio(true)
-      try {
-        const ej = ejercicio ?? (fecha ? parseInt(fecha.split("-")[0], 10) : ejercicioSeleccionado)
-        const res = await fetch(`/api/folios/hoy?fecha=${fecha}&ejercicio=${ej}`, { cache: "no-store" })
-        if (!res.ok) throw new Error("Error al obtener estado del folio")
-        const data: FolioHoyData = await res.json()
-        setDatosFolio(data)
-      } catch (err: unknown) {
-        console.error(err)
-        setNotificacion({
-          tipo: "error",
-          titulo: "Error de Conexión",
-          mensaje: "Error de conexión al cargar el folio diario.",
-        })
-      } finally {
-        setCargandoFolio(false)
-      }
-    },
-    [ejercicioSeleccionado],
-  )
+  }, [])
 
   useEffect(() => {
-    cargarFolioFecha(fechaSeleccionada, ejercicioSeleccionado)
-  }, [fechaSeleccionada, ejercicioSeleccionado, cargarFolioFecha])
+    cargarFolioFecha(fechaSeleccionada)
+  }, [fechaSeleccionada, cargarFolioFecha])
 
   // Iniciar Folio de Hoy
   const handleIniciarFolio = async () => {
@@ -270,19 +250,18 @@ export default function LibroDiarioPage() {
       const res = await fetch("/api/folios/iniciar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fecha: fechaSeleccionada, ejercicio: ejercicioSeleccionado }),
+        body: JSON.stringify({ fecha: fechaSeleccionada }),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || "No se pudo iniciar el folio diario");
       }
-      const data = await res.json()
       setNotificacion({
         tipo: "exito",
         titulo: "Folio Aperturado",
         mensaje: `Folio diario para el día ${fechaSeleccionada} aperturado exitosamente.`,
       })
-      await cargarFolioFecha(fechaSeleccionada, ejercicioSeleccionado)
+      await cargarFolioFecha(fechaSeleccionada)
       await recargarAsientos()
     } catch (e: unknown) {
       setNotificacion({
@@ -296,7 +275,7 @@ export default function LibroDiarioPage() {
   };
 
   // Cerrar Folio
-  const handleCerrarFolio = async (avanzarSiguienteDia = false) => {
+  const handleCerrarFolio = async () => {
     if (!datosFolio?.folio?.id) return
     setCerrandoFolio(true)
     setNotificacion(null)
@@ -314,24 +293,13 @@ export default function LibroDiarioPage() {
         throw new Error(err.error || "No se pudo cerrar el folio");
       }
       const data = await res.json()
-      const numFolio = data.folio?.numero_folio || data.cierre?.numero_folio || datosFolio.folio.numero_folio
       setNotificacion({
         tipo: "exito",
         titulo: "Jornada Cerrada",
-        mensaje: `Folio N° ${numFolio} sellado e inmutable legalmente.`,
+        mensaje: `Folio N° ${data.folio?.numero_folio} sellado e inmutable legalmente.`,
       })
       setModalCierreOpen(false)
-
-      if (avanzarSiguienteDia) {
-        const partes = fechaSeleccionada.split("-").map(Number)
-        const d = new Date(partes[0], partes[1] - 1, partes[2])
-        d.setDate(d.getDate() + 1)
-        const nuevaFecha = obtenerFechaLocal(d)
-        setFechaSeleccionada(nuevaFecha)
-        await cargarFolioFecha(nuevaFecha, ejercicioSeleccionado)
-      } else {
-        await cargarFolioFecha(fechaSeleccionada, ejercicioSeleccionado)
-      }
+      await cargarFolioFecha(fechaSeleccionada)
       await recargarAsientos()
     } catch (e: unknown) {
       setNotificacion({
@@ -343,14 +311,6 @@ export default function LibroDiarioPage() {
       setCerrandoFolio(false);
     }
   };
-
-  // Navegación de un día relativo (-1 ayer / +1 mañana)
-  const handleCambiarDiaRelativo = (delta: number) => {
-    const partes = fechaSeleccionada.split("-").map(Number)
-    const d = new Date(partes[0], partes[1] - 1, partes[2])
-    d.setDate(d.getDate() + delta)
-    setFechaSeleccionada(obtenerFechaLocal(d))
-  }
 
   // Reapertura de Folio
   const handleReabrirFolio = async () => {
@@ -386,7 +346,7 @@ export default function LibroDiarioPage() {
       })
       setModalReabrirOpen(false)
       setMotivoReapertura("")
-      await cargarFolioFecha(fechaSeleccionada, ejercicioSeleccionado)
+      await cargarFolioFecha(fechaSeleccionada)
       await recargarAsientos()
     } catch (e: unknown) {
       setNotificacion({
@@ -401,13 +361,13 @@ export default function LibroDiarioPage() {
 
   // Atajos rápidos de fecha
   const handleSetHoy = () => {
-    setFechaSeleccionada(obtenerFechaLocal(new Date()))
+    setFechaSeleccionada(new Date().toISOString().slice(0, 10))
   }
 
   const handleSetAyer = () => {
     const d = new Date()
     d.setDate(d.getDate() - 1)
-    setFechaSeleccionada(obtenerFechaLocal(d))
+    setFechaSeleccionada(d.toISOString().slice(0, 10))
   }
 
   // Cuentas map
@@ -488,14 +448,12 @@ export default function LibroDiarioPage() {
 
   // Abrir Finder para agregar nueva línea
   const handleAbrirFinderParaNuevaLinea = useCallback(() => {
-    setModalCapturaOpen(true)
     setLineaEnEdicionParaFinder(null)
     setFinderOpen(true)
   }, [])
 
   // Abrir Finder para editar línea existente
   const handleAbrirFinderParaEditarLinea = useCallback((linea: LineaCaptura) => {
-    setModalCapturaOpen(true)
     setLineaEnEdicionParaFinder(linea)
     setFinderOpen(true)
   }, [])
@@ -522,7 +480,6 @@ export default function LibroDiarioPage() {
   // Confirmar y aplicar resultado del Finder
   const handleConfirmarFinder = useCallback(
     (resultado: ResultadoFinder) => {
-      setModalCapturaOpen(true)
       setLineas((prev) => {
         if (lineaEnEdicionParaFinder) {
           const idx = prev.findIndex((l) => l.key === lineaEnEdicionParaFinder.key)
@@ -609,7 +566,6 @@ export default function LibroDiarioPage() {
     const faltante = totalesPartidaEnCurso.diferencia
     const ladoNecesario = totalesPartidaEnCurso.diferenciaConSigno > 0 ? "HABER" : "DEBE"
 
-    setModalCapturaOpen(true)
     setLineaEnEdicionParaFinder(null)
     setFinderOpen(true)
 
@@ -802,6 +758,7 @@ export default function LibroDiarioPage() {
     setConcepto("")
     setDocumentoSoporte("")
     setPartidaEnEdicion(null)
+    setPartidaAjustando(null)
     setLineas([])
   }
 
@@ -846,6 +803,12 @@ export default function LibroDiarioPage() {
     notaValida: string
   ) => {
     setPartidaEnEdicion(null)
+    setPartidaAjustando({
+      id: partidaOriginal.id,
+      numero: partidaOriginal.numero,
+      concepto: partidaOriginal.concepto,
+      notaValida,
+    })
     setTipoPartida("AJUSTE")
     setDocumentoSoporte(`Ajuste P-${partidaOriginal.numero}`)
     setConcepto(`Ajuste a Partida #${partidaOriginal.numero}: ${notaValida}`)
@@ -885,7 +848,6 @@ export default function LibroDiarioPage() {
     partidaOriginal: {
       id: string
       numero: number
-      ejercicio?: number
       lineas: Array<{ codigo: string; debe: number; haber: number }>
     },
     notaValida: string
@@ -900,7 +862,6 @@ export default function LibroDiarioPage() {
     // 1. Crear Asiento de Ajuste de Reversión
     const payloadAjuste = {
       fecha: fechaSeleccionada,
-      ejercicio: partidaOriginal.ejercicio || ejercicioSeleccionado,
       concepto: `Reversión contable de Partida #${partidaOriginal.numero}: ${notaValida}`,
       tipo: "AJUSTE",
       documento_soporte: `Reversión P-${partidaOriginal.numero}`,
@@ -939,7 +900,7 @@ export default function LibroDiarioPage() {
       mensaje: `Partida #${partidaOriginal.numero} saldada a cero mediante Asiento de Ajuste por Contrasiento.`,
     })
 
-    await Promise.all([cargarFolioFecha(fechaSeleccionada, ejercicioSeleccionado), recargarAsientos()])
+    await Promise.all([cargarFolioFecha(fechaSeleccionada), recargarAsientos()])
   }
 
 
@@ -949,15 +910,6 @@ export default function LibroDiarioPage() {
     async (e?: React.FormEvent) => {
       if (e) e.preventDefault();
       setNotificacion(null);
-
-      if (esEjercicioCerrado) {
-        setNotificacion({
-          tipo: "error",
-          titulo: "Ejercicio Cerrado",
-          mensaje: `El ejercicio fiscal ${ejercicioSeleccionado} se encuentra CERRADO o BLOQUEADO. No se pueden registrar nuevas partidas.`,
-        })
-        return
-      }
 
       if (!concepto.trim()) {
         setNotificacion({
@@ -993,7 +945,6 @@ export default function LibroDiarioPage() {
       try {
         const payload = {
           fecha: fechaSeleccionada,
-          ejercicio: ejercicioSeleccionado,
           concepto: concepto.trim(),
           tipo: tipoPartida,
           documento_soporte: documentoSoporte.trim() || undefined,
@@ -1022,17 +973,40 @@ export default function LibroDiarioPage() {
           throw new Error(err.error || "Error al procesar la partida");
         }
 
+        // Si este nuevo asiento sustituye/ajusta a una partida original previa,
+        // marcar formalmente la partida original como ANULADA para que no sume en los totales
+        if (partidaAjustando) {
+          try {
+            await fetch(`/api/asientos/${partidaAjustando.id}`, {
+              method: "DELETE",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                motivo: `Modificada y ajustada por Asiento de Ajuste P-${partidaAjustando.numero}: ${partidaAjustando.notaValida}`,
+              }),
+            })
+          } catch (errAnular) {
+            console.error("Error al anular partida original modificada:", errAnular)
+          }
+          setPartidaAjustando(null)
+        }
+
         setNotificacion({
           tipo: "exito",
-          titulo: isEditing ? "Partida Actualizada" : "Partida Guardada",
+          titulo: isEditing
+            ? "Partida Actualizada"
+            : tipoPartida === "AJUSTE"
+            ? "Asiento de Ajuste Registrado"
+            : "Partida Guardada",
           mensaje: isEditing
             ? `Partida #${partidaEnEdicion.numero} actualizada con éxito.`
+            : tipoPartida === "AJUSTE"
+            ? "Asiento de ajuste guardado exitosamente. La partida previa quedó marcada como ajustada."
             : "Partida guardada exitosamente en el folio de hoy.",
         })
 
         handleLimpiarFormulario()
         setModalCapturaOpen(false)
-        await Promise.all([cargarFolioFecha(fechaSeleccionada, ejercicioSeleccionado), recargarAsientos()])
+        await Promise.all([cargarFolioFecha(fechaSeleccionada), recargarAsientos()])
       } catch (e: unknown) {
         setNotificacion({
           tipo: "error",
@@ -1050,10 +1024,9 @@ export default function LibroDiarioPage() {
       tipoPartida,
       documentoSoporte,
       fechaSeleccionada,
-      ejercicioSeleccionado,
-      esEjercicioCerrado,
       datosFolio?.folio?.id,
       partidaEnEdicion,
+      partidaAjustando,
       cargarFolioFecha,
       recargarAsientos,
     ],
@@ -1061,7 +1034,6 @@ export default function LibroDiarioPage() {
 
   // Atajos de teclado globales
   useContableKeyboard({
-    disabled: finderOpen,
     onAddRow: handleAddLinea,
     onAutoBalance: handleAutoCuadrar,
     onSave: () => {
@@ -1071,18 +1043,10 @@ export default function LibroDiarioPage() {
     },
     onOpenHistorial: () => setIsHistorialOpen((prev) => !prev),
     onCancel: () => {
-      if (finderOpen) {
-        setFinderOpen(false)
-        setLineaEnEdicionParaFinder(null)
-        return
-      }
-      if (modalCapturaOpen) {
-        setModalCapturaOpen(false)
-        if (partidaEnEdicion) handleLimpiarFormulario()
-        return
-      }
       setModalCierreOpen(false)
       setModalReabrirOpen(false)
+      setModalCapturaOpen(false)
+      if (partidaEnEdicion) handleLimpiarFormulario()
     },
   });
 
@@ -1095,8 +1059,8 @@ export default function LibroDiarioPage() {
         fecha: datosFolio.folio.fecha,
         ejercicio: datosFolio.folio.ejercicio,
         estado: datosFolio.folio.estado,
-        total_debe: datosFolio.totales?.totalDebe || 0,
-        total_haber: datosFolio.totales?.totalHaber || 0,
+        total_debe: totalesFolio.totalDebe,
+        total_haber: totalesFolio.totalHaber,
         partidas: datosFolio.partidas || [],
       },
       getNombreCuenta,
@@ -1112,8 +1076,8 @@ export default function LibroDiarioPage() {
         fecha: datosFolio.folio.fecha,
         ejercicio: datosFolio.folio.ejercicio,
         estado: datosFolio.folio.estado,
-        total_debe: datosFolio.totales?.totalDebe || 0,
-        total_haber: datosFolio.totales?.totalHaber || 0,
+        total_debe: totalesFolio.totalDebe,
+        total_haber: totalesFolio.totalHaber,
         partidas: datosFolio.partidas || [],
       },
       getNombreCuenta,
@@ -1163,19 +1127,73 @@ export default function LibroDiarioPage() {
         : [],
     [datosFolio?.partidas],
   )
-  const partidasActivas = useMemo(
-    () => partidasFolio.filter((p) => p.estado !== "ANULADO"),
-    [partidasFolio],
-  )
-  const totalesFolio = datosFolio?.totales ?? {
-    totalDebe: 0,
-    totalHaber: 0,
-    diferencia: 0,
-    cuadrado: true,
-    partidasCuadradas: 0,
-    partidasActivas: 0,
-    totalPartidas: 0,
-  };
+  // Identificar partidas que fueron sustituidas o modificadas por un Asiento de Ajuste
+  const numerosAjustados = useMemo(() => {
+    const s = new Set<number>()
+    for (const p of partidasFolio) {
+      if (p.tipo === "AJUSTE") {
+        const matchDoc = p.documento_soporte?.match(/(?:Ajuste|Reversión)\s+P-(\d+)/i)
+        if (matchDoc) s.add(parseInt(matchDoc[1], 10))
+        const matchCon = p.concepto?.match(/Ajuste\s+a\s+Partida\s+#(\d+)/i)
+        if (matchCon) s.add(parseInt(matchCon[1], 10))
+      }
+    }
+    return s
+  }, [partidasFolio])
+
+  // Totales dinámicos del folio: excluyen partidas anuladas o partidas originales que sufrieron ajuste
+  const totalesFolio = useMemo(() => {
+    if (!datosFolio) {
+      return {
+        totalDebe: 0,
+        totalHaber: 0,
+        diferencia: 0,
+        cuadrado: true,
+        partidasCuadradas: 0,
+        totalPartidas: 0,
+        partidasActivas: 0,
+      }
+    }
+
+    const partidasValidas = partidasFolio.filter(
+      (p) => p.estado !== "ANULADO" && !numerosAjustados.has(p.numero)
+    )
+
+    let debeCents = 0
+    let haberCents = 0
+    let cuadradas = 0
+
+    for (const p of partidasValidas) {
+      let pDebe = 0
+      let pHaber = 0
+      for (const l of p.lineas) {
+        pDebe += Math.round((Number(l.debe) || 0) * 100)
+        pHaber += Math.round((Number(l.haber) || 0) * 100)
+      }
+      debeCents += pDebe
+      haberCents += pHaber
+      if (pDebe === pHaber && pDebe > 0) cuadradas++
+    }
+
+    const diffCents = debeCents - haberCents
+    const totalDebe = debeCents / 100
+    const totalHaber = haberCents / 100
+    const diferencia = Math.abs(diffCents) / 100
+    const cuadrado =
+      diffCents === 0 &&
+      (partidasValidas.length === 0 ||
+        (debeCents > 0 && cuadradas === partidasValidas.length))
+
+    return {
+      totalDebe,
+      totalHaber,
+      diferencia,
+      cuadrado,
+      partidasCuadradas: cuadradas,
+      totalPartidas: partidasValidas.length,
+      partidasActivas: partidasValidas.length,
+    }
+  }, [datosFolio, partidasFolio, numerosAjustados])
 
   // =========================================================================
   // RENDER: Formulario de captura (reutilizado en modal)
@@ -1184,134 +1202,152 @@ export default function LibroDiarioPage() {
     <form onSubmit={handleGuardarPartida} className="space-y-5">
       {/* Banner de Modo Ajuste Contable */}
       {tipoPartida === "AJUSTE" && (
-        <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs flex items-center justify-between shadow-xs">
-          <div className="flex items-center gap-2.5 font-medium">
+        <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs flex items-center justify-between">
+          <div className="flex items-center gap-2 font-medium">
             <Sliders className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
             <span>Asiento de Ajuste Contable formal en folio abierto (con trazabilidad de auditoría).</span>
           </div>
           <button
             type="button"
             onClick={handleLimpiarFormulario}
-            className="text-xs font-semibold hover:underline cursor-pointer"
+            className="text-xs hover:underline cursor-pointer"
           >
             Descartar
           </button>
         </div>
       )}
 
-      {/* 2 & 7: Barra de Configuración: Modo Captura (Smart / Clásico) y Tipo de Asiento Reacomodados */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl bg-muted/30 border border-border/70 shadow-xs">
-        {/* Selector Clásico vs Smart mejorado visualmente */}
-        <div className="flex items-center gap-2.5">
-          <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-            Modo:
-          </span>
-          <div className="inline-flex items-center rounded-lg bg-background p-1 border border-border/80 shadow-xs">
-            <button
-              type="button"
-              onClick={() => handleCambiarModoCaptura("SMART")}
-              className={cn(
-                "py-1.5 px-3.5 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 cursor-pointer",
-                modoCaptura === "SMART"
-                  ? "bg-amber-500/15 text-amber-900 dark:text-amber-200 border border-amber-500/30 shadow-xs font-bold"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-              title="Modo Inteligente: Registra si la cuenta Aumenta o Disminuye"
-            >
-              <Zap className={cn("size-3.5", modoCaptura === "SMART" ? "text-amber-500 fill-amber-500" : "text-muted-foreground")} />
-              <span>Smart (+ / -)</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleCambiarModoCaptura("CLASICO")}
-              className={cn(
-                "py-1.5 px-3.5 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 cursor-pointer",
-                modoCaptura === "CLASICO"
-                  ? "bg-primary/15 text-primary border border-primary/30 shadow-xs font-bold"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-              title="Modo Clásico: Imputación tradicional en Debe o Haber"
-            >
-              <Sliders className={cn("size-3.5", modoCaptura === "CLASICO" ? "text-primary" : "text-muted-foreground")} />
-              <span>Clásico (D / H)</span>
-            </button>
-          </div>
+      {/* Selector de Modo de Captura (Segmented Tabs) y Botón Buscar Cuenta */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-1 rounded-lg bg-muted/40 p-1 border border-border">
+          <button
+            type="button"
+            onClick={() => handleCambiarModoCaptura("SMART")}
+            className={cn(
+              "py-1.5 px-4 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+              modoCaptura === "SMART"
+                ? "bg-card text-foreground shadow-xs border border-border/50"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Zap className="size-3 text-amber-500" />
+            <span>SMART (+/-)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleCambiarModoCaptura("CLASICO")}
+            className={cn(
+              "py-1.5 px-4 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+              modoCaptura === "CLASICO"
+                ? "bg-card text-foreground shadow-xs border border-border/50"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Sliders className="size-3 text-primary" />
+            <span>CLÁSICO (D/H)</span>
+          </button>
         </div>
 
-        {/* Combobox Tipo de Asiento Reacomodado */}
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-            Tipo:
-          </span>
+        <Button
+          type="button"
+          size="sm"
+          onClick={handleAbrirFinderParaNuevaLinea}
+          className="text-xs h-8 gap-1.5 font-medium cursor-pointer shadow-xs"
+        >
+          <Search className="size-3.5" />
+          <span>Buscar Cuenta</span>
+        </Button>
+      </div>
+
+      {/* Metadatos: Doc Soporte + Tipo de Asiento */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <Label htmlFor="doc-soporte" className="text-[11px] font-medium text-muted-foreground">
+            Doc. Soporte / Factura
+          </Label>
+          <Input
+            id="doc-soporte"
+            placeholder="Ej: F-102, CCF-45..."
+            value={documentoSoporte}
+            onChange={(e) => setDocumentoSoporte(e.target.value)}
+            className="text-xs h-9 font-mono mt-1"
+          />
+        </div>
+        <div>
+          <Label htmlFor="tipo-asiento" className="text-[11px] font-medium text-muted-foreground">
+            Tipo de Asiento
+          </Label>
           <select
             id="tipo-asiento"
             value={tipoPartida}
             onChange={(e) => setTipoPartida(e.target.value)}
-            className="text-xs h-8.5 px-3 rounded-lg border border-input bg-background text-foreground font-semibold shadow-xs focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+            className="w-full text-xs h-9 px-3 rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring mt-1 cursor-pointer font-medium"
           >
-            <option value="OPERACION">Operación Regular</option>
-            <option value="AJUSTE">Ajuste Contable</option>
-            <option value="CIERRE">Cierre de Ejercicio</option>
+            <option value="OPERACION">Operación</option>
+            <option value="AJUSTE">Ajuste</option>
+            <option value="CIERRE">Cierre</option>
           </select>
         </div>
       </div>
 
-      {/* 2: Concepto o Glosa (Sin Doc Soporte y Sin sugerencias) */}
+      {/* Concepto / Glosa */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
-          <Label htmlFor="concepto-modal" className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-            <FileText className="size-3.5 text-primary" />
-            <span>Concepto o Glosa *</span>
+          <Label htmlFor="concepto-modal" className="text-[11px] font-medium text-foreground">
+            Concepto o Glosa *
           </Label>
-          <span className="text-[11px] text-muted-foreground">
-            Descripción formal del comprobante
-          </span>
+          <span className="text-[10px] text-muted-foreground">Sistema Analítico</span>
         </div>
         <textarea
           id="concepto-modal"
           rows={2}
           required
-          placeholder="Describe la naturaleza, motivo y detalle de esta partida contable..."
+          placeholder="Ej: Compra de mercadería al contado según factura..."
           value={concepto}
           onChange={(e) => setConcepto(e.target.value)}
-          className="w-full text-xs p-3 rounded-xl border border-input bg-background/50 focus:bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none leading-relaxed transition-all shadow-inner"
+          className="w-full text-xs p-3 rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none leading-relaxed"
         />
+        {/* Sugerencias rápidas */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 text-[10px]">
+          <span className="text-muted-foreground shrink-0 font-medium">Sugerir:</span>
+          {GLOSAS_RAPIDAS.map((g, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => setConcepto(g)}
+              className="shrink-0 rounded-full border border-border/70 bg-muted/30 px-2 py-0.5 text-muted-foreground hover:text-foreground hover:bg-muted hover:border-border transition-colors cursor-pointer truncate max-w-[150px]"
+              title={g}
+            >
+              {g}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* 4: Renglones Contables: Visualización Pura, Amplia y Minimalista */}
-      <div className="space-y-3 pt-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-foreground">
-              Renglones Contables
-            </span>
-            <Badge variant="outline" className="text-xs h-5 px-2 font-mono font-bold bg-muted/40">
+      {/* Renglones Contables: Visualización Pura sin Inputs */}
+      <div className="space-y-2 pt-3 border-t border-border">
+        <div className="flex items-center justify-between text-xs mb-2">
+          <span className="font-semibold text-foreground flex items-center gap-1.5">
+            Renglones Contables
+            <Badge variant="outline" className="text-[10px] h-4.5 px-1.5 font-mono">
               {lineasProcesadas.filter((l) => l.cuentaValida).length}
             </Badge>
-          </div>
-
-          <Button
-            type="button"
-            size="sm"
-            onClick={handleAbrirFinderParaNuevaLinea}
-            className="text-xs h-8.5 px-3.5 gap-1.5 font-semibold cursor-pointer shadow-xs"
-          >
-            <Plus className="size-3.5" />
-            <span>Buscar y Agregar Cuenta</span>
-            <kbd className="hidden sm:inline-block ml-1 text-[10px] font-mono opacity-70">Alt+A</kbd>
-          </Button>
+          </span>
+          <span className="text-[11px] text-muted-foreground font-mono">
+            {modoCaptura === "SMART" ? "Modo Asistido (+/-)" : "Modo Clásico (D/H)"}
+          </span>
         </div>
 
         {lineasProcesadas.filter((l) => l.cuentaValida).length === 0 ? (
-          <div className="rounded-2xl border-2 border-dashed border-border/80 p-8 text-center space-y-3 bg-muted/10">
-            <div className="size-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto shadow-inner">
-              <Search className="size-6" />
+          <div className="rounded-xl border border-dashed border-border p-6 text-center space-y-3 bg-muted/10">
+            <div className="size-10 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto">
+              <Search className="size-5" />
             </div>
             <div className="space-y-1">
-              <p className="text-sm font-bold text-foreground">
+              <p className="text-xs font-semibold text-foreground">
                 No hay cuentas contables agregadas
               </p>
-              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+              <p className="text-[11px] text-muted-foreground max-w-sm mx-auto">
                 Haz clic en el buscador para seleccionar cuentas, definir montos y aplicar IVA automáticamente.
               </p>
             </div>
@@ -1319,30 +1355,26 @@ export default function LibroDiarioPage() {
               type="button"
               size="sm"
               onClick={handleAbrirFinderParaNuevaLinea}
-              className="text-xs h-9 px-4 gap-2 font-semibold cursor-pointer shadow-sm mt-1"
+              className="text-xs h-8 gap-1.5 font-medium cursor-pointer shadow-xs"
             >
-              <Search className="size-4" />
+              <Search className="size-3.5" />
               <span>Abrir Buscador de Cuentas</span>
             </Button>
           </div>
         ) : (
-          <div className="rounded-xl border border-border/80 overflow-hidden shadow-xs bg-card">
+          <div className="rounded-xl border border-border overflow-hidden">
             <table className="w-full text-xs">
               <thead>
-                <tr className="bg-muted/50 border-b border-border text-muted-foreground text-xs font-semibold">
-                  <th className="py-3 px-3.5 text-left w-12 font-mono">#</th>
-                  <th className="py-3 px-3.5 text-left">Cuenta Contable</th>
-                  <th className="py-3 px-3.5 text-center w-32">Movimiento</th>
-                  <th className="py-3 px-3.5 text-right w-36 font-mono text-emerald-600 dark:text-emerald-400">
-                    DEBE
-                  </th>
-                  <th className="py-3 px-3.5 text-right w-36 font-mono text-blue-600 dark:text-blue-400">
-                    HABER
-                  </th>
-                  <th className="py-3 px-3.5 text-right w-24">Acciones</th>
+                <tr className="bg-muted/40 border-b border-border text-muted-foreground text-[11px] font-medium">
+                  <th className="py-2 px-3 text-left w-10 font-mono">#</th>
+                  <th className="py-2 px-3 text-left">Cuenta Contable</th>
+                  <th className="py-2 px-3 text-center w-28">Movimiento</th>
+                  <th className="py-2 px-3 text-right w-28 font-mono">Debe</th>
+                  <th className="py-2 px-3 text-right w-28 font-mono">Haber</th>
+                  <th className="py-2 px-3 text-right w-20">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border/60 font-mono tabular-nums">
+              <tbody className="divide-y divide-border font-mono tabular-nums">
                 {lineasProcesadas.map((linea, index) => {
                   if (!linea.cuentaValida) return null
                   const c = linea.cuenta
@@ -1350,101 +1382,65 @@ export default function LibroDiarioPage() {
                   const esHaber = linea.haber > 0
 
                   return (
-                    <tr
-                      key={linea.key}
-                      className="hover:bg-muted/30 transition-colors group"
-                    >
-                      {/* # Índice */}
-                      <td className="py-3.5 px-3.5 text-muted-foreground text-xs font-bold">
+                    <tr key={linea.key} className="hover:bg-muted/20 transition-colors">
+                      <td className="py-2.5 px-3 text-muted-foreground font-bold">
                         {index + 1}
                       </td>
-
-                      {/* Cuenta Contable: Código + Nombre */}
-                      <td className="py-3.5 px-3.5 font-sans">
-                        <div className="flex flex-col gap-0.5">
+                      <td className="py-2.5 px-3 font-sans">
+                        <div className="flex flex-col">
                           <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20 shrink-0">
+                            <span className="font-mono text-primary font-bold text-xs">
                               {linea.codigo}
                             </span>
-                            <span className="text-sm font-semibold text-foreground truncate max-w-[200px] sm:max-w-[300px]">
+                            <span className="text-foreground font-medium truncate max-w-[180px] sm:max-w-[260px]">
                               {c ? c.nombre : getNombreCuenta(linea.codigo)}
                             </span>
                           </div>
-                          <span className="text-[11px] text-muted-foreground truncate pl-0.5">
+                          <span className="text-[10px] text-muted-foreground truncate">
                             {c ? formatearCuentaJerarquica(c, cuentasMap).principal : ""}
                           </span>
                         </div>
                       </td>
-
-                      {/* Movimiento con badges de color */}
-                      <td className="py-3.5 px-3.5 text-center font-sans">
+                      <td className="py-2.5 px-3 text-center font-sans">
                         {modoCaptura === "SMART" ? (
                           <Badge
-                            variant="outline"
-                            className={cn(
-                              "text-xs px-2.5 py-1 font-semibold rounded-lg",
-                              linea.operacion === "AUMENTA"
-                                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
-                                : "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/30"
-                            )}
+                            variant={linea.operacion === "AUMENTA" ? "default" : "muted"}
+                            className="text-[10px] px-2 py-0.5 font-normal"
                           >
                             {linea.operacion === "AUMENTA" ? "+ Aumenta" : "- Disminuye"}
                           </Badge>
                         ) : (
                           <Badge
-                            variant="outline"
-                            className={cn(
-                              "text-xs px-2.5 py-1 font-semibold rounded-lg",
-                              esDebe
-                                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
-                                : "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/30"
-                            )}
+                            variant={esDebe ? "default" : "muted"}
+                            className="text-[10px] px-2 py-0.5 font-normal"
                           >
                             {esDebe ? "Debe (Cargo)" : "Haber (Abono)"}
                           </Badge>
                         )}
                       </td>
-
-                      {/* DEBE: cifra grande, legible, color diferenciado */}
-                      <td className="py-3.5 px-3.5 text-right font-mono text-sm sm:text-base font-bold">
-                        {esDebe ? (
-                          <span className="text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">
-                            {formatoMoneda(linea.debe)}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground/40 font-normal">—</span>
-                        )}
+                      <td className="py-2.5 px-3 text-right font-bold text-foreground">
+                        {esDebe ? formatoMoneda(linea.debe) : "—"}
                       </td>
-
-                      {/* HABER: cifra grande, legible, color diferenciado */}
-                      <td className="py-3.5 px-3.5 text-right font-mono text-sm sm:text-base font-bold">
-                        {esHaber ? (
-                          <span className="text-blue-600 dark:text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-md">
-                            {formatoMoneda(linea.haber)}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground/40 font-normal">—</span>
-                        )}
+                      <td className="py-2.5 px-3 text-right font-bold text-foreground">
+                        {esHaber ? formatoMoneda(linea.haber) : "—"}
                       </td>
-
-                      {/* Acciones */}
-                      <td className="py-3.5 px-3.5 text-right font-sans">
+                      <td className="py-2.5 px-3 text-right font-sans">
                         <div className="flex items-center justify-end gap-1">
                           <button
                             type="button"
                             onClick={() => handleAbrirFinderParaEditarLinea(linea)}
-                            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-                            title="Editar en Finder"
+                            className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                            title="Editar renglón en Finder"
                           >
-                            <Pencil className="size-4" />
+                            <Pencil className="size-3.5" />
                           </button>
                           <button
                             type="button"
                             onClick={() => handleRemoveLinea(linea.key)}
-                            className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+                            className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-red-500/10 transition-colors cursor-pointer"
                             title="Eliminar renglón"
                           >
-                            <Trash2 className="size-4" />
+                            <Trash2 className="size-3.5" />
                           </button>
                         </div>
                       </td>
@@ -1456,95 +1452,70 @@ export default function LibroDiarioPage() {
           </div>
         )}
 
-        {/* 5: Botones de Acción de Renglones (Sin Auto-Cuadrar) */}
-        {lineasProcesadas.filter((l) => l.cuentaValida).length > 0 && (
-          <div className="flex items-center justify-between pt-1">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleAbrirFinderParaNuevaLinea}
-              className="text-xs h-8.5 gap-1.5 cursor-pointer font-medium hover:bg-muted"
-            >
-              <Plus className="size-3.5" />
-              <span>Agregar otro renglón</span>
-            </Button>
+        {/* Botones de Acción de Renglones */}
+        <div className="flex items-center gap-2 pt-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleAbrirFinderParaNuevaLinea}
+            className="text-xs h-8 gap-1.5 flex-1 cursor-pointer font-medium"
+          >
+            <Search className="size-3.5 text-primary" />
+            <span>Buscar Cuenta</span>
+            <kbd className="text-[10px] font-mono text-muted-foreground">Alt+A</kbd>
+          </Button>
 
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={handleLimpiarFormulario}
-              className="text-xs h-8.5 text-muted-foreground hover:text-foreground cursor-pointer px-3"
-            >
-              Limpiar todo
-            </Button>
-          </div>
-        )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleAutoCuadrar}
+            className="text-xs h-8 gap-1.5 flex-1 cursor-pointer hover:border-amber-500/50 hover:bg-amber-500/10 font-medium"
+            title="Calcular y asignar la contrapartida exacta para cuadrar la partida"
+          >
+            <Sliders className="size-3.5 text-amber-500" />
+            <span>Auto-Cuadrar</span>
+            <kbd className="text-[10px] font-mono text-muted-foreground">Alt+C</kbd>
+          </Button>
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleLimpiarFormulario}
+            className="text-xs h-8 text-muted-foreground hover:text-foreground cursor-pointer px-2.5"
+          >
+            Limpiar
+          </Button>
+        </div>
       </div>
 
-      {/* 6: FOOTER DEL MODAL: RESUMEN DE CIFRAS ENTENDIBLE Y BOTÓN DE ACCIÓN */}
-      <div className="pt-4 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        {/* Métricas de Balance: DEBE, HABER y ESTADO */}
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Tarjeta Total Debe */}
-          <div className="px-3.5 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex flex-col min-w-[110px]">
-            <span className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-300 tracking-wider">
-              Total Debe
-            </span>
-            <span className="font-mono text-base font-extrabold text-emerald-600 dark:text-emerald-400 tabular-nums">
-              {formatoMoneda(totalesPartidaEnCurso.totalDebe)}
-            </span>
+      {/* Resumen de Cuadratura y Guardar */}
+      <div className="pt-3 border-t border-border flex items-center justify-between">
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-4 font-mono text-xs tabular-nums">
+            <span>D: <strong className="text-foreground">{formatoMoneda(totalesPartidaEnCurso.totalDebe)}</strong></span>
+            <span>H: <strong className="text-foreground">{formatoMoneda(totalesPartidaEnCurso.totalHaber)}</strong></span>
           </div>
-
-          {/* Tarjeta Total Haber */}
-          <div className="px-3.5 py-2 rounded-xl bg-blue-500/10 border border-blue-500/20 flex flex-col min-w-[110px]">
-            <span className="text-[10px] uppercase font-bold text-blue-700 dark:text-blue-300 tracking-wider">
-              Total Haber
-            </span>
-            <span className="font-mono text-base font-extrabold text-blue-600 dark:text-blue-400 tabular-nums">
-              {formatoMoneda(totalesPartidaEnCurso.totalHaber)}
-            </span>
-          </div>
-
-          {/* Indicador de Estado de Cuadratura */}
-          <div className="flex items-center pl-1">
-            {totalesPartidaEnCurso.cuadrado && totalesPartidaEnCurso.totalDebe > 0 ? (
-              <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
-                <div className="size-7 rounded-full bg-emerald-500/15 flex items-center justify-center shrink-0">
-                  <CheckCircle2 className="size-4 text-emerald-500" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-xs font-bold leading-tight">Partida Cuadrada</span>
-                  <span className="text-[10px] text-muted-foreground">Diferencia: $0.00</span>
-                </div>
-              </div>
+          <div>
+            {totalesPartidaEnCurso.cuadrado ? (
+              <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                <CheckCircle2 className="size-3.5" /> Partida Cuadrada
+              </span>
             ) : (
-              <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
-                <div className="size-7 rounded-full bg-amber-500/15 flex items-center justify-center shrink-0">
-                  <AlertCircle className="size-4 text-amber-500" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-xs font-bold leading-tight">
-                    Descuadre: {formatoMoneda(totalesPartidaEnCurso.diferencia)}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground">
-                    {totalesPartidaEnCurso.totalDebe > totalesPartidaEnCurso.totalHaber
-                      ? "Faltan abonos al Haber"
-                      : "Faltan cargos al Debe"}
-                  </span>
-                </div>
-              </div>
+              <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1 tabular-nums">
+                <AlertCircle className="size-3.5" /> Dif: {formatoMoneda(totalesPartidaEnCurso.diferencia)}
+              </span>
             )}
           </div>
         </div>
 
-        {/* Botón Principal Guardar */}
         <Button
           type="submit"
-          disabled={guardandoPartida || !totalesPartidaEnCurso.cuadrado || totalesPartidaEnCurso.totalDebe === 0}
-          className="text-xs sm:text-sm h-11 px-6 font-bold gap-2 shadow-md cursor-pointer shrink-0 rounded-xl"
-          title="Guardar comprobante contable"
+          disabled={guardandoPartida || !totalesPartidaEnCurso.cuadrado}
+          className="text-xs h-10 px-5 font-semibold gap-1.5 shadow-xs cursor-pointer"
+          title="Guardar partida (Alt + G)"
         >
           {guardandoPartida ? (
             "Guardando..."
@@ -1553,7 +1524,7 @@ export default function LibroDiarioPage() {
           ) : (
             "Guardar en Folio"
           )}
-          <ArrowRight className="size-4" />
+          <ArrowRight className="size-3.5" />
         </Button>
       </div>
     </form>
@@ -1602,16 +1573,8 @@ export default function LibroDiarioPage() {
             <div className="flex flex-col sm:items-end gap-2.5">
               {/* Nivel 1: Selector de Fecha + Folios Anteriores + Menú Desplegable Exportar */}
               <div className="flex flex-wrap items-center gap-2">
-                {/* Selector de fecha con atajos Hoy/Ayer y flechas día anterior/siguiente */}
-                <div className="flex items-center rounded-lg border border-border bg-muted/40 p-1 text-xs shadow-xs gap-0.5">
-                  <button
-                    type="button"
-                    onClick={() => handleCambiarDiaRelativo(-1)}
-                    className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-card transition-colors cursor-pointer"
-                    title="Día anterior"
-                  >
-                    <ChevronLeft className="size-3.5" />
-                  </button>
+                {/* Selector de fecha con atajos Hoy/Ayer */}
+                <div className="flex items-center rounded-lg border border-border bg-muted/40 p-1 text-xs shadow-xs">
                   <button
                     type="button"
                     onClick={handleSetHoy}
@@ -1625,14 +1588,6 @@ export default function LibroDiarioPage() {
                     className="rounded px-2 py-0.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-card transition-colors cursor-pointer"
                   >
                     Ayer
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleCambiarDiaRelativo(1)}
-                    className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-card transition-colors cursor-pointer"
-                    title="Día siguiente"
-                  >
-                    <ChevronRight className="size-3.5" />
                   </button>
                   <div className="mx-1 h-3.5 w-px bg-border" />
                   <div className="flex items-center gap-1.5 px-1.5">
@@ -1752,18 +1707,18 @@ export default function LibroDiarioPage() {
                       variant="outline"
                       size="sm"
                       onClick={() => setModalCierreOpen(true)}
-                      disabled={partidasActivas.length === 0 || !totalesFolio.cuadrado || cerrandoFolio}
+                      disabled={totalesFolio.totalPartidas === 0 || !totalesFolio.cuadrado}
                       className="text-xs h-9 px-3.5 gap-2 font-medium cursor-pointer border-border bg-card/60 hover:bg-muted text-foreground disabled:opacity-40"
                       title={
-                        partidasActivas.length === 0
-                          ? "Requiere al menos una partida activa para cerrar"
+                        totalesFolio.totalPartidas === 0
+                          ? "Requiere al menos una partida para cerrar"
                           : !totalesFolio.cuadrado
-                          ? `El folio no cuadra (Diferencia: ${formatoMoneda(totalesFolio.diferencia)})`
+                          ? "El folio debe estar cuadrado para cerrar"
                           : "Cerrar y sellar jornada del día"
                       }
                     >
                       <Lock className="size-3.5 text-emerald-500" />
-                      <span>{cerrandoFolio ? "Cerrando..." : "Cerrar Folio del Día"}</span>
+                      <span>Cerrar Folio del Día</span>
                     </Button>
                   </>
                 )}
@@ -1783,57 +1738,6 @@ export default function LibroDiarioPage() {
             </div>
           </div>
         </div>
-
-        {/* Alerta de Folios Anteriores sin cerrar */}
-        {datosFolio?.foliosPreviosAbiertos && datosFolio.foliosPreviosAbiertos.length > 0 && (
-          <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3.5 sm:p-4 text-xs text-amber-900 dark:text-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
-            <div className="flex items-center gap-2.5">
-              <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
-              <div>
-                <p className="font-semibold text-foreground">
-                  Folio anterior pendiente de cierre ({datosFolio.foliosPreviosAbiertos[0].fecha})
-                </p>
-                <p className="text-muted-foreground text-[11px]">
-                  El Folio N° {String(datosFolio.foliosPreviosAbiertos[0].numero_folio).padStart(3, "0")} quedó abierto. Debe cerrarse formalmente o se sellará automáticamente al aperturar nuevas operaciones.
-                </p>
-              </div>
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={async () => {
-                const prev = datosFolio.foliosPreviosAbiertos![0]
-                try {
-                  const res = await fetch("/api/folios/cerrar", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ folio_id: prev.id, cerrado_por: "CONTADOR_GENERAL" }),
-                  })
-                  if (!res.ok) {
-                    const err = await res.json().catch(() => ({}))
-                    throw new Error(err.error || "No se pudo cerrar el folio anterior")
-                  }
-                  setNotificacion({
-                    tipo: "exito",
-                    titulo: "Folio Anterior Cerrado",
-                    mensaje: `El Folio N° ${prev.numero_folio} (${prev.fecha}) fue cerrado con éxito.`,
-                  })
-                  await cargarFolioFecha(fechaSeleccionada, ejercicioSeleccionado)
-                } catch (e) {
-                  setNotificacion({
-                    tipo: "error",
-                    titulo: "Error al Cerrar",
-                    mensaje: e instanceof Error ? e.message : "Error al cerrar folio anterior",
-                  })
-                }
-              }}
-              className="text-xs h-8 gap-1.5 cursor-pointer bg-card hover:bg-muted text-foreground border-amber-500/40 shrink-0"
-            >
-              <Lock className="size-3 text-amber-600 dark:text-amber-400" />
-              <span>Cerrar Folio de {datosFolio.foliosPreviosAbiertos[0].fecha}</span>
-            </Button>
-          </div>
-        )}
 
         {/* ========================================================================= */}
         {/* 2. CONTENIDO PRINCIPAL SEGÚN EL ESTADO DEL FOLIO                          */}
@@ -2033,7 +1937,8 @@ export default function LibroDiarioPage() {
                         pDebe += Number(l.debe) || 0
                         pHaber += Number(l.haber) || 0
                       })
-                      const esAnulado = partida.estado === "ANULADO"
+                      const esAjustado = numerosAjustados.has(partida.numero)
+                      const esAnulado = partida.estado === "ANULADO" || esAjustado
                       const estaEditandoEsta = partidaEnEdicion?.id === partida.id
                       const estaColapsada = partidasColapsadas.has(partida.id)
 
@@ -2089,7 +1994,7 @@ export default function LibroDiarioPage() {
                               )}
                               {esAnulado && (
                                 <Badge variant="warning" className="text-[10px]">
-                                  ANULADO
+                                  {partida.estado === "ANULADO" && !esAjustado ? "ANULADO" : "AJUSTADO"}
                                 </Badge>
                               )}
                               <span className="font-mono text-xs tabular-nums font-bold text-foreground w-24 text-right">
@@ -2141,21 +2046,7 @@ export default function LibroDiarioPage() {
                                       <tr key={idx} className="hover:bg-muted/20">
                                         <td className="py-1.5 px-3 text-primary font-medium">{linea.codigo}</td>
                                         <td className="py-1.5 px-3 text-foreground font-sans">
-                                          {(() => {
-                                            const c = cuentasMap.get(linea.codigo)
-                                            const jerarquia = c ? formatearCuentaJerarquica(c, cuentasMap) : null
-                                            const principal = jerarquia?.principal
-                                            const subcuenta = jerarquia?.subcuenta || (c ? c.nombre : getNombreCuenta(linea.codigo))
-                                            if (principal && principal.toLowerCase() !== subcuenta.toLowerCase()) {
-                                              return (
-                                                <div className="flex flex-col py-0.5 leading-tight">
-                                                  <span className="font-semibold text-foreground text-xs">{principal}</span>
-                                                  <span className="text-[11px] text-muted-foreground">{subcuenta}</span>
-                                                </div>
-                                              )
-                                            }
-                                            return <span className="font-medium text-foreground text-xs">{subcuenta}</span>
-                                          })()}
+                                          {getNombreCuenta(linea.codigo)}
                                         </td>
                                         <td className="py-1.5 px-3 text-right text-foreground font-medium">
                                           {linea.debe > 0 ? formatoMoneda(linea.debe) : "—"}
@@ -2362,23 +2253,7 @@ export default function LibroDiarioPage() {
                                 {partida.lineas.map((l, idx) => (
                                   <tr key={idx}>
                                     <td className="py-1.5 px-3 text-primary">{l.codigo}</td>
-                                    <td className="py-1.5 px-3 text-foreground font-sans">
-                                      {(() => {
-                                        const c = cuentasMap.get(l.codigo)
-                                        const jerarquia = c ? formatearCuentaJerarquica(c, cuentasMap) : null
-                                        const principal = jerarquia?.principal
-                                        const subcuenta = jerarquia?.subcuenta || (c ? c.nombre : getNombreCuenta(l.codigo))
-                                        if (principal && principal.toLowerCase() !== subcuenta.toLowerCase()) {
-                                          return (
-                                            <div className="flex flex-col py-0.5 leading-tight">
-                                              <span className="font-semibold text-foreground text-xs">{principal}</span>
-                                              <span className="text-[11px] text-muted-foreground">{subcuenta}</span>
-                                            </div>
-                                          )
-                                        }
-                                        return <span className="font-medium text-foreground text-xs">{subcuenta}</span>
-                                      })()}
-                                    </td>
+                                    <td className="py-1.5 px-3 text-foreground font-sans">{getNombreCuenta(l.codigo)}</td>
                                     <td className="py-1.5 px-3 text-right text-foreground font-medium">
                                       {l.debe > 0 ? formatoMoneda(l.debe) : "—"}
                                     </td>
@@ -2413,7 +2288,7 @@ export default function LibroDiarioPage() {
       {/* ========================================================================= */}
       {/* 3. VISTA EXCLUSIVA PARA IMPRESIÓN (@media print)                          */}
       {/* ========================================================================= */}
-      <div className="hidden print:block w-full bg-white p-4 text-black text-xs font-mono">
+      <div className="hidden print:block fixed inset-0 bg-white p-8 z-[99999] text-black text-xs font-mono">
         <div className="text-center pb-3 border-b border-black space-y-1">
           <h1 className="text-base font-bold tracking-wider uppercase">
             EMPRESA COMERCIAL S.A. DE C.V.
@@ -2461,23 +2336,7 @@ export default function LibroDiarioPage() {
                     {partida.lineas.map((linea, idx) => (
                       <tr key={idx}>
                         <td className="py-1">{linea.codigo}</td>
-                        <td className="py-1">
-                          {(() => {
-                            const c = cuentasMap.get(linea.codigo)
-                            const jerarquia = c ? formatearCuentaJerarquica(c, cuentasMap) : null
-                            const principal = jerarquia?.principal
-                            const subcuenta = jerarquia?.subcuenta || (c ? c.nombre : getNombreCuenta(linea.codigo))
-                            if (principal && principal.toLowerCase() !== subcuenta.toLowerCase()) {
-                              return (
-                                <div className="leading-tight">
-                                  <div className="font-bold text-black">{principal}</div>
-                                  <div className="text-[10px] text-slate-700 pl-2">{subcuenta}</div>
-                                </div>
-                              )
-                            }
-                            return <span>{subcuenta}</span>
-                          })()}
-                        </td>
+                        <td className="py-1">{getNombreCuenta(linea.codigo)}</td>
                         <td className="py-1 text-right">{linea.debe > 0 ? formatoMoneda(linea.debe) : ""}</td>
                         <td className="py-1 text-right">{linea.haber > 0 ? formatoMoneda(linea.haber) : ""}</td>
                       </tr>
@@ -2543,7 +2402,7 @@ export default function LibroDiarioPage() {
       {/* ========================================================================= */}
       {modalCapturaOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-start justify-center p-4 pt-[4vh] overflow-y-auto">
-          <div className="bg-card text-card-foreground rounded-2xl max-w-4xl w-full shadow-2xl border border-border animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-card text-card-foreground rounded-2xl max-w-3xl w-full shadow-2xl border border-border animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <div className="flex items-center gap-3">
@@ -2675,7 +2534,7 @@ export default function LibroDiarioPage() {
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5 pt-2">
+            <div className="flex items-center justify-end gap-3 pt-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -2686,22 +2545,12 @@ export default function LibroDiarioPage() {
                 Cancelar
               </Button>
               <Button
-                variant="secondary"
                 size="sm"
-                onClick={() => handleCerrarFolio(false)}
+                onClick={handleCerrarFolio}
                 disabled={cerrandoFolio}
-                className="text-xs h-9 px-3 gap-1.5 font-medium cursor-pointer shadow-xs border border-border"
+                className="text-xs h-9 px-4 gap-1.5 font-medium cursor-pointer shadow-xs"
               >
-                {cerrandoFolio ? "Sellando..." : "Confirmar Cierre Legal"}
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => handleCerrarFolio(true)}
-                disabled={cerrandoFolio}
-                className="text-xs h-9 px-4 gap-1.5 font-semibold cursor-pointer shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-              >
-                <ArrowRight className="size-3.5" />
-                <span>{cerrandoFolio ? "Procesando..." : "Cerrar y Avanzar al Siguiente Día"}</span>
+                {cerrandoFolio ? "Sellando Jornada..." : "Confirmar Cierre Legal"}
               </Button>
             </div>
           </div>

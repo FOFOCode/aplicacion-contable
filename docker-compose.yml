@@ -4,21 +4,21 @@
 # =============================================================================
 
 services:
-  # 1. Base de Datos Relacional PostgreSQL 16
+  # 1. Base de Datos Relacional PostgreSQL 16 (Local - Opcional)
+  # Solo se levanta si se especifica: docker compose --profile local-db up -d
   db:
     image: postgres:16-alpine
     container_name: modulo-contable-db
     restart: unless-stopped
+    profiles:
+      - local-db
     environment:
       POSTGRES_DB: contabilidad
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgrespassword
       PGDATA: /var/lib/postgresql/data/pgdata
-    # PostgreSQL se comunica con la aplicación únicamente por la red interna de Docker.
-    # No se publica el puerto 5432 en el host para evitar conflictos con otros proyectos.
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      # Inicialización automática: schema y catálogo con datos iniciales
       - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
       - ./data.sql:/docker-entrypoint-initdb.d/02-data.sql:ro
     healthcheck:
@@ -29,7 +29,7 @@ services:
     networks:
       - contable-net
 
-  # 2. Aplicación Web Frontend (Next.js 16)
+  # 2. Aplicación Web Frontend (Next.js 16) - Conectada a Supabase mediante .env
   app:
     build:
       context: .
@@ -38,13 +38,11 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
+    env_file:
+      - .env
     environment:
       NODE_ENV: production
       PORT: 3000
-      DATABASE_URL: postgresql://postgres:postgrespassword@db:5432/contabilidad
-    depends_on:
-      db:
-        condition: service_healthy
     networks:
       - contable-net
 
