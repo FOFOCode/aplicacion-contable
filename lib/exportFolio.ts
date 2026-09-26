@@ -3,13 +3,19 @@ import autoTable from "jspdf-autotable"
 import { formatoMoneda } from "./contabilidad"
 import {
   exportarLibroExcel,
+  ESTILO_BANNER_EMPRESA,
+  ESTILO_BANNER_SUBTITULO,
   ESTILO_TITULO_EMPRESA,
   ESTILO_SUBTITULO,
   ESTILO_CABECERA_TABLA,
+  ESTILO_CABECERA_DEBE,
+  ESTILO_CABECERA_HABER,
   ESTILO_FILA_SECCION,
   ESTILO_CELDA_NORMAL,
   ESTILO_CELDA_CODIGO,
   ESTILO_CELDA_MONEDA,
+  ESTILO_CELDA_DEBE,
+  ESTILO_CELDA_HABER,
   ESTILO_TOTAL_DOBLE_TEXTO,
   ESTILO_TOTAL_DOBLE_MONEDA,
 } from "./excel"
@@ -174,14 +180,19 @@ export function exportarFolioExcel(folio: FolioExportData, getNombreCuenta: (cod
 
   const anchos = [12, 12, 12, 42, 16, 16, 16]
   const filaEncabezado = 4
-  const estilos: Record<string, any> = {
-    "0:0": ESTILO_TITULO_EMPRESA,
-    "1:0": ESTILO_SUBTITULO,
-    "2:0": ESTILO_SUBTITULO,
-  }
+  const estilos: Record<string, any> = {}
 
   for (let c = 0; c < anchos.length; c++) {
-    estilos[`${filaEncabezado}:${c}`] = ESTILO_CABECERA_TABLA
+    estilos[`0:${c}`] = ESTILO_BANNER_EMPRESA
+    estilos[`1:${c}`] = ESTILO_BANNER_SUBTITULO
+    estilos[`2:${c}`] = ESTILO_BANNER_SUBTITULO
+    if (c === 5) {
+      estilos[`${filaEncabezado}:${c}`] = ESTILO_CABECERA_DEBE
+    } else if (c === 6) {
+      estilos[`${filaEncabezado}:${c}`] = ESTILO_CABECERA_HABER
+    } else {
+      estilos[`${filaEncabezado}:${c}`] = ESTILO_CABECERA_TABLA
+    }
   }
 
   const combinar: string[] = ["A1:G1", "A2:G2", "A3:G3"]
@@ -198,7 +209,7 @@ export function exportarFolioExcel(folio: FolioExportData, getNombreCuenta: (cod
       "",
     ])
 
-    // Estilo de cabecera de partida
+    // Estilo de cabecera de partida (Acento azul celeste)
     for (let c = 0; c < anchos.length; c++) {
       estilos[`${fIdx}:${c}`] = ESTILO_FILA_SECCION
     }
@@ -220,8 +231,8 @@ export function exportarFolioExcel(folio: FolioExportData, getNombreCuenta: (cod
       estilos[`${rowIdx}:2`] = ESTILO_CELDA_CODIGO
       estilos[`${rowIdx}:3`] = ESTILO_CELDA_NORMAL
       estilos[`${rowIdx}:4`] = ESTILO_CELDA_NORMAL
-      estilos[`${rowIdx}:5`] = ESTILO_CELDA_MONEDA
-      estilos[`${rowIdx}:6`] = ESTILO_CELDA_MONEDA
+      estilos[`${rowIdx}:5`] = l.debe > 0 ? ESTILO_CELDA_DEBE : ESTILO_CELDA_MONEDA
+      estilos[`${rowIdx}:6`] = l.haber > 0 ? ESTILO_CELDA_HABER : ESTILO_CELDA_MONEDA
     })
   })
 

@@ -57,32 +57,65 @@ const BORDE = {
 } as const
 
 const BORDE_DOBLE = {
-  top: { style: "thin", color: { rgb: "0F172A" } },
-  bottom: { style: "double", color: { rgb: "0F172A" } },
+  top: { style: "thin", color: { rgb: "059669" } },
+  bottom: { style: "double", color: { rgb: "047857" } },
   left: { style: "thin", color: { rgb: "CBD5E1" } },
   right: { style: "thin", color: { rgb: "CBD5E1" } },
 } as const
 
-const TITULO: EstiloCelda = { font: { bold: true, sz: 14, color: { rgb: "0F172A" } } }
-const SUBTITULO: EstiloCelda = { font: { sz: 10, italic: true, color: { rgb: "475569" } } }
+const TITULO: EstiloCelda = {
+  font: { bold: true, sz: 13, color: { rgb: "FFFFFF" } },
+  fill: { patternType: "solid", fgColor: { rgb: "1E3A8A" } },
+  alignment: { horizontal: "center", vertical: "center" },
+}
+const SUBTITULO: EstiloCelda = {
+  font: { sz: 9.5, bold: true, color: { rgb: "1E40AF" } },
+  fill: { patternType: "solid", fgColor: { rgb: "EFF6FF" } },
+  alignment: { horizontal: "center", vertical: "center" },
+  border: { bottom: { style: "thin", color: { rgb: "93C5FD" } } },
+}
 const ENCABEZADO: EstiloCelda = {
   font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } },
-  fill: { patternType: "solid", fgColor: { rgb: "1E293B" } },
+  fill: { patternType: "solid", fgColor: { rgb: "1E40AF" } },
   alignment: { horizontal: "center", vertical: "center", wrapText: true },
   border: {
-    top: { style: "medium", color: { rgb: "1E293B" } },
-    bottom: { style: "medium", color: { rgb: "1E293B" } },
-    left: { style: "thin", color: { rgb: "334155" } },
-    right: { style: "thin", color: { rgb: "334155" } },
+    top: { style: "medium", color: { rgb: "1E3A8A" } },
+    bottom: { style: "medium", color: { rgb: "1E3A8A" } },
+    left: { style: "thin", color: { rgb: "3B82F6" } },
+    right: { style: "thin", color: { rgb: "3B82F6" } },
+  },
+}
+const ENCABEZADO_DEBE: EstiloCelda = {
+  font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } },
+  fill: { patternType: "solid", fgColor: { rgb: "047857" } },
+  alignment: { horizontal: "center", vertical: "center", wrapText: true },
+  border: {
+    top: { style: "medium", color: { rgb: "065F46" } },
+    bottom: { style: "medium", color: { rgb: "065F46" } },
+    left: { style: "thin", color: { rgb: "10B981" } },
+    right: { style: "thin", color: { rgb: "10B981" } },
+  },
+}
+const ENCABEZADO_HABER: EstiloCelda = {
+  font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } },
+  fill: { patternType: "solid", fgColor: { rgb: "1D4ED8" } },
+  alignment: { horizontal: "center", vertical: "center", wrapText: true },
+  border: {
+    top: { style: "medium", color: { rgb: "1E40AF" } },
+    bottom: { style: "medium", color: { rgb: "1E40AF" } },
+    left: { style: "thin", color: { rgb: "60A5FA" } },
+    right: { style: "thin", color: { rgb: "60A5FA" } },
   },
 }
 const TOTAL: EstiloCelda = {
-  font: { bold: true, sz: 10, color: { rgb: "0F172A" } },
-  fill: { patternType: "solid", fgColor: { rgb: "E2E8F0" } },
+  font: { bold: true, sz: 10, color: { rgb: "065F46" } },
+  fill: { patternType: "solid", fgColor: { rgb: "D1FAE5" } },
   border: BORDE_DOBLE,
 }
 const MONEDA: EstiloCelda = { numFmt: "$#,##0.00;($#,##0.00);\"-\"", alignment: { horizontal: "right" } }
-const MONEDA_TOTAL: EstiloCelda = { numFmt: "$#,##0.00;($#,##0.00);\"-\"", font: { bold: true }, alignment: { horizontal: "right" } }
+const MONEDA_DEBE: EstiloCelda = { numFmt: "$#,##0.00;($#,##0.00);\"-\"", font: { bold: true, color: { rgb: "047857" } }, alignment: { horizontal: "right" } }
+const MONEDA_HABER: EstiloCelda = { numFmt: "$#,##0.00;($#,##0.00);\"-\"", font: { bold: true, color: { rgb: "1D4ED8" } }, alignment: { horizontal: "right" } }
+const MONEDA_TOTAL: EstiloCelda = { numFmt: "$#,##0.00;($#,##0.00);\"-\"", font: { bold: true, color: { rgb: "065F46" } }, alignment: { horizontal: "right" } }
 
 /** Encabezado + cuerpo con bordes, zebra striping y pie de totales formal resaltado. */
 function maquetar(
@@ -93,14 +126,24 @@ function maquetar(
   anchoTitulo: number,
   filtro?: string,
 ) {
-  const estilos: Record<string, EstiloCelda> = {
-    "0:0": TITULO,
-    "1:0": SUBTITULO,
-    "2:0": SUBTITULO,
-  }
+  const estilos: Record<string, EstiloCelda> = {}
 
   for (let c = 0; c < anchos.length; c++) {
-    estilos[`${filaEncabezado}:${c}`] = ENCABEZADO
+    estilos[`0:${c}`] = TITULO
+    estilos[`1:${c}`] = SUBTITULO
+    estilos[`2:${c}`] = SUBTITULO
+  }
+
+  const filaH = filas[filaEncabezado] || []
+  for (let c = 0; c < anchos.length; c++) {
+    const textoH = String(filaH[c] || "").toLowerCase()
+    if (textoH.includes("debe") || textoH.includes("deudor")) {
+      estilos[`${filaEncabezado}:${c}`] = ENCABEZADO_DEBE
+    } else if (textoH.includes("haber") || textoH.includes("acreedor")) {
+      estilos[`${filaEncabezado}:${c}`] = ENCABEZADO_HABER
+    } else {
+      estilos[`${filaEncabezado}:${c}`] = ENCABEZADO
+    }
   }
 
   const ultima = filas.length - 1
@@ -114,8 +157,16 @@ function maquetar(
 
     for (let c = 0; c < anchos.length; c++) {
       const esMoneda = columnasMoneda.includes(c)
+      const textoH = String(filaH[c] || "").toLowerCase()
+      let estiloM = MONEDA
+      if (textoH.includes("debe") || textoH.includes("deudor")) {
+        estiloM = MONEDA_DEBE
+      } else if (textoH.includes("haber") || textoH.includes("acreedor")) {
+        estiloM = MONEDA_HABER
+      }
+
       estilos[`${f}:${c}`] = {
-        ...(esMoneda ? MONEDA : { alignment: { vertical: "center" as const } }),
+        ...(esMoneda ? estiloM : { alignment: { vertical: "center" as const } }),
         ...(fillZebra ? { fill: fillZebra } : {}),
         border: BORDE,
       }
@@ -136,8 +187,8 @@ function maquetar(
 
   return {
     anchos,
-    alturas: filas.map((_, i) => (i === filaEncabezado ? 26 : i === 0 ? 22 : i === ultima ? 22 : 18)),
-    combinar: [`A1:${letraFinal}1`],
+    alturas: filas.map((_, i) => (i === filaEncabezado ? 26 : i === 0 ? 24 : i === ultima ? 24 : 18)),
+    combinar: [`A1:${letraFinal}1`, `A2:${letraFinal}2`, `A3:${letraFinal}3`],
     filtro: filtro ?? `A${filaEncabezado + 1}:${letraFinal}${ultima - 1}`,
     estilos,
     orientacion: "landscape" as const,
