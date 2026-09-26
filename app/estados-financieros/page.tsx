@@ -12,7 +12,6 @@ import {
   Edit3,
   FileDown,
   FileSpreadsheet,
-  FileText,
   History,
   Layers,
   Lock,
@@ -189,7 +188,6 @@ export default function EstadosFinancierosPage() {
   ] = useState<
     "resultados" |
     "balance" |
-    "ambos" |
     "cierre"
   >("resultados")
 
@@ -1181,20 +1179,6 @@ export default function EstadosFinancierosPage() {
 
             <button
               type="button"
-              onClick={() => setTabEstado("ambos")}
-              className={cn(
-                "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer",
-                tabEstado === "ambos"
-                  ? "bg-card text-foreground shadow-2xs border border-border/80"
-                  : "text-muted-foreground hover:text-foreground hover:bg-background/50"
-              )}
-            >
-              <FileText className="size-3.5 text-primary" />
-              <span>Vista Completa (Ambos)</span>
-            </button>
-
-            <button
-              type="button"
               onClick={() => setTabEstado("cierre")}
               className={cn(
                 "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer",
@@ -1207,82 +1191,23 @@ export default function EstadosFinancierosPage() {
               <span>Cierre y Liquidación</span>
             </button>
           </div>
-
-          {(tabEstado === "resultados" || tabEstado === "ambos") && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-muted-foreground font-medium hidden sm:inline">
-                Método:
-              </span>
-              <div className="flex items-center gap-1 p-0.5 rounded-lg bg-muted border border-border/60 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setModoVista("analitico")}
-                  className={cn(
-                    "px-2.5 py-1 rounded text-xs font-medium cursor-pointer transition-colors",
-                    modoVista === "analitico"
-                      ? "bg-card text-foreground font-semibold shadow-2xs"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  Analítico
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setModoVista("general")}
-                  className={cn(
-                    "px-2.5 py-1 rounded text-xs font-medium cursor-pointer transition-colors",
-                    modoVista === "general"
-                      ? "bg-card text-foreground font-semibold shadow-2xs"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  Por Cuentas
-                </button>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* ====================================================== */}
         {/* ESTADO DE RESULTADOS                                   */}
         {/* ====================================================== */}
         <div className={cn(
-          (tabEstado === "resultados" || tabEstado === "ambos") ? "block" : "hidden print:block"
+          tabEstado === "resultados" ? "block" : "hidden print:block"
         )}>
           <Card className="report-card">
             <CardHeader className="pb-3">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <CardTitle className="text-lg font-bold">
-                    Estado de Resultados
-                  </CardTitle>
-                  <CardDescription className="text-xs mt-0.5">
-                    Determinación analítica de Ventas Netas, Costo de Ventas y Utilidades · Ejercicio {ejercicioSeleccionado}
-                  </CardDescription>
-                </div>
-
-                <div className="flex items-center gap-2 print:hidden">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={modoVista === "analitico" ? "default" : "outline"}
-                    onClick={() => setModoVista("analitico")}
-                    className="h-7 text-xs px-2.5 rounded-lg font-medium"
-                  >
-                    <Calculator className="mr-1 size-3" />
-                    Método Analítico
-                  </Button>
-
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={modoVista === "general" ? "default" : "outline"}
-                    onClick={() => setModoVista("general")}
-                    className="h-7 text-xs px-2.5 rounded-lg font-medium"
-                  >
-                    Vista por Cuentas
-                  </Button>
-                </div>
+              <div>
+                <CardTitle className="text-lg font-bold">
+                  Estado de Resultados
+                </CardTitle>
+                <CardDescription className="text-xs mt-0.5">
+                  Determinación analítica de Ventas Netas, Costo de Ventas y Utilidades · Ejercicio {ejercicioSeleccionado}
+                </CardDescription>
               </div>
             </CardHeader>
 
@@ -1839,7 +1764,7 @@ export default function EstadosFinancierosPage() {
     {/* BALANCE GENERAL                                        */}
     {/* ====================================================== */}
     <div className={cn(
-      (tabEstado === "balance" || tabEstado === "ambos") ? "block" : "hidden print:block"
+      tabEstado === "balance" ? "block" : "hidden print:block"
     )}>
       <Card className="report-card">
         <CardHeader className="pb-3">
