@@ -24,6 +24,8 @@ import {
   Search,
   X,
   PencilLine,
+  Lock,
+  Unlock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -273,6 +275,7 @@ function KardexContent() {
     "manual",
   );
   const [filasManuales, setFilasManuales] = useState<FilaKardexManual[]>([]);
+  const [edicionManualHabilitada, setEdicionManualHabilitada] = useState(false);
   const [movimientosKardex, setMovimientosKardex] = useState<
     MovimientoKardexInventario[]
   >([]);
@@ -651,6 +654,7 @@ function KardexContent() {
   }
 
   function agregarFilaManual() {
+    setEdicionManualHabilitada(true);
     setFilasManuales((actuales) => [
       ...actuales,
       {
@@ -829,6 +833,7 @@ function KardexContent() {
   const cargarPlantillaLibroDiario = useCallback(() => {
     if (asientosInventario.length > 0) {
       setFilasManuales(asientosInventario);
+      setEdicionManualHabilitada(true);
     }
   }, [asientosInventario]);
 
@@ -1925,59 +1930,72 @@ function KardexContent() {
       {pestañaPrincipal === "kardex_inventario" ? (
         <div className="space-y-4">
           {/* Header Web del Kardex */}
-          <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between border-b border-border pb-3 print:hidden">
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold tracking-tight text-foreground">
-                  Tarjeta de Kardex
-                </h1>
-                <Badge variant="outline" className="text-xs font-mono">
-                  {ejercicioSeleccionado}
-                </Badge>
-                
-                <div className="relative flex items-center ml-2 print:hidden">
-                  <Package className="size-3.5 text-muted-foreground absolute left-2 pointer-events-none" />
-                  <select
-                    value={articuloId}
-                    onChange={(e) => setArticuloId(e.target.value)}
-                    className="h-8 pl-7 pr-7 rounded-md border border-input bg-background text-xs font-medium text-foreground shadow-xs focus:ring-1 focus:ring-primary outline-none cursor-pointer appearance-none hover:bg-muted/30 transition-colors"
-                  >
-                    {ARTICULOS_KARDEX.map((art) => (
-                      <option key={art.codigo} value={art.codigo}>
-                        {art.codigo} — {art.nombre}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="size-3.5 text-muted-foreground absolute right-2 pointer-events-none" />
+          <header className="flex flex-col gap-4 border-b border-border pb-4 print:hidden">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-xl font-bold tracking-tight text-foreground">
+                    Control de Inventario
+                  </h1>
+                  <Badge variant="outline" className="text-xs font-mono">
+                    {ejercicioSeleccionado}
+                  </Badge>
                 </div>
-                <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5 text-xs font-medium ml-1">
-                  <button
-                    type="button"
-                    onClick={() => setModoKardex("automatico")}
-                    className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
-                      modoKardex === "automatico"
-                        ? "bg-background text-foreground font-semibold shadow-xs"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    Automático
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setModoKardex("manual")}
-                    className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
-                      modoKardex === "manual"
-                        ? "bg-background text-foreground font-semibold shadow-xs"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    Manual
-                  </button>
-                </div>
+              </div>
+
+              <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5 text-xs font-medium">
+                <button
+                  type="button"
+                  onClick={() => setModoKardex("automatico")}
+                  className={`px-3 py-1.5 rounded-md transition-all cursor-pointer ${
+                    modoKardex === "automatico"
+                      ? "bg-background text-foreground font-semibold shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Automático
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModoKardex("manual")}
+                  className={`px-3 py-1.5 rounded-md transition-all cursor-pointer ${
+                    modoKardex === "manual"
+                      ? "bg-background text-foreground font-semibold shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Manual
+                </button>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 print:hidden">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-muted/20 p-3 rounded-lg border border-border">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                  <Package className="size-4" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Artículo a consultar
+                  </label>
+                  <div className="relative flex items-center min-w-[280px]">
+                    <select
+                      value={articuloId}
+                      onChange={(e) => setArticuloId(e.target.value)}
+                      className="w-full h-8 pl-2 pr-8 rounded-md border border-input bg-background text-sm font-medium text-foreground shadow-xs focus:ring-1 focus:ring-primary outline-none cursor-pointer appearance-none hover:bg-muted/30 transition-colors"
+                    >
+                      {ARTICULOS_KARDEX.map((art) => (
+                        <option key={art.codigo} value={art.codigo}>
+                          {art.codigo} — {art.nombre}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="size-4 text-muted-foreground absolute right-2 pointer-events-none" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 print:hidden">
               {modoKardex === "manual" ? (
                 <>
                   {filasManuales.length === 0 && asientosInventario.length > 0 && (
@@ -1991,6 +2009,36 @@ function KardexContent() {
                     >
                       <FileSpreadsheet className="size-3.5" />
                       Cargar Pólizas ({asientosInventario.length})
+                    </Button>
+                  )}
+                  {filasManuales.length > 0 && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setEdicionManualHabilitada(!edicionManualHabilitada)}
+                      className={`h-8 gap-1.5 text-xs cursor-pointer transition-colors ${
+                        edicionManualHabilitada
+                          ? "border-amber-500/50 bg-amber-500/10 text-amber-800 dark:text-amber-300 hover:bg-amber-500/20"
+                          : "border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+                      }`}
+                      title={
+                        edicionManualHabilitada
+                          ? "Bloquear celdas para evitar modificaciones accidentales"
+                          : "Habilitar modo edición para modificar valores"
+                      }
+                    >
+                      {edicionManualHabilitada ? (
+                        <>
+                          <Lock className="size-3.5 text-amber-600 dark:text-amber-400" />
+                          <span>Bloquear</span>
+                        </>
+                      ) : (
+                        <>
+                          <Unlock className="size-3.5 text-muted-foreground" />
+                          <span>Editar</span>
+                        </>
+                      )}
                     </Button>
                   )}
                   <Button
@@ -2071,7 +2119,8 @@ function KardexContent() {
                 Vaciar Kardex (0)
               </Button>
             </div>
-          </header>
+          </div>
+        </header>
 
           {mensajeExitoAuto && (
             <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-800 dark:text-emerald-300 animate-in fade-in print:hidden">
@@ -2137,27 +2186,60 @@ function KardexContent() {
             </div>
           </div>
 
-          {modoKardex === "manual" && (
-            <div className="flex flex-col gap-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 p-3 text-xs sm:flex-row sm:items-center sm:justify-between print:hidden">
-              <div>
-                <p className="font-semibold text-foreground">
-                  Plantilla manual de movimientos
-                </p>
-                <p className="text-muted-foreground">
-                  Los saldos se recalculan según el orden de la plantilla y las
-                  filas incompletas quedan pendientes.
-                </p>
+          {modoKardex === "manual" && filasManuales.length > 0 && (
+            <div
+              className={`flex items-center justify-between gap-3 px-3.5 py-2 rounded-lg border text-xs print:hidden transition-all ${
+                edicionManualHabilitada
+                  ? "border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200 shadow-2xs"
+                  : "border-border/60 bg-muted/30 text-muted-foreground"
+              }`}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <span
+                  className={`flex size-2 rounded-full shrink-0 ${
+                    edicionManualHabilitada
+                      ? "bg-amber-500 animate-pulse"
+                      : "bg-emerald-500"
+                  }`}
+                />
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-semibold text-foreground">
+                    {edicionManualHabilitada ? "Edición en caliente activa" : "Modo protegido (Solo lectura)"}
+                  </span>
+                  <span className="text-muted-foreground">·</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {edicionManualHabilitada
+                      ? "Celdas editables. Pulsa 'Bloquear' al terminar."
+                      : "Celdas bloqueadas. Pulsa 'Habilitar edición' o haz doble clic en cualquier fila para modificar."}
+                  </span>
+                </div>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={agregarFilaManual}
-                className="h-8 gap-1.5 text-xs shrink-0"
-              >
-                <Plus className="size-3.5" />
-                Agregar fila
-              </Button>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={edicionManualHabilitada ? "default" : "outline"}
+                  onClick={() => setEdicionManualHabilitada(!edicionManualHabilitada)}
+                  className={`h-7 px-2.5 text-xs gap-1.5 cursor-pointer font-medium ${
+                    edicionManualHabilitada
+                      ? "bg-amber-600 hover:bg-amber-700 text-white shadow-xs"
+                      : "hover:bg-background border-border shadow-2xs"
+                  }`}
+                >
+                  {edicionManualHabilitada ? (
+                    <>
+                      <Lock className="size-3" />
+                      <span>Bloquear</span>
+                    </>
+                  ) : (
+                    <>
+                      <Unlock className="size-3 text-primary" />
+                      <span className="text-primary font-semibold">Habilitar edición</span>
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           )}
 
@@ -2204,6 +2286,25 @@ function KardexContent() {
                     >
                       Valores en USD
                     </th>
+                    {modoKardex === "manual" && (
+                      <th
+                        rowSpan={2}
+                        className="w-10 p-1 text-center print:hidden border-l border-border/40"
+                        title={
+                          edicionManualHabilitada
+                            ? "Eliminar fila"
+                            : "Fila protegida contra cambios"
+                        }
+                      >
+                        {edicionManualHabilitada ? (
+                          <span className="text-[9px] uppercase text-muted-foreground font-sans font-medium">
+                            Acción
+                          </span>
+                        ) : (
+                          <Lock className="size-3 text-muted-foreground/60 mx-auto" />
+                        )}
+                      </th>
+                    )}
                   </tr>
                   {/* Fila 2 de sub-encabezados */}
                   <tr className="bg-muted/60 border-b border-border text-[10px] uppercase font-semibold text-muted-foreground">
@@ -2250,7 +2351,7 @@ function KardexContent() {
                     filasManuales.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={10}
+                          colSpan={11}
                           className="py-12 text-center text-muted-foreground text-xs font-sans"
                         >
                           <div className="flex flex-col items-center justify-center gap-2">
@@ -2303,6 +2404,95 @@ function KardexContent() {
                           (movimiento) => movimiento.id === fila.id,
                         );
                         const esApertura = esFilaAperturaManual(fila, indice);
+
+                        if (!edicionManualHabilitada) {
+                          return (
+                            <tr
+                              key={fila.id}
+                              onDoubleClick={() => setEdicionManualHabilitada(true)}
+                              title="Doble clic para habilitar edición en caliente"
+                              className={`hover:bg-muted/40 transition-colors cursor-pointer ${
+                                esApertura ? "bg-muted/20 font-semibold" : ""
+                              }`}
+                            >
+                              <td className="py-2.5 px-3 text-muted-foreground whitespace-nowrap text-[11px]">
+                                {fila.fecha}
+                              </td>
+                              <td className="py-2.5 px-3 font-mono font-medium text-foreground whitespace-nowrap text-[11px]">
+                                {fila.comprobante ? (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px] font-mono px-1.5 py-0 bg-background"
+                                  >
+                                    {fila.comprobante}
+                                  </Badge>
+                                ) : (
+                                  "—"
+                                )}
+                              </td>
+                              <td className="py-2 px-4 min-w-[220px]">
+                                <div className="text-[11px] font-medium text-foreground">
+                                  {fila.concepto || "—"}
+                                </div>
+                                <span className="text-[10px] text-muted-foreground uppercase font-sans">
+                                  {fila.tipo.replace(/_/g, " ")}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 text-right tabular-nums text-foreground text-[11px]">
+                                {fila.tipo === "SALIDA" ||
+                                fila.tipo === "DEVOLUCION_COMPRA"
+                                  ? "—"
+                                  : fila.unidades
+                                    ? Number(fila.unidades).toLocaleString()
+                                    : "—"}
+                              </td>
+                              <td className="py-2.5 px-3 text-right tabular-nums text-foreground text-[11px]">
+                                {fila.tipo === "SALIDA" ||
+                                fila.tipo === "DEVOLUCION_COMPRA"
+                                  ? fila.unidades
+                                    ? Number(fila.unidades).toLocaleString()
+                                    : "—"
+                                  : "—"}
+                              </td>
+                              <td className="py-2.5 px-3 text-right tabular-nums font-bold text-foreground border-r border-border/60 bg-muted/10 text-[11px]">
+                                {m ? m.unidadesSaldo.toLocaleString() : "—"}
+                              </td>
+                              <td className="py-2.5 px-3 text-right tabular-nums text-foreground font-mono text-[11px]">
+                                {fila.costoUnitario || (esApertura && m?.costoUnitario)
+                                  ? formatoMoneda(
+                                      Number(fila.costoUnitario || m?.costoUnitario),
+                                    )
+                                  : "—"}
+                              </td>
+                              <td className="py-2.5 px-3 text-right tabular-nums font-mono text-emerald-700 dark:text-emerald-400 border-r border-border/40 text-[11px]">
+                                {fila.debe !== undefined && fila.debe !== ""
+                                  ? formatoMoneda(Number(fila.debe))
+                                  : esApertura && fila.montoContable
+                                    ? formatoMoneda(Number(fila.montoContable))
+                                    : m?.debe
+                                      ? formatoMoneda(m.debe)
+                                      : "—"}
+                              </td>
+                              <td className="py-2.5 px-3 text-right tabular-nums font-mono text-rose-700 dark:text-rose-400 border-r border-border/40 text-[11px]">
+                                {fila.haber !== undefined && fila.haber !== ""
+                                  ? formatoMoneda(Number(fila.haber))
+                                  : m?.haber
+                                    ? formatoMoneda(m.haber)
+                                    : "—"}
+                              </td>
+                              <td className="py-2.5 px-3 text-right tabular-nums font-bold font-mono text-foreground bg-muted/15 text-[11px]">
+                                {m ? formatoMoneda(m.saldo) : "—"}
+                              </td>
+                              <td
+                                className="p-1.5 text-center text-muted-foreground/30 print:hidden border-l border-border/40"
+                                title="Fila protegida contra cambios accidentales"
+                              >
+                                <Lock className="size-3.5 mx-auto" />
+                              </td>
+                            </tr>
+                          );
+                        }
+
                         return (
                           <tr
                             key={fila.id}
@@ -2667,6 +2857,7 @@ function KardexContent() {
                     <td className="py-3 px-3 text-right tabular-nums text-foreground border-b-4 border-double border-foreground/60 text-sm font-extrabold saldo-doble-linea bg-primary/10">
                       {formatoMoneda(totalesKardex.saldoValor)}
                     </td>
+                    {modoKardex === "manual" && <td className="p-1 print:hidden" />}
                   </tr>
                 </tfoot>
               </table>

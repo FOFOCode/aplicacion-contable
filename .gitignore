@@ -28,3 +28,4 @@ skills-lock.json
 repomix*
 repomix-output.*
 *.repomix
+node_modules.broken/
