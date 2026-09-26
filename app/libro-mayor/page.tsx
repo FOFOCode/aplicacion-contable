@@ -18,7 +18,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Layers,
-  Sparkles,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -416,7 +415,7 @@ export default function LibroMayorPage() {
           </div>
         </div>
 
-        {/* FILA INFERIOR: ALTERNADOR DE VISTAS + BOTÓN DEL MENÚ Y FINDER */}
+        {/* FILA INFERIOR: ALTERNADOR DE VISTAS + BOTÓN FINDER */}
         <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
           <div className="flex flex-wrap items-center gap-2.5">
             {/* Alternador de Vistas: Dark Container Pill como en el diseño de referencia */}
@@ -449,36 +448,6 @@ export default function LibroMayorPage() {
               </button>
             </div>
 
-            {/* En la vista de Cuentas T: Menú desplegable contraído de inicio */}
-            {vista === "cuentasT" && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setMenuAbierto((prev) => !prev)}
-                className={cn(
-                  "h-9 px-4 gap-2 text-xs font-semibold rounded-xl shadow-2xs cursor-pointer transition-all border",
-                  menuAbierto
-                    ? "bg-primary text-primary-foreground border-primary hover:bg-primary/95"
-                    : cuentaActivaMayor
-                    ? "bg-primary/10 border-primary/40 text-primary font-bold hover:bg-primary/15"
-                    : "bg-card hover:bg-muted/60 text-foreground border-border"
-                )}
-              >
-                <Layers className="size-3.5" />
-                <span className="truncate max-w-[200px] sm:max-w-[260px]">
-                  {cuentaActivaMayor
-                    ? `${cuentaActivaMayor.cuenta.codigo} · ${cuentaActivaMayor.cuenta.nombre}`
-                    : `Menú de cuentas (${mayor.length})`}
-                </span>
-                <ChevronDown
-                  className={cn(
-                    "size-3.5 transition-transform duration-300",
-                    menuAbierto ? "rotate-180" : ""
-                  )}
-                />
-              </Button>
-            )}
-
             {/* Botón Finder: "Buscar por cuenta" */}
             <Button
               type="button"
@@ -492,21 +461,9 @@ export default function LibroMayorPage() {
                 ⌘K
               </kbd>
             </Button>
-
-            {/* Botón rápido para cerrar/limpiar la cuenta activa si hay una en pantalla */}
-            {vista === "cuentasT" && cuentaActivaMayor && (
-              <button
-                type="button"
-                onClick={() => setCuentaActivaCodigo(null)}
-                className="size-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/80 border border-border/80 transition-colors cursor-pointer"
-                title="Cerrar cuenta activa y volver a la vista limpia"
-              >
-                <X className="size-3.5" />
-              </button>
-            )}
           </div>
 
-          {/* Contador de cuentas con saldo */}
+          {/* Contador de cuentas */}
           <div className="flex items-center gap-2">
             <Badge variant="muted" className="text-xs font-mono font-medium">
               {mayor.length} cuentas en el libro
@@ -515,104 +472,205 @@ export default function LibroMayorPage() {
         </div>
 
         {/* =================================================================== */}
-        {/* MENÚ DE CUENTAS DESPLEGABLE HACIA ABAJO CON ANIMACIÓN SUAVE        */}
-        {/* Sin filtrado interno porque el finder realiza las búsquedas        */}
+        {/* BARRA PROMINENTE DEL MENÚ DE CUENTAS (ALTA VISIBILIDAD)             */}
+        {/* Se ubica en posición destacada y abre hacia abajo con animación     */}
         {/* =================================================================== */}
         {vista === "cuentasT" && (
-          <div
-            className={cn(
-              "overflow-hidden transition-all duration-300 ease-in-out print:hidden",
-              menuAbierto
-                ? "max-h-[520px] opacity-100 transform translate-y-0"
-                : "max-h-0 opacity-0 transform -translate-y-2 pointer-events-none"
-            )}
-          >
-            <div className="rounded-2xl border border-border/80 bg-card p-4 sm:p-5 shadow-lg space-y-3">
-              <div className="flex items-center justify-between border-b border-border/60 pb-3">
-                <div className="flex items-center gap-2">
-                  <BookOpen className="size-4 text-primary" />
-                  <span className="text-xs font-bold uppercase tracking-wider text-foreground">
-                    Selecciona una cuenta para abrir su Cuenta T
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setMenuAbierto(false)}
-                  className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer font-medium"
+          <div className="space-y-3 print:hidden pt-1">
+            <button
+              type="button"
+              onClick={() => setMenuAbierto((prev) => !prev)}
+              className={cn(
+                "w-full p-3 sm:p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-4 text-left shadow-2xs group",
+                menuAbierto
+                  ? "bg-primary text-primary-foreground border-primary shadow-md ring-2 ring-primary/20"
+                  : cuentaActivaMayor
+                  ? "bg-primary/5 border-primary/40 text-foreground hover:bg-primary/10 hover:border-primary/60"
+                  : "bg-card border-border hover:border-primary/50 hover:bg-muted/30 text-foreground"
+              )}
+            >
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div
+                  className={cn(
+                    "size-10 rounded-xl flex items-center justify-center shrink-0 transition-colors shadow-2xs",
+                    menuAbierto
+                      ? "bg-white/20 text-white"
+                      : cuentaActivaMayor
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground"
+                  )}
                 >
-                  <span>Contraer menú</span>
-                  <ChevronUp className="size-3.5" />
-                </button>
-              </div>
+                  <Layers className="size-5" />
+                </div>
 
-              {/* Listado de cuentas limpio en cuadrícula */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-[380px] overflow-y-auto p-1">
-                {mayor.map((m) => {
-                  const esActiva = cuentaActivaMayor?.cuenta.codigo === m.cuenta.codigo
-                  const saldoCero = m.saldo === 0
-                  const contradiceNaturaleza =
-                    m.cuenta.naturaleza === "deudora" ? m.saldo < 0 : m.saldo > 0
-                  const sobregirada = m.cuenta.tipo === "activo" && contradiceNaturaleza
-
-                  return (
-                    <button
-                      key={m.cuenta.codigo}
-                      type="button"
-                      onClick={() => {
-                        setCuentaActivaCodigo(m.cuenta.codigo)
-                        setMenuAbierto(false)
-                      }}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span
                       className={cn(
-                        "text-left p-3 rounded-xl transition-all cursor-pointer flex items-center justify-between gap-3 text-xs border",
-                        esActiva
-                          ? "bg-primary/10 border-primary text-foreground shadow-2xs font-semibold ring-1 ring-primary/30"
-                          : "border-border/70 hover:border-primary/40 hover:bg-muted/40 text-foreground"
+                        "text-[11px] font-bold uppercase tracking-wider",
+                        menuAbierto ? "text-white/80" : "text-muted-foreground"
                       )}
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <span
-                          className={cn(
-                            "font-mono text-xs font-bold px-2 py-0.5 rounded-md shrink-0 shadow-2xs",
-                            esActiva
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted text-muted-foreground"
-                          )}
-                        >
-                          {m.cuenta.codigo}
-                        </span>
-                        <div className="min-w-0">
-                          <span className="block truncate font-semibold text-foreground text-xs">
-                            {m.cuenta.nombre}
-                          </span>
-                          <span className="block text-[10px] text-muted-foreground truncate">
-                            {ETIQUETA_TIPO[m.cuenta.tipo]} · {m.cuenta.naturaleza}
-                          </span>
-                        </div>
-                      </div>
+                      {cuentaActivaMayor ? "Cuenta T en Pantalla" : "Menú de Cuentas Mayorizadas"}
+                    </span>
+                    <span
+                      className={cn(
+                        "text-[10px] font-mono px-2 py-0.5 rounded-full font-semibold",
+                        menuAbierto
+                          ? "bg-white/20 text-white"
+                          : "bg-muted text-muted-foreground"
+                      )}
+                    >
+                      {mayor.length} cuentas
+                    </span>
+                  </div>
 
-                      <div className="text-right shrink-0">
-                        <div className="font-mono font-bold text-xs text-foreground tabular-nums">
-                          {formatoMoneda(Math.abs(m.saldo))}
+                  <div
+                    className={cn(
+                      "text-sm sm:text-base font-bold truncate mt-0.5",
+                      menuAbierto ? "text-white" : "text-foreground"
+                    )}
+                  >
+                    {cuentaActivaMayor
+                      ? `${cuentaActivaMayor.cuenta.codigo} · ${cuentaActivaMayor.cuenta.nombre}`
+                      : "Haz clic aquí para desplegar el catálogo y seleccionar una Cuenta T"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5 shrink-0">
+                {cuentaActivaMayor && !menuAbierto && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setCuentaActivaCodigo(null)
+                    }}
+                    className="size-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer mr-1"
+                    title="Cerrar cuenta activa"
+                  >
+                    <X className="size-4" />
+                  </button>
+                )}
+
+                <span
+                  className={cn(
+                    "text-xs font-semibold hidden sm:inline-block",
+                    menuAbierto ? "text-white/90" : "text-primary"
+                  )}
+                >
+                  {menuAbierto ? "Contraer menú" : cuentaActivaMayor ? "Cambiar cuenta" : "Desplegar menú"}
+                </span>
+
+                <div
+                  className={cn(
+                    "size-8 rounded-xl flex items-center justify-center transition-transform duration-300",
+                    menuAbierto
+                      ? "bg-white/20 text-white rotate-180"
+                      : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary"
+                  )}
+                >
+                  <ChevronDown className="size-4.5" />
+                </div>
+              </div>
+            </button>
+
+            {/* MENÚ DE CUENTAS DESPLEGABLE HACIA ABAJO CON ANIMACIÓN SUAVE */}
+            <div
+              className={cn(
+                "overflow-hidden transition-all duration-300 ease-in-out",
+                menuAbierto
+                  ? "max-h-[560px] opacity-100 transform translate-y-0"
+                  : "max-h-0 opacity-0 transform -translate-y-2 pointer-events-none"
+              )}
+            >
+              <div className="rounded-2xl border border-border/80 bg-card p-4 sm:p-5 shadow-lg space-y-3">
+                <div className="flex items-center justify-between border-b border-border/60 pb-3">
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="size-4 text-primary" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-foreground">
+                      Selecciona una cuenta para visualizarla en pantalla completa
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMenuAbierto(false)}
+                    className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer font-medium"
+                  >
+                    <span>Contraer</span>
+                    <ChevronUp className="size-3.5" />
+                  </button>
+                </div>
+
+                {/* Listado de cuentas en cuadrícula limpia */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-[380px] overflow-y-auto p-1">
+                  {mayor.map((m) => {
+                    const esActiva = cuentaActivaMayor?.cuenta.codigo === m.cuenta.codigo
+                    const saldoCero = m.saldo === 0
+                    const contradiceNaturaleza =
+                      m.cuenta.naturaleza === "deudora" ? m.saldo < 0 : m.saldo > 0
+                    const sobregirada = m.cuenta.tipo === "activo" && contradiceNaturaleza
+
+                    return (
+                      <button
+                        key={m.cuenta.codigo}
+                        type="button"
+                        onClick={() => {
+                          setCuentaActivaCodigo(m.cuenta.codigo)
+                          setMenuAbierto(false)
+                        }}
+                        className={cn(
+                          "text-left p-3 rounded-xl transition-all cursor-pointer flex items-center justify-between gap-3 text-xs border",
+                          esActiva
+                            ? "bg-primary/10 border-primary text-foreground shadow-2xs font-semibold ring-1 ring-primary/30"
+                            : "border-border/70 hover:border-primary/40 hover:bg-muted/40 text-foreground"
+                        )}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span
+                            className={cn(
+                              "font-mono text-xs font-bold px-2 py-0.5 rounded-md shrink-0 shadow-2xs",
+                              esActiva
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-muted text-muted-foreground"
+                            )}
+                          >
+                            {m.cuenta.codigo}
+                          </span>
+                          <div className="min-w-0">
+                            <span className="block truncate font-semibold text-foreground text-xs">
+                              {m.cuenta.nombre}
+                            </span>
+                            <span className="block text-[10px] text-muted-foreground truncate">
+                              {ETIQUETA_TIPO[m.cuenta.tipo]} · {m.cuenta.naturaleza}
+                            </span>
+                          </div>
                         </div>
-                        <div>
-                          {sobregirada ? (
-                            <span className="text-[9px] font-bold text-red-600 dark:text-red-400">
-                              Sobregiro
-                            </span>
-                          ) : saldoCero ? (
-                            <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium">
-                              Saldada
-                            </span>
-                          ) : (
-                            <span className="text-[9px] text-muted-foreground uppercase font-mono">
-                              {m.naturalezaSaldo === "deudora" ? "Deudor" : "Acreedor"}
-                            </span>
-                          )}
+
+                        <div className="text-right shrink-0">
+                          <div className="font-mono font-bold text-xs text-foreground tabular-nums">
+                            {formatoMoneda(Math.abs(m.saldo))}
+                          </div>
+                          <div>
+                            {sobregirada ? (
+                              <span className="text-[9px] font-bold text-red-600 dark:text-red-400">
+                                Sobregiro
+                              </span>
+                            ) : saldoCero ? (
+                              <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium">
+                                Saldada
+                              </span>
+                            ) : (
+                              <span className="text-[9px] text-muted-foreground uppercase font-mono">
+                                {m.naturalezaSaldo === "deudora" ? "Deudor" : "Acreedor"}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </button>
-                  )
-                })}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
             </div>
           </div>
@@ -631,7 +689,6 @@ export default function LibroMayorPage() {
         categoriaFiltro="todas"
         onSeleccionarCuenta={handleSeleccionarCuentaDesdeFinder}
         onAplicarFiltroTexto={(q) => {
-          // Si el usuario buscó por texto en el finder, selecciona la primera coincidencia
           const coincidencia = mayor.find(
             (m) =>
               m.cuenta.codigo.toLowerCase().includes(q.toLowerCase()) ||
@@ -669,16 +726,16 @@ export default function LibroMayorPage() {
                 Ninguna Cuenta T en pantalla
               </h3>
               <p className="text-xs sm:text-sm text-muted-foreground">
-                Despliega el <strong>Menú de cuentas</strong> superior o utiliza el <strong>Buscador (⌘K)</strong> para abrir y analizar cualquier cuenta en toda la pantalla disponible.
+                Haz clic en la barra <strong>Menú de Cuentas</strong> superior o utiliza el <strong>Buscador (⌘K)</strong> para desplegar y seleccionar cualquier cuenta.
               </p>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
               <Button
                 type="button"
                 onClick={() => setMenuAbierto(true)}
-                className="h-9 px-4 gap-2 text-xs font-semibold cursor-pointer shadow-xs"
+                className="h-10 px-5 gap-2 text-xs font-semibold cursor-pointer shadow-xs"
               >
-                <Layers className="size-3.5" />
+                <Layers className="size-4" />
                 <span>Desplegar menú de cuentas</span>
                 <ChevronDown className="size-3.5" />
               </Button>
@@ -686,9 +743,9 @@ export default function LibroMayorPage() {
                 type="button"
                 variant="outline"
                 onClick={() => setFinderOpen(true)}
-                className="h-9 px-4 gap-2 text-xs font-medium cursor-pointer"
+                className="h-10 px-5 gap-2 text-xs font-medium cursor-pointer"
               >
-                <Search className="size-3.5 text-muted-foreground" />
+                <Search className="size-4 text-muted-foreground" />
                 <span>Buscar cuenta (⌘K)</span>
               </Button>
             </div>
