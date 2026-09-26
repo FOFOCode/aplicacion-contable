@@ -12,10 +12,13 @@ import {
   Edit3,
   FileDown,
   FileSpreadsheet,
+  FileText,
   History,
   Layers,
+  Lock,
   RotateCcw,
   Save,
+  Scale,
   TriangleAlert,
   X,
 } from "lucide-react"
@@ -32,6 +35,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input, Label } from "@/components/ui/field"
 
 import { useContabilidad } from "@/components/contabilidad-provider"
+import { cn } from "@/lib/utils"
 
 import {
   formatoMoneda,
@@ -178,6 +182,16 @@ export default function EstadosFinancierosPage() {
     "analitico" |
     "general"
   >("analitico")
+
+  const [
+    tabEstado,
+    setTabEstado,
+  ] = useState<
+    "resultados" |
+    "balance" |
+    "ambos" |
+    "cierre"
+  >("resultados")
 
   // ============================================================
   // TOMA FÍSICA
@@ -741,199 +755,130 @@ export default function EstadosFinancierosPage() {
   return (
     <div className="space-y-8 report-page">
       {/* ====================================================== */}
-      {/* ENCABEZADO */}
+      {/* ENCABEZADO Y ACCIONES (POSICIONES EXACTAS DEL MOCKUP) */}
       {/* ====================================================== */}
-
-      <header className="space-y-3 report-header">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium text-primary">
-              Reportes contables
-              oficiales
-            </p>
-
-            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
-              Reporte de Estados
-              Financieros
+      <header className="space-y-3.5 print:hidden">
+        {/* Fila 1: Título con badge de ciclo a la izquierda | Botones de acción a la derecha */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">
+              Estados financieros
             </h1>
-
-            <p className="mt-1 text-sm text-muted-foreground">
-              Ciclo:{" "}
-              <strong className="text-foreground">
-                {
-                  ejercicioSeleccionado
-                }
-              </strong>{" "}
-              · Corte oficial
-              expresado en
-              dólares de los
-              Estados Unidos de
-              América (USD)
-            </p>
+            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-mono font-semibold bg-muted text-foreground border border-border/80 shadow-2xs">
+              Ciclo Fiscal {ejercicioSeleccionado}
+            </span>
           </div>
 
-          <div className="flex flex-wrap gap-2 print:hidden">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
               variant="outline"
-              onClick={
-                exportarExcel
-              }
-              className="border-emerald-600/40 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/20"
+              size="sm"
+              onClick={exportarExcel}
+              className="h-8 rounded-xl border-border/80 bg-card hover:bg-muted font-medium text-xs shadow-2xs gap-1.5"
             >
-              <FileSpreadsheet className="mr-1.5 size-4 text-emerald-600" />
-
-              Exportar Excel
+              <FileSpreadsheet className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>Exportar Excel</span>
             </Button>
 
             <Button
               type="button"
               variant="outline"
-              onClick={
-                exportarPdf
-              }
+              size="sm"
+              onClick={exportarPdf}
+              className="h-8 rounded-xl border-border/80 bg-card hover:bg-muted font-medium text-xs shadow-2xs gap-1.5"
             >
-              <FileDown className="mr-1.5 size-4" />
-
-              Exportar PDF
+              <FileDown className="size-3.5 text-muted-foreground" />
+              <span>Exportar PDF</span>
             </Button>
 
             <Link
               href="/ciclos"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground shadow-xs transition-colors hover:bg-muted"
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-xl border border-border/80 bg-card hover:bg-muted text-xs font-medium text-foreground shadow-2xs transition-colors"
             >
-              <History className="size-4 text-primary" />
-
-              Historial de
-              Ciclos
+              <History className="size-3.5 text-primary" />
+              <span>Historial de Ciclos</span>
             </Link>
           </div>
         </div>
 
-        <p className="max-w-3xl text-sm text-muted-foreground">
-          Preparado
-          automáticamente a
-          partir de los asientos
-          mayorizados y
-          clasificados bajo el
-          Método Analítico o
-          Pormenorizado, con
-          cruce real de Toma
-          Física de Inventarios.
-        </p>
-      </header>
-
-      {/* ====================================================== */}
-      {/* TOMA FÍSICA */}
-      {/* ====================================================== */}
-
-      <Card className="border-primary/20 bg-primary/[0.02]">
-        <CardContent className="p-4 sm:p-5">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5">
-              <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <ClipboardCheck className="size-5" />
-              </div>
-
-              <div>
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-foreground">
-                    Toma Física
-                    Oficial de
-                    Inventario:{" "}
-
-                    <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400">
-                      {formatoMoneda(
-                        er
-                          .analitico
-                          .valorInventarioFinal
-                      )}
-                    </span>
-                  </p>
-
-                  {dbConnected && (
-                    <Badge
-                      variant="success"
-                      className="border-emerald-500/40 bg-emerald-500/10 text-[10px] text-emerald-700 dark:text-emerald-300"
-                    >
-                      Sincronizado
-                      en Libros
-                    </Badge>
-                  )}
-                </div>
-
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Fecha de
-                  Conteo:{" "}
-
-                  <strong>
-                    {er
-                      .analitico
-                      .fechaInventarioFinal ||
-                      `${ejercicioSeleccionado}-12-31`}
-                  </strong>{" "}
-                  · Responsable:{" "}
-
-                  <strong>
-                    {er
-                      .analitico
-                      .responsableInventarioFinal ||
-                      "Comité de Auditoría"}
-                  </strong>
-                </p>
-              </div>
+        {/* Fila 2: Tarjeta compacta de Toma Física a la izquierda con botón de actualizar a su lado */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-border/80 bg-card px-3.5 py-2 shadow-2xs text-xs">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-foreground">
+                Toma Física Oficial de Inventario:
+              </span>
+              <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                {formatoMoneda(er.analitico.valorInventarioFinal)}
+              </span>
+              {dbConnected && (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
+                  Sincronizado en Libros
+                </span>
+              )}
             </div>
 
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setValorToma(
-                  (
-                    tomaFisica
-                      ?.valor_inventario_final ??
-                    er
-                      .analitico
-                      .valorInventarioFinal
-                  ).toString()
-                )
-
-                setFechaToma(
-                  tomaFisica
-                    ?.fecha_toma ||
-                    `${ejercicioSeleccionado}-12-31`
-                )
-
-                setResponsableToma(
-                  tomaFisica
-                    ?.responsable ||
-                    "Comité de Auditoría y Control de Inventarios"
-                )
-
-                setObservacionesToma(
-                  tomaFisica
-                    ?.observaciones ||
-                    ""
-                )
-
-                setModalTomaAbierto(
-                  true
-                )
-              }}
-              disabled={
-                esEjercicioCerrado
-              }
-              className="border-primary/30 text-primary hover:bg-primary/5 print:hidden"
-            >
-              <Edit3 className="mr-1.5 size-3.5" />
-
-              Actualizar Toma
-              Física
-            </Button>
+            <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+              <span>
+                Fecha de Conteo:{" "}
+                <strong className="text-foreground/80 font-mono">
+                  {er.analitico.fechaInventarioFinal || `${ejercicioSeleccionado}-12-31`}
+                </strong>
+              </span>
+              <span>·</span>
+              <span>
+                Responsable:{" "}
+                <strong className="text-foreground/80">
+                  {er.analitico.responsableInventarioFinal || "Control de Almacén y Auditoría"}
+                </strong>
+              </span>
+            </div>
           </div>
-        </CardContent>
-      </Card>
+
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setValorToma(
+                (
+                  tomaFisica?.valor_inventario_final ??
+                  er.analitico.valorInventarioFinal
+                ).toString()
+              )
+              setFechaToma(
+                tomaFisica?.fecha_toma ||
+                `${ejercicioSeleccionado}-12-31`
+              )
+              setResponsableToma(
+                tomaFisica?.responsable ||
+                "Control de Almacén y Auditoría"
+              )
+              setObservacionesToma(
+                tomaFisica?.observaciones ||
+                ""
+              )
+              setModalTomaAbierto(true)
+            }}
+            disabled={esEjercicioCerrado}
+            className="h-8 rounded-xl border-border/80 bg-card hover:bg-muted font-medium text-xs shadow-2xs gap-1.5 text-foreground cursor-pointer"
+          >
+            <Edit3 className="size-3.5 text-muted-foreground" />
+            <span>Actualizar Toma Física</span>
+          </Button>
+        </div>
+      </header>
+
+      {/* ENCABEZADO EXCLUSIVO PARA IMPRESIÓN OFICIAL */}
+      <div className="hidden print:block mb-4 border-b border-border pb-3">
+        <h1 className="text-xl font-bold uppercase tracking-tight text-foreground">
+          Reporte Oficial de Estados Financieros
+        </h1>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Ciclo Fiscal: {ejercicioSeleccionado} · Expresado en USD · Fecha de emisión: {new Date().toLocaleDateString("es-SV")}
+        </p>
+      </div>
 
       {/* ====================================================== */}
       {/* MODAL TOMA FÍSICA */}
@@ -1200,76 +1145,146 @@ export default function EstadosFinancierosPage() {
       )}
 
       {/* ====================================================== */}
-      {/* ESTADO DE RESULTADOS */}
+      {/* SECCIÓN PRINCIPAL: ESTADOS                             */}
       {/* ====================================================== */}
+      <section className="space-y-4">
+        {/* NAVEGACIÓN ENTRE ESTADOS (SEGMENTED CONTROL MINIMALISTA) */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-3 print:hidden">
+          <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-muted/60 border border-border/60">
+            <button
+              type="button"
+              onClick={() => setTabEstado("resultados")}
+              className={cn(
+                "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer",
+                tabEstado === "resultados"
+                  ? "bg-card text-foreground shadow-2xs border border-border/80"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+              )}
+            >
+              <Calculator className="size-3.5 text-primary" />
+              <span>Estado de Resultados</span>
+            </button>
 
-      <Card className="report-card">
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <CardTitle>
-                Estado de
-                Resultados
-              </CardTitle>
+            <button
+              type="button"
+              onClick={() => setTabEstado("balance")}
+              className={cn(
+                "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer",
+                tabEstado === "balance"
+                  ? "bg-card text-foreground shadow-2xs border border-border/80"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+              )}
+            >
+              <Scale className="size-3.5 text-primary" />
+              <span>Balance General</span>
+            </button>
 
-              <CardDescription className="mt-1">
-                Determinación
-                analítica de
-                Ventas Netas,
-                Compras Netas,
-                Mercancías
-                Disponibles,
-                Costo de Ventas
-                y Utilidades para
-                el ejercicio{" "}
-                {
-                  ejercicioSeleccionado
-                }
-                .
-              </CardDescription>
-            </div>
+            <button
+              type="button"
+              onClick={() => setTabEstado("ambos")}
+              className={cn(
+                "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer",
+                tabEstado === "ambos"
+                  ? "bg-card text-foreground shadow-2xs border border-border/80"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+              )}
+            >
+              <FileText className="size-3.5 text-primary" />
+              <span>Vista Completa (Ambos)</span>
+            </button>
 
-            <div className="flex items-center gap-2 print:hidden">
-              <Button
-                type="button"
-                size="sm"
-                variant={
-                  modoVista ===
-                  "analitico"
-                    ? "default"
-                    : "outline"
-                }
-                onClick={() =>
-                  setModoVista(
-                    "analitico"
-                  )
-                }
-              >
-                <Calculator className="mr-1 size-3.5" />
-
-                Método Analítico
-              </Button>
-
-              <Button
-                type="button"
-                size="sm"
-                variant={
-                  modoVista ===
-                  "general"
-                    ? "default"
-                    : "outline"
-                }
-                onClick={() =>
-                  setModoVista(
-                    "general"
-                  )
-                }
-              >
-                Vista por Cuentas
-              </Button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setTabEstado("cierre")}
+              className={cn(
+                "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer",
+                tabEstado === "cierre"
+                  ? "bg-card text-foreground shadow-2xs border border-border/80"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+              )}
+            >
+              <Lock className="size-3.5 text-primary" />
+              <span>Cierre y Liquidación</span>
+            </button>
           </div>
-        </CardHeader>
+
+          {(tabEstado === "resultados" || tabEstado === "ambos") && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-muted-foreground font-medium hidden sm:inline">
+                Método:
+              </span>
+              <div className="flex items-center gap-1 p-0.5 rounded-lg bg-muted border border-border/60 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setModoVista("analitico")}
+                  className={cn(
+                    "px-2.5 py-1 rounded text-xs font-medium cursor-pointer transition-colors",
+                    modoVista === "analitico"
+                      ? "bg-card text-foreground font-semibold shadow-2xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Analítico
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModoVista("general")}
+                  className={cn(
+                    "px-2.5 py-1 rounded text-xs font-medium cursor-pointer transition-colors",
+                    modoVista === "general"
+                      ? "bg-card text-foreground font-semibold shadow-2xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Por Cuentas
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ====================================================== */}
+        {/* ESTADO DE RESULTADOS                                   */}
+        {/* ====================================================== */}
+        <div className={cn(
+          (tabEstado === "resultados" || tabEstado === "ambos") ? "block" : "hidden print:block"
+        )}>
+          <Card className="report-card">
+            <CardHeader className="pb-3">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <CardTitle className="text-lg font-bold">
+                    Estado de Resultados
+                  </CardTitle>
+                  <CardDescription className="text-xs mt-0.5">
+                    Determinación analítica de Ventas Netas, Costo de Ventas y Utilidades · Ejercicio {ejercicioSeleccionado}
+                  </CardDescription>
+                </div>
+
+                <div className="flex items-center gap-2 print:hidden">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={modoVista === "analitico" ? "default" : "outline"}
+                    onClick={() => setModoVista("analitico")}
+                    className="h-7 text-xs px-2.5 rounded-lg font-medium"
+                  >
+                    <Calculator className="mr-1 size-3" />
+                    Método Analítico
+                  </Button>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={modoVista === "general" ? "default" : "outline"}
+                    onClick={() => setModoVista("general")}
+                    className="h-7 text-xs px-2.5 rounded-lg font-medium"
+                  >
+                    Vista por Cuentas
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
 
         <CardContent className="space-y-5">
           {modoVista ===
@@ -1818,22 +1833,21 @@ export default function EstadosFinancierosPage() {
           )}
         </CardContent>
       </Card>
+    </div>
 
-      {/* ====================================================== */}
-      {/* BALANCE GENERAL */}
-      {/* ====================================================== */}
-
+    {/* ====================================================== */}
+    {/* BALANCE GENERAL                                        */}
+    {/* ====================================================== */}
+    <div className={cn(
+      (tabEstado === "balance" || tabEstado === "ambos") ? "block" : "hidden print:block"
+    )}>
       <Card className="report-card">
-        <CardHeader>
-          <CardTitle>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg font-bold">
             Balance General
           </CardTitle>
-
-          <CardDescription>
-            Activo = Pasivo +
-            Capital Contable ·
-            Verificación de
-            cuadre contable
+          <CardDescription className="text-xs mt-0.5">
+            Activo = Pasivo + Capital Contable · Verificación de cuadre · Ejercicio {ejercicioSeleccionado}
           </CardDescription>
         </CardHeader>
 
@@ -2033,40 +2047,36 @@ export default function EstadosFinancierosPage() {
             </div>
           </div>
 
-          <div
-            className={`flex items-center gap-3 rounded-lg border p-4 text-sm ${
-              bg.cuadra
-                ? "border-emerald-500/30 bg-emerald-500/10"
-                : "border-red-500/30 bg-red-500/10"
-            }`}
-          >
-            {bg.cuadra ? (
-              <CircleCheck className="size-5 shrink-0 text-emerald-600" />
-            ) : (
-              <TriangleAlert className="size-5 shrink-0 text-red-600" />
-            )}
-
-            <span className="font-medium">
-              {bg.cuadra
-                ? `Balance cuadrado: ${formatoMoneda(
-                    bg.totalActivo
-                  )} = ${formatoMoneda(
-                    bg.totalPasivoMasCapital
-                  )}`
-                : `El balance no cuadra: Activo ${formatoMoneda(
-                    bg.totalActivo
-                  )} ≠ Pasivo + Capital ${formatoMoneda(
-                    bg.totalPasivoMasCapital
-                  )}`}
-            </span>
+          {/* ESTADO DE BALANCE CON BADGE LIMPIO */}
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl border border-border/80 bg-card shadow-2xs">
+            <div className="flex items-center gap-2.5">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Estado de Balance
+              </span>
+              <Badge
+                variant={bg.cuadra ? "success" : "warning"}
+                className="font-mono text-xs px-2.5 py-0.5"
+              >
+                {bg.cuadra ? "Cuadrado" : "Diferencia detectada"}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-4 text-xs font-mono tabular-nums text-muted-foreground">
+              <span>Activo: <strong className="text-foreground">{formatoMoneda(bg.totalActivo)}</strong></span>
+              <span>·</span>
+              <span>Pasivo + Capital: <strong className="text-foreground">{formatoMoneda(bg.totalPasivoMasCapital)}</strong></span>
+            </div>
           </div>
         </CardContent>
       </Card>
+    </div>
 
-      {/* ====================================================== */}
+    {/* ====================================================== */}
+    {/* CIERRE Y LIQUIDACIÓN DEL CICLO                         */}
+    {/* ====================================================== */}
+    <div className={cn(
+      tabEstado === "cierre" ? "block space-y-6" : "hidden"
+    )}>
       {/* ADMINISTRACIÓN DEL CICLO */}
-      {/* ====================================================== */}
-
       <Card className="report-card border-amber-500/30 bg-amber-500/[0.02] print:hidden">
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2599,6 +2609,8 @@ export default function EstadosFinancierosPage() {
           )}
         </CardContent>
       </Card>
+    </div>
+  </section>
 
       {/* ====================================================== */}
       {/* PIE PARA IMPRESIÓN */}

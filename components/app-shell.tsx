@@ -109,7 +109,9 @@ export function AppShell({
 }) {
   const pathname = usePathname()
   const ocultarBadgeDb =
-    pathname?.startsWith("/libro-mayor") || pathname?.startsWith("/libro-diario")
+    pathname?.startsWith("/libro-mayor") ||
+    pathname?.startsWith("/libro-diario") ||
+    pathname?.startsWith("/estados-financieros")
 
   const [open, setOpen] = useState(false)
 
