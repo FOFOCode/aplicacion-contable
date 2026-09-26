@@ -1528,18 +1528,9 @@ function KardexContent() {
     if (pestañaPrincipal === "kardex_inventario") {
       const filas: (string | number | null | undefined)[][] = [
         [
-          "SISTEMA CONTABLE OFICIAL - TARJETA DE CONTROL DE INVENTARIOS (KARDEX)",
+          "TARJETA DE CONTROL DE INVENTARIOS (KARDEX) — FINEXA",
         ],
-        [`Ejercicio fiscal: ${ejercicioSeleccionado}`],
-        [`Artículo: ${articuloActual.codigo} - ${articuloActual.nombre}`],
-        [
-          `Método de Valuación: Costo Promedio Ponderado (Art. 143 C.T.) · Unidad: ${articuloActual.unidad}`,
-        ],
-        [
-          `Cuenta Contable: ${articuloActual.cuentaCodigo} - ${articuloActual.cuentaNombre}`,
-        ],
-        [`Ubicación: ${articuloActual.ubicacion}`],
-        [`Fecha de emisión: ${new Date().toLocaleDateString("es-SV")}`],
+        [`Fecha de emisión: ${new Date().toLocaleDateString("es-SV")}  |  Finexa · Sistema de Gestión Contable`],
         [],
         [
           "Fecha",
@@ -1590,7 +1581,7 @@ function KardexContent() {
           filas,
           ...maquetarReporteContable({
             filas,
-            filaEncabezado: 8,
+            filaEncabezado: 3,
             columnasDebe: [7],
             columnasHaber: [8],
             columnasSaldo: [5, 9],
@@ -1609,16 +1600,10 @@ function KardexContent() {
     if (modoVista === "continuo") {
       const hojas = libroContinuoData.map((item) => {
         const filas: (string | number | null | undefined)[][] = [
-          ["SISTEMA CONTABLE OFICIAL - LIBRO AUXILIAR DE MAYOR"],
-          [`Ejercicio fiscal: ${ejercicioSeleccionado}`],
-          [`Cuenta: ${item.cuenta.codigo} - ${item.cuenta.nombre}`],
+          ["LIBRO AUXILIAR DE MAYOR — FINEXA"],
           [
-            `Clasificación: ${item.cuenta.tipo.toUpperCase()} | Naturaleza: ${item.cuenta.naturaleza.toUpperCase()}`,
+            `Cuenta: ${item.cuenta.codigo} - ${item.cuenta.nombre}  |  Fecha: ${new Date().toLocaleDateString("es-SV")}  |  Finexa · Sistema de Gestión Contable`,
           ],
-          [
-            `Período reportado: ${MESES.find((m) => m.valor === mesFiltro)?.label || "Todo el año"}`,
-          ],
-          [`Fecha de emisión: ${new Date().toLocaleDateString("es-SV")}`],
           [],
           [
             "Fecha",
@@ -1697,7 +1682,7 @@ function KardexContent() {
           filas,
           ...maquetarReporteContable({
             filas,
-            filaEncabezado: 7,
+            filaEncabezado: 3,
             columnasDebe: [5],
             columnasHaber: [6],
             columnasSaldo: [7],
@@ -1718,17 +1703,10 @@ function KardexContent() {
     if (!cuentaActual) return;
 
     const filas: (string | number | null | undefined)[][] = [
-      ["SISTEMA CONTABLE OFICIAL - LIBRO AUXILIAR DE CUENTAS MAYORES"],
-      [`Ejercicio fiscal: ${ejercicioSeleccionado}`],
-      [`Cuenta: ${cuentaActual.codigo} - ${cuentaActual.nombre}`],
+      ["LIBRO AUXILIAR DE CUENTAS MAYORES — FINEXA"],
       [
-        `Clasificación: ${cuentaActual.tipo.toUpperCase()} | Naturaleza Normal: ${cuentaActual.naturaleza.toUpperCase()}`,
+        `Cuenta: ${cuentaActual.codigo} - ${cuentaActual.nombre}  |  Fecha: ${new Date().toLocaleDateString("es-SV")}  |  Finexa · Sistema de Gestión Contable`,
       ],
-      [
-        `Período reportado: ${MESES.find((m) => m.valor === mesFiltro)?.label || "Todo el año"}`,
-      ],
-      [`Condición del Saldo: ${condicionSaldoTexto}`],
-      [`Fecha de emisión: ${new Date().toLocaleDateString("es-SV")}`],
       [],
       [
         "Fecha",
@@ -1804,7 +1782,7 @@ function KardexContent() {
           filas,
           ...maquetarReporteContable({
             filas,
-            filaEncabezado: 8,
+            filaEncabezado: 3,
             columnasDebe: [5],
             columnasHaber: [6],
             columnasSaldo: [7],

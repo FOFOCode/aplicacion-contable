@@ -65,24 +65,24 @@ const BORDE_DOBLE = {
 
 const TITULO: EstiloCelda = {
   font: { bold: true, sz: 13, color: { rgb: "FFFFFF" } },
-  fill: { patternType: "solid", fgColor: { rgb: "1E3A8A" } },
+  fill: { patternType: "solid", fgColor: { rgb: "115E59" } }, // Finexa Teal 800
   alignment: { horizontal: "center", vertical: "center" },
 }
 const SUBTITULO: EstiloCelda = {
-  font: { sz: 9.5, bold: true, color: { rgb: "1E40AF" } },
-  fill: { patternType: "solid", fgColor: { rgb: "EFF6FF" } },
+  font: { sz: 9.5, bold: true, color: { rgb: "0F766E" } }, // Finexa Teal 700
+  fill: { patternType: "solid", fgColor: { rgb: "F0FDFA" } }, // Finexa Teal 50
   alignment: { horizontal: "center", vertical: "center" },
-  border: { bottom: { style: "thin", color: { rgb: "93C5FD" } } },
+  border: { bottom: { style: "thin", color: { rgb: "99F6E4" } } },
 }
 const ENCABEZADO: EstiloCelda = {
   font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } },
-  fill: { patternType: "solid", fgColor: { rgb: "1E40AF" } },
+  fill: { patternType: "solid", fgColor: { rgb: "0F766E" } }, // Finexa Teal 700
   alignment: { horizontal: "center", vertical: "center", wrapText: true },
   border: {
-    top: { style: "medium", color: { rgb: "1E3A8A" } },
-    bottom: { style: "medium", color: { rgb: "1E3A8A" } },
-    left: { style: "thin", color: { rgb: "3B82F6" } },
-    right: { style: "thin", color: { rgb: "3B82F6" } },
+    top: { style: "medium", color: { rgb: "115E59" } },
+    bottom: { style: "medium", color: { rgb: "115E59" } },
+    left: { style: "thin", color: { rgb: "14B8A6" } },
+    right: { style: "thin", color: { rgb: "14B8A6" } },
   },
 }
 const ENCABEZADO_DEBE: EstiloCelda = {
@@ -98,13 +98,13 @@ const ENCABEZADO_DEBE: EstiloCelda = {
 }
 const ENCABEZADO_HABER: EstiloCelda = {
   font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } },
-  fill: { patternType: "solid", fgColor: { rgb: "1D4ED8" } },
+  fill: { patternType: "solid", fgColor: { rgb: "0E7490" } }, // Cyan 700
   alignment: { horizontal: "center", vertical: "center", wrapText: true },
   border: {
-    top: { style: "medium", color: { rgb: "1E40AF" } },
-    bottom: { style: "medium", color: { rgb: "1E40AF" } },
-    left: { style: "thin", color: { rgb: "60A5FA" } },
-    right: { style: "thin", color: { rgb: "60A5FA" } },
+    top: { style: "medium", color: { rgb: "083344" } },
+    bottom: { style: "medium", color: { rgb: "083344" } },
+    left: { style: "thin", color: { rgb: "06B6D4" } },
+    right: { style: "thin", color: { rgb: "06B6D4" } },
   },
 }
 const TOTAL: EstiloCelda = {
@@ -114,7 +114,7 @@ const TOTAL: EstiloCelda = {
 }
 const MONEDA: EstiloCelda = { numFmt: "$#,##0.00;($#,##0.00);\"-\"", alignment: { horizontal: "right" } }
 const MONEDA_DEBE: EstiloCelda = { numFmt: "$#,##0.00;($#,##0.00);\"-\"", font: { bold: true, color: { rgb: "047857" } }, alignment: { horizontal: "right" } }
-const MONEDA_HABER: EstiloCelda = { numFmt: "$#,##0.00;($#,##0.00);\"-\"", font: { bold: true, color: { rgb: "1D4ED8" } }, alignment: { horizontal: "right" } }
+const MONEDA_HABER: EstiloCelda = { numFmt: "$#,##0.00;($#,##0.00);\"-\"", font: { bold: true, color: { rgb: "0E7490" } }, alignment: { horizontal: "right" } }
 const MONEDA_TOTAL: EstiloCelda = { numFmt: "$#,##0.00;($#,##0.00);\"-\"", font: { bold: true, color: { rgb: "065F46" } }, alignment: { horizontal: "right" } }
 
 /** Encabezado + cuerpo con bordes, zebra striping y pie de totales formal resaltado. */
@@ -130,8 +130,12 @@ function maquetar(
 
   for (let c = 0; c < anchos.length; c++) {
     estilos[`0:${c}`] = TITULO
-    estilos[`1:${c}`] = SUBTITULO
-    estilos[`2:${c}`] = SUBTITULO
+    for (let r = 1; r < filaEncabezado; r++) {
+      const f = filas[r]
+      if (f && f.some((v) => v !== null && v !== undefined && v !== "")) {
+        estilos[`${r}:${c}`] = SUBTITULO
+      }
+    }
   }
 
   const filaH = filas[filaEncabezado] || []
@@ -185,10 +189,18 @@ function maquetar(
     ? XLSX_ENCODE_COL(totalColumnas - 1)
     : "A"
 
+  const combinar: string[] = []
+  for (let r = 0; r < filaEncabezado; r++) {
+    const f = filas[r]
+    if (f && f.some((v) => v !== null && v !== undefined && v !== "")) {
+      combinar.push(`A${r + 1}:${letraFinal}${r + 1}`)
+    }
+  }
+
   return {
     anchos,
     alturas: filas.map((_, i) => (i === filaEncabezado ? 26 : i === 0 ? 24 : i === ultima ? 24 : 18)),
-    combinar: [`A1:${letraFinal}1`, `A2:${letraFinal}2`, `A3:${letraFinal}3`],
+    combinar,
     filtro: filtro ?? `A${filaEncabezado + 1}:${letraFinal}${ultima - 1}`,
     estilos,
     orientacion: "landscape" as const,
@@ -434,9 +446,8 @@ export default function LibroMayorPage() {
 
   function exportarExcel() {
     const filasMayor: (string | number | null | undefined)[][] = [
-      ["SISTEMA CONTABLE AUTOMATIZADO - LIBRO MAYOR"],
-      [`Ejercicio fiscal: ${ejercicioSeleccionado}`],
-      [`Fecha de emisión: ${new Date().toLocaleDateString("es-SV")}`],
+      ["LIBRO MAYOR GENERAL — FINEXA"],
+      [`Fecha de emisión: ${new Date().toLocaleDateString("es-SV")}  |  Finexa · Sistema de Gestión Contable`],
       [],
       ["Código", "Nombre de la Cuenta", "Tipo", "Naturaleza", "Total Debe", "Total Haber", "Saldo Neto", "Condición"],
     ]
@@ -457,9 +468,8 @@ export default function LibroMayorPage() {
     filasMayor.push(["TOTALES", "", "", "", totalDebe, totalHaber, "", ""])
 
     const filasDetalle: (string | number | null | undefined)[][] = [
-      ["DETALLE DE CUENTAS T"],
-      [`Ejercicio fiscal: ${ejercicioSeleccionado}`],
-      [`Fecha de emisión: ${new Date().toLocaleDateString("es-SV")}`],
+      ["DETALLE DE CUENTAS T — FINEXA"],
+      [`Fecha de emisión: ${new Date().toLocaleDateString("es-SV")}  |  Finexa · Sistema de Gestión Contable`],
       [],
       ["Código", "Cuenta", "Folio", "Fecha", "Concepto", "Debe", "Haber", "Saldo final", "Condición"],
     ]
@@ -506,9 +516,8 @@ export default function LibroMayorPage() {
     }
 
     const filasComprobacion: (string | number | null | undefined)[][] = [
-      ["BALANCE DE COMPROBACIÓN"],
-      [`Ejercicio fiscal: ${ejercicioSeleccionado}`],
-      [`Fecha de emisión: ${new Date().toLocaleDateString("es-SV")}`],
+      ["BALANCE DE COMPROBACIÓN — FINEXA"],
+      [`Fecha de emisión: ${new Date().toLocaleDateString("es-SV")}  |  Finexa · Sistema de Gestión Contable`],
       [],
       ["Código", "Nombre de la Cuenta", "Movimiento Debe", "Movimiento Haber", "Saldo Deudor", "Saldo Acreedor"],
     ]
@@ -532,17 +541,17 @@ export default function LibroMayorPage() {
       {
         nombre: "Libro Mayor",
         filas: filasMayor,
-        ...maquetar(filasMayor, 4, [4, 5, 6], [10, 38, 11, 13, 15, 15, 15, 13], 8),
+        ...maquetar(filasMayor, 3, [4, 5, 6], [10, 38, 11, 13, 15, 15, 15, 13], 8),
       },
       {
         nombre: "Detalle Cuentas T",
         filas: filasDetalle,
-        ...maquetar(filasDetalle, 4, [5, 6, 7], [10, 34, 8, 12, 52, 14, 14, 14, 13], 9),
+        ...maquetar(filasDetalle, 3, [5, 6, 7], [10, 34, 8, 12, 52, 14, 14, 14, 13], 9),
       },
       {
         nombre: "Balance de Comprobación",
         filas: filasComprobacion,
-        ...maquetar(filasComprobacion, 4, [2, 3, 4, 5], [10, 38, 17, 17, 15, 15], 6),
+        ...maquetar(filasComprobacion, 3, [2, 3, 4, 5], [10, 38, 17, 17, 15, 15], 6),
       },
     ])
   }

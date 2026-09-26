@@ -291,10 +291,10 @@ export default function EstadosFinancierosPage() {
       | undefined
     )[][] = [
       [
-        "ESTADO DE RESULTADOS - MÉTODO ANALÍTICO O PORMENORIZADO",
+        "ESTADO DE RESULTADOS — FINEXA",
       ],
       [
-        "Expresado en dólares de los Estados Unidos de América (USD)",
+        "Expresado en dólares de los Estados Unidos de América (USD) | Finexa",
       ],
       [
         `Ejercicio fiscal: ${ejercicioSeleccionado}`,
@@ -511,10 +511,10 @@ export default function EstadosFinancierosPage() {
       | undefined
     )[][] = [
       [
-        "BALANCE GENERAL",
+        "BALANCE GENERAL — FINEXA",
       ],
       [
-        "Ecuación Contable: Activo = Pasivo + Capital Contable",
+        "Ecuación Contable: Activo = Pasivo + Capital Contable | Finexa",
       ],
       [
         `Ejercicio fiscal: ${ejercicioSeleccionado}`,

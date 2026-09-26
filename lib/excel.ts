@@ -55,18 +55,26 @@ export interface HojaExcel {
 }
 
 // =============================================================================
-// PALETA DE COLORES EJECUTIVA, VIBRANTE Y MODERNA
+// PALETA DE COLORES FINEXA (TEAL / ESMERALDA / PINO) — ELEGANTE Y EJECUTIVA
 // =============================================================================
 
 export const PALETA_EXCEL = {
-  // Azules Reales / Corporativos
-  azulBanner: "1E3A8A",          // Blue 900 - Azul real profundo para banner
-  azulHeaderTabla: "1E40AF",     // Blue 800 - Cabecera general de columnas
-  azulHeaderHaber: "1D4ED8",     // Blue 700 - Cabecera columna Haber
-  azulFondoSuave: "EFF6FF",       // Blue 50 - Fondo celeste tenue
-  azulFondoAcento: "DBEAFE",      // Blue 100 - Fondo de secciones
-  azulTexto: "1E40AF",            // Blue 800 - Texto azul destacado
-  azulBorde: "93C5FD",            // Blue 300 - Borde azul nítido
+  // Finexa - Identidad Corporativa Oficial
+  finexaOscuro: "115E59",        // Teal 800 - Banner institucional principal
+  finexaPrimario: "0F766E",      // Teal 700 - Cabeceras de columnas y elementos clave
+  finexaAcento: "CCFBF1",        // Teal 100 - Fondo de secciones y resaltados
+  finexaSuave: "F0FDFA",         // Teal 50 - Fondo de subtítulo y membrete
+  finexaTexto: "0F766E",         // Teal 700 - Texto corporativo destacado
+  finexaBorde: "99F6E4",         // Teal 200 - Bordes limpios corporativos
+
+  // Aliases de compatibilidad con Finexa
+  azulBanner: "115E59",          // Mapeado a Finexa Teal 800
+  azulHeaderTabla: "0F766E",     // Mapeado a Finexa Teal 700
+  azulHeaderHaber: "0E7490",     // Cyan 700 - Cabecera columna Haber
+  azulFondoSuave: "F0FDFA",      // Teal 50
+  azulFondoAcento: "CCFBF1",     // Teal 100
+  azulTexto: "0F766E",          // Teal 700
+  azulBorde: "99F6E4",          // Teal 200
 
   // Verdes Financieros (Debe / Ingresos / Cuadratura)
   verdeHeaderDebe: "047857",      // Emerald 700 - Cabecera columna Debe
@@ -116,21 +124,21 @@ const BORDE_TOTAL_DOBLE = {
 
 export const ESTILO_BANNER_EMPRESA: EstiloCelda = {
   font: { name: "Calibri", sz: 13, bold: true, color: { rgb: PALETA_EXCEL.blanco } },
-  fill: { patternType: "solid", fgColor: { rgb: PALETA_EXCEL.azulBanner } },
+  fill: { patternType: "solid", fgColor: { rgb: PALETA_EXCEL.finexaOscuro } },
   alignment: { horizontal: "center", vertical: "center" },
 }
 
 export const ESTILO_BANNER_SUBTITULO: EstiloCelda = {
-  font: { name: "Calibri", sz: 9.5, bold: true, color: { rgb: PALETA_EXCEL.azulTexto } },
-  fill: { patternType: "solid", fgColor: { rgb: PALETA_EXCEL.azulFondoSuave } },
+  font: { name: "Calibri", sz: 9.5, bold: true, color: { rgb: PALETA_EXCEL.finexaTexto } },
+  fill: { patternType: "solid", fgColor: { rgb: PALETA_EXCEL.finexaSuave } },
   alignment: { horizontal: "center", vertical: "center" },
   border: {
-    bottom: { style: "thin", color: { rgb: PALETA_EXCEL.azulBorde } },
+    bottom: { style: "thin", color: { rgb: PALETA_EXCEL.finexaBorde } },
   },
 }
 
 export const ESTILO_TITULO_EMPRESA: EstiloCelda = {
-  font: { name: "Calibri", sz: 13, bold: true, color: { rgb: PALETA_EXCEL.azulBanner } },
+  font: { name: "Calibri", sz: 13, bold: true, color: { rgb: PALETA_EXCEL.finexaOscuro } },
   alignment: { horizontal: "left", vertical: "center" },
 }
 
@@ -139,15 +147,15 @@ export const ESTILO_SUBTITULO: EstiloCelda = {
   alignment: { horizontal: "left", vertical: "center" },
 }
 
-// Cabeceras funcionales con color distintivo
+// Cabeceras funcionales con color distintivo Finexa
 export const ESTILO_CABECERA_TABLA: EstiloCelda = {
   font: { name: "Calibri", sz: 10, bold: true, color: { rgb: PALETA_EXCEL.blanco } },
-  fill: { patternType: "solid", fgColor: { rgb: PALETA_EXCEL.azulHeaderTabla } },
+  fill: { patternType: "solid", fgColor: { rgb: PALETA_EXCEL.finexaPrimario } },
   border: {
-    top: { style: "medium", color: { rgb: PALETA_EXCEL.azulBanner } },
-    bottom: { style: "medium", color: { rgb: PALETA_EXCEL.azulBanner } },
-    left: { style: "thin", color: { rgb: "3B82F6" } },
-    right: { style: "thin", color: { rgb: "3B82F6" } },
+    top: { style: "medium", color: { rgb: PALETA_EXCEL.finexaOscuro } },
+    bottom: { style: "medium", color: { rgb: PALETA_EXCEL.finexaOscuro } },
+    left: { style: "thin", color: { rgb: "14B8A6" } },
+    right: { style: "thin", color: { rgb: "14B8A6" } },
   },
   alignment: { horizontal: "center", vertical: "center", wrapText: true },
 }
@@ -168,10 +176,10 @@ export const ESTILO_CABECERA_HABER: EstiloCelda = {
   font: { name: "Calibri", sz: 10, bold: true, color: { rgb: PALETA_EXCEL.blanco } },
   fill: { patternType: "solid", fgColor: { rgb: PALETA_EXCEL.azulHeaderHaber } },
   border: {
-    top: { style: "medium", color: { rgb: "1E40AF" } },
-    bottom: { style: "medium", color: { rgb: "1E40AF" } },
-    left: { style: "thin", color: { rgb: "60A5FA" } },
-    right: { style: "thin", color: { rgb: "60A5FA" } },
+    top: { style: "medium", color: { rgb: "083344" } },
+    bottom: { style: "medium", color: { rgb: "083344" } },
+    left: { style: "thin", color: { rgb: "06B6D4" } },
+    right: { style: "thin", color: { rgb: "06B6D4" } },
   },
   alignment: { horizontal: "center", vertical: "center", wrapText: true },
 }

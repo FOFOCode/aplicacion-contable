@@ -171,21 +171,19 @@ export function exportarFolioCSV(folio: FolioExportData, getNombreCuenta: (codig
 
 export function exportarFolioExcel(folio: FolioExportData, getNombreCuenta: (codigo: string) => string) {
   const filas: (string | number | null | undefined)[][] = [
-    ["EMPRESA COMERCIAL S.A. DE C.V. — LIBRO DIARIO GENERAL"],
-    [`Folio Diario N°: ${String(folio.numero_folio).padStart(4, "0")}  |  Fecha de Jornada: ${folio.fecha}  |  Ejercicio: ${folio.ejercicio}`],
-    [`Estado del Folio: ${folio.estado}  |  Expresado en Dólares Estadounidenses (USD)`],
+    ["LIBRO DIARIO GENERAL — FINEXA"],
+    [`Folio Diario N°: ${String(folio.numero_folio).padStart(4, "0")}  |  Fecha: ${folio.fecha}  |  Finexa · Sistema de Gestión Contable`],
     [],
     ["Partida #", "Fecha", "Código", "Cuenta / Descripción", "Documento", "Debe (USD)", "Haber (USD)"],
   ]
 
   const anchos = [12, 12, 12, 42, 16, 16, 16]
-  const filaEncabezado = 4
+  const filaEncabezado = 3
   const estilos: Record<string, any> = {}
 
   for (let c = 0; c < anchos.length; c++) {
     estilos[`0:${c}`] = ESTILO_BANNER_EMPRESA
     estilos[`1:${c}`] = ESTILO_BANNER_SUBTITULO
-    estilos[`2:${c}`] = ESTILO_BANNER_SUBTITULO
     if (c === 5) {
       estilos[`${filaEncabezado}:${c}`] = ESTILO_CABECERA_DEBE
     } else if (c === 6) {
@@ -195,7 +193,7 @@ export function exportarFolioExcel(folio: FolioExportData, getNombreCuenta: (cod
     }
   }
 
-  const combinar: string[] = ["A1:G1", "A2:G2", "A3:G3"]
+  const combinar: string[] = ["A1:G1", "A2:G2"]
 
   folio.partidas.forEach((p) => {
     const fIdx = filas.length
