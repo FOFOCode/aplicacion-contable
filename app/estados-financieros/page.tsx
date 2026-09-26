@@ -294,9 +294,7 @@ export default function EstadosFinancierosPage() {
         "ESTADO DE RESULTADOS — FINEXA",
       ],
       [
-        `Fecha de emisión: ${new Date().toLocaleDateString(
-          "es-SV"
-        )}  |  Finexa · Sistema de Gestión Contable`,
+        "Finexa",
       ],
       [],
       ["Concepto / Rubro Contable", "Monto Oficial (USD)"],
@@ -501,9 +499,7 @@ export default function EstadosFinancierosPage() {
         "BALANCE GENERAL — FINEXA",
       ],
       [
-        `Fecha de corte: ${new Date().toLocaleDateString(
-          "es-SV"
-        )}  |  Finexa · Sistema de Gestión Contable`,
+        "Finexa",
       ],
       [],
       ["Cuenta / Rubro Contable", "Saldo Oficial (USD)"],
