@@ -14,7 +14,7 @@ import {
   ClipboardList,
   ExternalLink,
   Eye,
-  FileDown,
+  FileDown, Download,
   FileSpreadsheet,
   Filter,
   Layers,
@@ -24,6 +24,8 @@ import {
   Search,
   X,
   PencilLine,
+  Lock,
+  Unlock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -84,6 +86,8 @@ interface FilaKardexManual {
   montoContable: string;
   unidades: string;
   costoUnitario: string;
+  debe?: string;
+  haber?: string;
 }
 
 export const STORAGE_KARDEX_INVENTARIO = "modulo-contable:kardex_inventario_v1";
@@ -112,95 +116,7 @@ export const ARTICULOS_KARDEX = [
   },
 ];
 
-export const MOVIMIENTOS_KARDEX_DEFECTO: MovimientoKardexInventario[] = [
-  {
-    id: "k1",
-    fecha: "2026-01-02",
-    comprobante: "P-001 (Apertura)",
-    concepto: "Inventario inicial de mercaderías para apertura de operaciones",
-    tipo: "ENTRADA",
-    unidadesEntrada: 1000,
-    unidadesSalida: 0,
-    unidadesSaldo: 1000,
-    costoUnitario: 5.0,
-    debe: 5000.0,
-    haber: 0.0,
-    saldo: 5000.0,
-  },
-  {
-    id: "k2",
-    fecha: "2026-01-05",
-    comprobante: "CCF-1045",
-    concepto: "Compra de mercadería al contado según factura comercial",
-    tipo: "ENTRADA",
-    unidadesEntrada: 800,
-    unidadesSalida: 0,
-    unidadesSaldo: 1800,
-    costoUnitario: 5.0,
-    debe: 4000.0,
-    haber: 0.0,
-    saldo: 9000.0,
-  },
-  {
-    id: "k3",
-    fecha: "2026-01-09",
-    comprobante: "NC-102",
-    concepto:
-      "Devolución de mercadería dañada al proveedor según nota de crédito",
-    tipo: "DEVOLUCION_COMPRA",
-    unidadesEntrada: 0,
-    unidadesSalida: 80,
-    unidadesSaldo: 1720,
-    costoUnitario: 5.0,
-    debe: 0.0,
-    haber: 400.0,
-    saldo: 8600.0,
-  },
-  {
-    id: "k4",
-    fecha: "2026-01-12",
-    comprobante: "FAC-1001",
-    concepto: "Venta de mercaderías al contado (Despacho de almacén)",
-    tipo: "SALIDA",
-    unidadesEntrada: 0,
-    unidadesSalida: 800,
-    unidadesSaldo: 920,
-    costoUnitario: 5.0,
-    debe: 0.0,
-    haber: 4000.0,
-    saldo: 4600.0,
-  },
-  {
-    id: "k5",
-    fecha: "2026-01-15",
-    comprobante: "NC-001",
-    concepto:
-      "Reingreso por devolución de cliente por especificaciones técnicas",
-    tipo: "DEVOLUCION_VENTA",
-    unidadesEntrada: 40,
-    unidadesSalida: 0,
-    unidadesSaldo: 960,
-    costoUnitario: 5.0,
-    debe: 200.0,
-    haber: 0.0,
-    saldo: 4800.0,
-  },
-  {
-    id: "k6",
-    fecha: "2026-12-31",
-    comprobante: "TF-2026",
-    concepto:
-      "Ajuste e incorporación de inventario final según toma física de auditoría",
-    tipo: "AJUSTE",
-    unidadesEntrada: 340,
-    unidadesSalida: 0,
-    unidadesSaldo: 1300,
-    costoUnitario: 5.0,
-    debe: 1700.0,
-    haber: 0.0,
-    saldo: 6500.0,
-  },
-];
+export const MOVIMIENTOS_KARDEX_DEFECTO: MovimientoKardexInventario[] = [];
 
 function recalcularKardexMovimientos(
   movs: {
@@ -233,7 +149,7 @@ function recalcularKardexMovimientos(
       mSaldo = redondear(mSaldo + debe);
     } else if (m.tipo === "SALIDA" || m.tipo === "DEVOLUCION_COMPRA") {
       if (uSaldo > 0 && mSaldo > 0) {
-        costoUnit = redondear(mSaldo / uSaldo);
+        costoUnit = Math.round((mSaldo / uSaldo) * 10000) / 10000;
       }
       uSaldo -= m.unidadesSalida;
       haber = redondear(m.unidadesSalida * costoUnit);
@@ -359,19 +275,10 @@ function KardexContent() {
     "manual",
   );
   const [filasManuales, setFilasManuales] = useState<FilaKardexManual[]>([]);
+  const [edicionManualHabilitada, setEdicionManualHabilitada] = useState(false);
   const [movimientosKardex, setMovimientosKardex] = useState<
     MovimientoKardexInventario[]
-  >(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const saved = localStorage.getItem(STORAGE_KARDEX_INVENTARIO);
-        if (saved) return JSON.parse(saved);
-      } catch {
-        // fallback
-      }
-    }
-    return MOVIMIENTOS_KARDEX_DEFECTO;
-  });
+  >([]);
 
   const [modalNuevoMovimiento, setModalNuevoMovimiento] = useState(false);
   const [nuevoTipo, setNuevoTipo] = useState<
@@ -386,6 +293,52 @@ function KardexContent() {
   const [nuevoCosto, setNuevoCosto] = useState<string>("5.00");
   const [sincronizandoToma, setSincronizandoToma] = useState(false);
   const [sincronizadoExitoso, setSincronizadoExitoso] = useState(false);
+  const [estadoGuardadoManual, setEstadoGuardadoManual] = useState<
+    "idle" | "guardando" | "guardado" | "error"
+  >("idle");
+  const [guardandoMovimientoAuto, setGuardandoMovimientoAuto] = useState(false);
+  const [mensajeExitoAuto, setMensajeExitoAuto] = useState<string | null>(null);
+
+  function handleCambioTipoAuto(tipo: MovimientoKardexInventario["tipo"]) {
+    setNuevoTipo(tipo);
+    if (tipo === "ENTRADA") {
+      setNuevoComprobante("CCF-");
+      setNuevoConcepto("Compra de mercaderías para almacén según CCF");
+      if (totalesKardex.costoPromedioActual > 0) {
+        setNuevoCosto(totalesKardex.costoPromedioActual.toFixed(2));
+      }
+    } else if (tipo === "SALIDA") {
+      setNuevoComprobante("FAC-");
+      setNuevoConcepto("Despacho de mercaderías por venta según factura");
+      setNuevoCosto(totalesKardex.costoPromedioActual.toFixed(2));
+    } else if (tipo === "DEVOLUCION_COMPRA") {
+      setNuevoComprobante("NC-");
+      setNuevoConcepto("Devolución de mercaderías a proveedor según nota de crédito");
+      setNuevoCosto(totalesKardex.costoPromedioActual.toFixed(2));
+    } else if (tipo === "DEVOLUCION_VENTA") {
+      setNuevoComprobante("NC-");
+      setNuevoConcepto("Reingreso por devolución de cliente");
+      setNuevoCosto(totalesKardex.costoPromedioActual.toFixed(2));
+    } else if (tipo === "AJUSTE") {
+      setNuevoComprobante("AJU-");
+      setNuevoConcepto("Ajuste de inventario físico según auditoría");
+      setNuevoCosto(totalesKardex.costoPromedioActual.toFixed(2));
+    }
+  }
+
+  function abrirModalNuevoMovimiento() {
+    setNuevoFecha(new Date().toISOString().slice(0, 10));
+    setNuevoTipo("ENTRADA");
+    setNuevoComprobante("CCF-");
+    setNuevoConcepto("Compra de mercaderías para almacén según CCF");
+    setNuevoUnidades("100");
+    if (totalesKardex.costoPromedioActual > 0) {
+      setNuevoCosto(totalesKardex.costoPromedioActual.toFixed(2));
+    } else {
+      setNuevoCosto("5.00");
+    }
+    setModalNuevoMovimiento(true);
+  }
 
   const esFilaAperturaManual = (fila: FilaKardexManual, indice: number) => {
     const conceptoNormalizado = normalizar(fila.concepto);
@@ -407,44 +360,63 @@ function KardexContent() {
       const cantidad = Number(fila.unidades);
       const costo = Number(fila.costoUnitario);
       const montoDirecto = Number(fila.montoContable);
+      const debeManual = fila.debe !== undefined && fila.debe !== "" ? Number(fila.debe) : NaN;
+      const haberManual = fila.haber !== undefined && fila.haber !== "" ? Number(fila.haber) : NaN;
       const esApertura = esFilaAperturaManual(fila, indice);
       if (
         !Number.isFinite(cantidad) ||
         cantidad <= 0 ||
         (esApertura
-          ? !Number.isFinite(montoDirecto) || montoDirecto <= 0
-          : !Number.isFinite(costo) || costo <= 0)
+          ? (!Number.isFinite(montoDirecto) || montoDirecto <= 0) && (!Number.isFinite(debeManual) || debeManual <= 0)
+          : (!Number.isFinite(costo) || costo <= 0) && (!Number.isFinite(debeManual) || debeManual <= 0) && (!Number.isFinite(haberManual) || haberManual <= 0))
       )
         continue;
 
-      const esEntrada =
-        fila.tipo === "ENTRADA" || fila.tipo === "DEVOLUCION_VENTA";
+      const esEntrada = fila.tipo === "ENTRADA" || fila.tipo === "DEVOLUCION_VENTA";
       const entrada = esEntrada ? cantidad : 0;
       const salida = esEntrada ? 0 : cantidad;
-      const costoRedondeado = Number.isFinite(costo) ? redondear(costo) : 0;
+      const costoVal = Number.isFinite(costo) ? Math.round(costo * 1000000) / 1000000 : 0;
       const montoDirectoRedondeado = redondear(montoDirecto);
-      const costoUnitarioAritmetico =
-        fila.tipo === "DEVOLUCION_COMPRA"
-          ? costoRedondeado
-          : unidades > 0
-            ? saldo / unidades
-            : costoRedondeado;
-      const costoEntrada = esApertura
-        ? costoRedondeado > 0
-          ? costoRedondeado
-          : redondear(montoDirectoRedondeado / cantidad)
-        : costoRedondeado;
-      const valorDebe = esApertura
-        ? montoDirectoRedondeado
-        : fila.tipo === "DEVOLUCION_VENTA"
-          ? redondear(entrada * costoUnitarioAritmetico)
-          : redondear(entrada * costoRedondeado);
-      const valorHaberCrudo = salida * costoUnitarioAritmetico;
-      const valorHaber = redondear(valorHaberCrudo);
+
+      let valorDebe = 0;
+      let valorHaber = 0;
+
+      const cppActual = unidades > 0 ? Math.round((saldo / unidades) * 1000000) / 1000000 : costoVal;
+
+      if (esEntrada) {
+        if (Number.isFinite(debeManual) && debeManual > 0) {
+          valorDebe = redondear(debeManual);
+        } else if (montoDirectoRedondeado > 0) {
+          valorDebe = montoDirectoRedondeado;
+        } else {
+          const costoAUsar = fila.tipo === "DEVOLUCION_VENTA" ? cppActual : costoVal;
+          valorDebe = redondear(entrada * costoAUsar);
+        }
+      } else {
+        if (Number.isFinite(haberManual) && haberManual > 0) {
+          valorHaber = redondear(haberManual);
+        } else if (montoDirectoRedondeado > 0) {
+          valorHaber = montoDirectoRedondeado;
+        } else {
+          const costoAUsar = fila.tipo === "DEVOLUCION_COMPRA" && costoVal > 0 ? costoVal : cppActual;
+          valorHaber = redondear(salida * costoAUsar);
+        }
+      }
+
       unidades = Math.max(0, unidades + entrada - salida);
       saldo = redondear(Math.max(0, saldo + valorDebe - valorHaber));
       debe = redondear(debe + valorDebe);
       haber = redondear(haber + valorHaber);
+
+      const costoMostrado =
+        costoVal > 0
+          ? costoVal
+          : esEntrada && entrada > 0 && valorDebe > 0
+            ? Math.round((valorDebe / entrada) * 10000) / 10000
+            : salida > 0 && valorHaber > 0
+              ? Math.round((valorHaber / salida) * 10000) / 10000
+              : redondear(cppActual);
+
       movimientos.push({
         id: fila.id,
         fecha: fila.fecha,
@@ -454,11 +426,7 @@ function KardexContent() {
         unidadesEntrada: entrada,
         unidadesSalida: salida,
         unidadesSaldo: unidades,
-        costoUnitario: esApertura
-          ? costoEntrada
-          : esEntrada
-            ? costoRedondeado
-            : redondear(costoUnitarioAritmetico),
+        costoUnitario: costoMostrado,
         debe: valorDebe,
         haber: valorHaber,
         saldo,
@@ -562,6 +530,8 @@ function KardexContent() {
               montoContable: String(monto),
               unidades: "",
               costoUnitario: "",
+              debe: tipo === "ENTRADA" || tipo === "DEVOLUCION_VENTA" ? String(monto) : "",
+              haber: tipo === "DEVOLUCION_COMPRA" ? String(monto) : "",
             },
           ];
         }),
@@ -569,37 +539,98 @@ function KardexContent() {
   }, [asientos, ejercicioSeleccionado]);
 
   useEffect(() => {
+    // Si la base de datos está conectada, el hook cargarKardexDb determina si hay datos o si está limpia (0).
+    if (dbConnected) return;
+
     const clave = `${STORAGE_KARDEX_MANUAL}:${ejercicioSeleccionado}:${articuloId}`;
-    const plantillaInicial: FilaKardexManual[] =
-      asientosInventario.length > 0
-        ? asientosInventario
-        : [
-            {
-              id: `manual-${ejercicioSeleccionado}-1`,
-              asientoId: "",
-              fecha: `${ejercicioSeleccionado}-01-01`,
-              partidaNumero: 1,
-              comprobante: "",
-              concepto: "",
-              tipo: "ENTRADA",
-              montoContable: "",
-              unidades: "",
-              costoUnitario: "",
-            },
-          ];
     try {
       const guardadas = localStorage.getItem(clave);
-      setFilasManuales(guardadas ? JSON.parse(guardadas) : plantillaInicial);
+      if (guardadas) {
+        const parsed = JSON.parse(guardadas);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setFilasManuales(parsed);
+          return;
+        }
+      }
     } catch {
-      setFilasManuales(plantillaInicial);
+      // ignore
     }
-  }, [ejercicioSeleccionado, articuloId, asientosInventario]);
+    setFilasManuales([]);
+  }, [ejercicioSeleccionado, articuloId, dbConnected]);
 
+
+  // Auto-guardado en LocalStorage y en Base de Datos (Supabase) con debounce
   useEffect(() => {
+    if (filasManuales.length === 0) return;
     const clave = `${STORAGE_KARDEX_MANUAL}:${ejercicioSeleccionado}:${articuloId}`;
-    if (filasManuales.length > 0)
+    try {
       localStorage.setItem(clave, JSON.stringify(filasManuales));
-  }, [filasManuales, ejercicioSeleccionado, articuloId]);
+    } catch {
+      // ignore
+    }
+
+    if (!dbConnected) return;
+    // Solo sincronizar a BD si hay al menos un movimiento con unidades válidas
+    if (movimientosManuales.movimientos.length === 0) return;
+
+    setEstadoGuardadoManual("guardando");
+    const timer = setTimeout(async () => {
+      try {
+        const payload = {
+          action: "guardar_manual_batch",
+          ejercicio: ejercicioSeleccionado,
+          articuloCodigo: articuloId,
+          movimientos: (() => {
+            const vistos = new Set<string>();
+            return movimientosManuales.movimientos
+              .filter((m) => {
+                const k = m.id
+                  ? m.id
+                  : `${m.fecha}-${m.comprobante}-${m.tipo}-${m.unidadesEntrada}-${m.unidadesSalida}`;
+                if (vistos.has(k)) return false;
+                vistos.add(k);
+                return true;
+              })
+              .map((m) => {
+                const filaOrig = filasManuales.find((f) => f.id === m.id);
+                return {
+                  ...m,
+                  asientoId: filaOrig?.asientoId || null,
+                };
+              });
+          })(),
+        };
+
+        const res = await fetch("/api/kardex", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.movimientos) && data.movimientos.length > 0) {
+            setMovimientosKardex(data.movimientos);
+          }
+          setEstadoGuardadoManual("guardado");
+          setTimeout(() => setEstadoGuardadoManual("idle"), 3000);
+        } else {
+          setEstadoGuardadoManual("error");
+        }
+      } catch (err) {
+        console.error("Error al persistir lote manual de kardex en DB:", err);
+        setEstadoGuardadoManual("error");
+      }
+    }, 700);
+
+    return () => clearTimeout(timer);
+  }, [
+    filasManuales,
+    movimientosManuales.movimientos,
+    ejercicioSeleccionado,
+    articuloId,
+    dbConnected,
+  ]);
 
   function actualizarFilaManual(
     id: string,
@@ -610,7 +641,9 @@ function KardexContent() {
       | "tipo"
       | "unidades"
       | "montoContable"
-      | "costoUnitario",
+      | "costoUnitario"
+      | "debe"
+      | "haber",
     valor: string,
   ) {
     setFilasManuales((actuales) =>
@@ -621,6 +654,7 @@ function KardexContent() {
   }
 
   function agregarFilaManual() {
+    setEdicionManualHabilitada(true);
     setFilasManuales((actuales) => [
       ...actuales,
       {
@@ -634,6 +668,8 @@ function KardexContent() {
         montoContable: "",
         unidades: "",
         costoUnitario: "",
+        debe: "",
+        haber: "",
       },
     ]);
   }
@@ -670,12 +706,61 @@ function KardexContent() {
         );
         if (res.ok) {
           const data = await res.json();
-          if (
-            !cancel &&
-            Array.isArray(data.movimientos) &&
-            data.movimientos.length > 0
-          ) {
-            setMovimientosKardex(data.movimientos);
+          if (!cancel && Array.isArray(data.movimientos)) {
+            if (data.movimientos.length > 0) {
+              const vistos = new Set<string>();
+              const movimientosUnicos = data.movimientos.filter((m: any) => {
+                const k = m.asientoId
+                  ? `asiento-${m.asientoId}`
+                  : `${m.fecha}-${m.comprobante}-${m.tipo}-${m.unidadesEntrada}-${m.unidadesSalida}`;
+                if (vistos.has(k)) return false;
+                vistos.add(k);
+                return true;
+              });
+
+              setMovimientosKardex(movimientosUnicos);
+              // Sincronizar también con la plantilla manual si el usuario abre Modo Manual
+              const filasDb: FilaKardexManual[] = movimientosUnicos.map(
+                (m: any, idx: number) => ({
+                  id: m.id || `manual-${idx}`,
+                  asientoId: m.asientoId || "",
+                  fecha: m.fecha
+                    ? String(m.fecha).slice(0, 10)
+                    : `${ejercicioSeleccionado}-01-01`,
+                  partidaNumero: idx + 1,
+                  comprobante: m.comprobante || "",
+                  concepto: m.concepto || "",
+                  tipo: m.tipo,
+                  montoContable: String(
+                    m.debe > 0 ? m.debe : m.haber > 0 ? m.haber : m.saldo || "",
+                  ),
+                  unidades: String(
+                    m.unidadesEntrada > 0
+                      ? m.unidadesEntrada
+                      : m.unidadesSalida || "",
+                  ),
+                  costoUnitario: String(
+                    m.costoUnitario ? Number(m.costoUnitario).toFixed(2) : "8.85",
+                  ),
+                  debe: m.debe > 0 ? String(m.debe) : "",
+                  haber: m.haber > 0 ? String(m.haber) : "",
+                }),
+              );
+              setFilasManuales(filasDb);
+            } else {
+              // Base de datos limpia (0 movimientos)
+              setMovimientosKardex([]);
+              setFilasManuales([]);
+              if (typeof window !== "undefined") {
+                try {
+                  localStorage.removeItem(STORAGE_KARDEX_INVENTARIO);
+                  const clave = `${STORAGE_KARDEX_MANUAL}:${ejercicioSeleccionado}:${articuloId}`;
+                  localStorage.removeItem(clave);
+                } catch {
+                  // ignore
+                }
+              }
+            }
           }
         }
       } catch (err) {
@@ -690,12 +775,21 @@ function KardexContent() {
 
   const guardarMovimientosKardex = useCallback(
     (nuevos: MovimientoKardexInventario[]) => {
-      setMovimientosKardex(nuevos);
+      const vistos = new Set<string>();
+      const unicos = nuevos.filter((m) => {
+        const k = m.id
+          ? m.id
+          : `${m.fecha}-${m.comprobante}-${m.tipo}-${m.unidadesEntrada}-${m.unidadesSalida}`;
+        if (vistos.has(k)) return false;
+        vistos.add(k);
+        return true;
+      });
+      setMovimientosKardex(unicos);
       if (typeof window !== "undefined") {
         try {
           localStorage.setItem(
             STORAGE_KARDEX_INVENTARIO,
-            JSON.stringify(nuevos),
+            JSON.stringify(unicos),
           );
         } catch {
           // ignore
@@ -705,9 +799,43 @@ function KardexContent() {
     [],
   );
 
-  const restablecerKardex = useCallback(() => {
-    guardarMovimientosKardex(MOVIMIENTOS_KARDEX_DEFECTO);
-  }, [guardarMovimientosKardex]);
+  const restablecerKardex = useCallback(async () => {
+    guardarMovimientosKardex([]);
+    setFilasManuales([]);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.removeItem(STORAGE_KARDEX_INVENTARIO);
+        const clave = `${STORAGE_KARDEX_MANUAL}:${ejercicioSeleccionado}:${articuloId}`;
+        localStorage.removeItem(clave);
+      } catch {
+        // ignore
+      }
+    }
+    if (dbConnected) {
+      try {
+        await fetch("/api/kardex", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "vaciar_kardex",
+            ejercicio: ejercicioSeleccionado,
+            articuloCodigo: articuloId,
+          }),
+        });
+        setMensajeExitoAuto("Kardex e inventarios vaciados completamente de la base de datos.");
+        setTimeout(() => setMensajeExitoAuto(null), 4000);
+      } catch (e) {
+        console.error("Error al vaciar kardex en base de datos:", e);
+      }
+    }
+  }, [guardarMovimientosKardex, ejercicioSeleccionado, articuloId, dbConnected]);
+
+  const cargarPlantillaLibroDiario = useCallback(() => {
+    if (asientosInventario.length > 0) {
+      setFilasManuales(asientosInventario);
+      setEdicionManualHabilitada(true);
+    }
+  }, [asientosInventario]);
 
   const articuloActual = useMemo(() => {
     return (
@@ -751,12 +879,13 @@ function KardexContent() {
     };
   }, [movimientosKardexVista]);
 
-  function agregarMovimientoKardex(e: React.FormEvent) {
+  async function agregarMovimientoKardex(e: React.FormEvent) {
     e.preventDefault();
     const u = Number(nuevoUnidades) || 0;
     const c = Number(nuevoCosto) || 0;
     if (u <= 0) return;
 
+    setGuardandoMovimientoAuto(true);
     const esEntrada =
       nuevoTipo === "ENTRADA" ||
       nuevoTipo === "DEVOLUCION_VENTA" ||
@@ -764,69 +893,114 @@ function KardexContent() {
     const esSalida =
       nuevoTipo === "SALIDA" || nuevoTipo === "DEVOLUCION_COMPRA";
 
-    const raw = [
-      ...movimientosKardex.map((m) => ({
-        id: m.id,
-        fecha: m.fecha,
-        comprobante: m.comprobante,
-        concepto: m.concepto,
-        tipo: m.tipo,
-        unidadesEntrada: m.unidadesEntrada,
-        unidadesSalida: m.unidadesSalida,
-        costoUnitario: m.costoUnitario,
-      })),
-      {
-        id: `k-${Date.now()}`,
-        fecha: nuevoFecha,
-        comprobante:
-          nuevoComprobante.trim() || (esEntrada ? "CCF-PROV" : "FAC-CLI"),
-        concepto:
-          nuevoConcepto.trim() ||
-          (esEntrada
-            ? "Ingreso de existencias a bodega"
-            : "Despacho de existencias por venta"),
-        tipo: nuevoTipo,
-        unidadesEntrada: esEntrada ? u : 0,
-        unidadesSalida: esSalida ? u : 0,
-        costoUnitario: c,
-      },
-    ].sort((a, b) => a.fecha.localeCompare(b.fecha));
+    const comp =
+      nuevoComprobante.trim() ||
+      (esEntrada
+        ? `CCF-${String(movimientosKardex.length + 1).padStart(3, "0")}`
+        : `FAC-${String(movimientosKardex.length + 1).padStart(3, "0")}`);
+    const conc =
+      nuevoConcepto.trim() ||
+      (esEntrada
+        ? "Ingreso de existencias a bodega"
+        : "Despacho de existencias por venta");
 
-    const recalculados = recalcularKardexMovimientos(raw);
-    guardarMovimientosKardex(recalculados);
+    try {
+      if (dbConnected) {
+        const res = await fetch("/api/kardex", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ejercicio: ejercicioSeleccionado,
+            articuloCodigo: articuloId,
+            fecha: nuevoFecha,
+            comprobante: comp,
+            concepto: conc,
+            tipo: nuevoTipo,
+            unidadesEntrada: esEntrada ? u : 0,
+            unidadesSalida: esSalida ? u : 0,
+            costoUnitario: c,
+          }),
+        });
 
-    // Persistir en servidor contable si hay conexión
-    if (dbConnected) {
-      fetch("/api/kardex", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ejercicio: ejercicioSeleccionado,
-          articuloCodigo: articuloId,
-          fecha: nuevoFecha,
-          comprobante:
-            nuevoComprobante.trim() || (esEntrada ? "CCF-PROV" : "FAC-CLI"),
-          concepto:
-            nuevoConcepto.trim() ||
-            (esEntrada
-              ? "Ingreso de existencias a bodega"
-              : "Despacho de existencias por venta"),
-          tipo: nuevoTipo,
-          unidadesEntrada: esEntrada ? u : 0,
-          unidadesSalida: esSalida ? u : 0,
-          costoUnitario: c,
-        }),
-      }).catch((err) =>
-        console.error(
-          "Error al persistir movimiento en servidor contable:",
-          err,
-        ),
-      );
+        if (res.ok) {
+          // Re-cargar kardex completo desde DB para tener saldos y CPP exactos
+          const resKardex = await fetch(
+            `/api/kardex?ejercicio=${ejercicioSeleccionado}&articulo=${articuloId}`,
+          );
+          if (resKardex.ok) {
+            const data = await resKardex.json();
+            if (Array.isArray(data.movimientos)) {
+              setMovimientosKardex(data.movimientos);
+              const filasActualizadas: FilaKardexManual[] =
+                data.movimientos.map((m: any, idx: number) => ({
+                  id: m.id || `manual-${idx}`,
+                  asientoId: m.asientoId || "",
+                  fecha: m.fecha
+                    ? String(m.fecha).slice(0, 10)
+                    : nuevoFecha,
+                  partidaNumero: idx + 1,
+                  comprobante: m.comprobante || "",
+                  concepto: m.concepto || "",
+                  tipo: m.tipo,
+                  montoContable: String(
+                    m.debe > 0
+                      ? m.debe
+                      : m.haber > 0
+                        ? m.haber
+                        : m.saldo || "",
+                  ),
+                  unidades: String(
+                    m.unidadesEntrada > 0
+                      ? m.unidadesEntrada
+                      : m.unidadesSalida || "",
+                  ),
+                  costoUnitario: String(
+                    m.costoUnitario ? Number(m.costoUnitario).toFixed(2) : "8.85",
+                  ),
+                }));
+              setFilasManuales(filasActualizadas);
+            }
+          }
+        }
+      } else {
+        // Fallback local si no hay DB
+        const raw = [
+          ...movimientosKardex.map((m) => ({
+            id: m.id,
+            fecha: m.fecha,
+            comprobante: m.comprobante,
+            concepto: m.concepto,
+            tipo: m.tipo,
+            unidadesEntrada: m.unidadesEntrada,
+            unidadesSalida: m.unidadesSalida,
+            costoUnitario: m.costoUnitario,
+          })),
+          {
+            id: `k-${Date.now()}`,
+            fecha: nuevoFecha,
+            comprobante: comp,
+            concepto: conc,
+            tipo: nuevoTipo,
+            unidadesEntrada: esEntrada ? u : 0,
+            unidadesSalida: esSalida ? u : 0,
+            costoUnitario: c,
+          },
+        ].sort((a, b) => a.fecha.localeCompare(b.fecha));
+
+        const recalculados = recalcularKardexMovimientos(raw);
+        guardarMovimientosKardex(recalculados);
+      }
+
+      setMensajeExitoAuto("¡Movimiento registrado con éxito en la base de datos!");
+      setTimeout(() => setMensajeExitoAuto(null), 4000);
+      setModalNuevoMovimiento(false);
+      setNuevoComprobante("");
+      setNuevoConcepto("");
+    } catch (err) {
+      console.error("Error al registrar movimiento:", err);
+    } finally {
+      setGuardandoMovimientoAuto(false);
     }
-
-    setModalNuevoMovimiento(false);
-    setNuevoComprobante("");
-    setNuevoConcepto("");
   }
 
   async function handleSincronizarConTomaFisica() {
@@ -1756,258 +1930,206 @@ function KardexContent() {
       {pestañaPrincipal === "kardex_inventario" ? (
         <div className="space-y-4">
           {/* Header Web del Kardex */}
-          <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-3 print:hidden">
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold tracking-tight text-foreground">
-                  Tarjeta de Kardex
-                </h1>
-                <Badge variant="outline" className="text-xs font-mono">
-                  {ejercicioSeleccionado}
-                </Badge>
-                <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5 text-xs font-medium ml-1">
-                  <button
-                    type="button"
-                    onClick={() => setModoKardex("automatico")}
-                    className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
-                      modoKardex === "automatico"
-                        ? "bg-background text-foreground font-semibold shadow-xs"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    Automático
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setModoKardex("manual")}
-                    className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
-                      modoKardex === "manual"
-                        ? "bg-background text-foreground font-semibold shadow-xs"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    Manual
-                  </button>
+          <header className="flex flex-col gap-4 border-b border-border pb-4 print:hidden">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-xl font-bold tracking-tight text-foreground">
+                    Control de Inventario
+                  </h1>
+                  <Badge variant="outline" className="text-xs font-mono">
+                    {ejercicioSeleccionado}
+                  </Badge>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {modoKardex === "manual"
-                  ? "Complete la plantilla del Kardex; existencias y valores se recalculan al instante."
-                  : "Control permanente de existencias físicas y valuación de inventario en bodega por artículo."}
-              </p>
+
+              <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5 text-xs font-medium">
+                <button
+                  type="button"
+                  onClick={() => setModoKardex("automatico")}
+                  className={`px-3 py-1.5 rounded-md transition-all cursor-pointer ${
+                    modoKardex === "automatico"
+                      ? "bg-background text-foreground font-semibold shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Automático
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModoKardex("manual")}
+                  className={`px-3 py-1.5 rounded-md transition-all cursor-pointer ${
+                    modoKardex === "manual"
+                      ? "bg-background text-foreground font-semibold shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Manual
+                </button>
+              </div>
             </div>
 
-            <div className="flex items-center gap-2 print:hidden shrink-0">
-              {modoKardex === "automatico" && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-muted/20 p-3 rounded-lg border border-border">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                  <Package className="size-4" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Artículo a consultar
+                  </label>
+                  <div className="relative flex items-center min-w-[280px]">
+                    <select
+                      value={articuloId}
+                      onChange={(e) => setArticuloId(e.target.value)}
+                      className="w-full h-8 pl-2 pr-8 rounded-md border border-input bg-background text-sm font-medium text-foreground shadow-xs focus:ring-1 focus:ring-primary outline-none cursor-pointer appearance-none hover:bg-muted/30 transition-colors"
+                    >
+                      {ARTICULOS_KARDEX.map((art) => (
+                        <option key={art.codigo} value={art.codigo}>
+                          {art.codigo} — {art.nombre}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="size-4 text-muted-foreground absolute right-2 pointer-events-none" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 print:hidden">
+              {modoKardex === "manual" ? (
+                <>
+                  {filasManuales.length === 0 && asientosInventario.length > 0 && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={cargarPlantillaLibroDiario}
+                      className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 cursor-pointer"
+                      title="Cargar las 6 operaciones con compras y ventas del Libro Diario"
+                    >
+                      <FileSpreadsheet className="size-3.5" />
+                      Cargar Pólizas ({asientosInventario.length})
+                    </Button>
+                  )}
+                  {filasManuales.length > 0 && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setEdicionManualHabilitada(!edicionManualHabilitada)}
+                      className={`h-8 gap-1.5 text-xs cursor-pointer transition-colors ${
+                        edicionManualHabilitada
+                          ? "border-amber-500/50 bg-amber-500/10 text-amber-800 dark:text-amber-300 hover:bg-amber-500/20"
+                          : "border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+                      }`}
+                      title={
+                        edicionManualHabilitada
+                          ? "Bloquear celdas para evitar modificaciones accidentales"
+                          : "Habilitar modo edición para modificar valores"
+                      }
+                    >
+                      {edicionManualHabilitada ? (
+                        <>
+                          <Lock className="size-3.5 text-amber-600 dark:text-amber-400" />
+                          <span>Bloquear</span>
+                        </>
+                      ) : (
+                        <>
+                          <Unlock className="size-3.5 text-muted-foreground" />
+                          <span>Editar</span>
+                        </>
+                      )}
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={agregarFilaManual}
+                    className="h-8 gap-1.5 text-xs shadow-xs bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer"
+                  >
+                    <Plus className="size-3.5" />
+                    Agregar Fila
+                  </Button>
+                </>
+              ) : (
                 <Button
                   type="button"
                   size="sm"
-                  onClick={() => setModalNuevoMovimiento(true)}
-                  className="h-8 gap-1.5 text-xs shadow-xs"
+                  onClick={abrirModalNuevoMovimiento}
+                  className="h-8 gap-1.5 text-xs shadow-xs bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer"
                 >
                   <Plus className="size-3.5" />
                   Registrar Movimiento
                 </Button>
               )}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={exportarPdf}
-                className="h-8 gap-1.5 text-xs shadow-xs"
-              >
-                <FileDown className="size-3.5" />
-                Imprimir
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={exportarExcel}
-                className="h-8 gap-1.5 text-xs text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/20 shadow-xs"
-              >
-                <FileSpreadsheet className="size-3.5 text-emerald-600" />
-                Excel
-              </Button>
-              <button
-                type="button"
-                onClick={restablecerKardex}
-                title="Restablecer datos de demostración"
-                className="p-1.5 text-muted-foreground hover:text-foreground rounded-md transition-colors cursor-pointer"
-                aria-label="Restablecer movimientos de demostración"
-              >
-                <RotateCcw className="size-3.5" />
-              </button>
-            </div>
-          </header>
-
-          {/* Selector de Artículo en Bodega */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 rounded-xl border border-border bg-card p-3 shadow-xs print:hidden">
-            <div className="flex items-center gap-2.5 flex-1 min-w-0">
-              <span className="text-xs font-semibold text-muted-foreground shrink-0">
-                Artículo:
-              </span>
-              <select
-                value={articuloId}
-                onChange={(e) => setArticuloId(e.target.value)}
-                className="h-8 rounded-lg border border-border bg-background px-3 py-1 text-xs font-medium focus:ring-1 focus:ring-primary focus:outline-hidden max-w-md w-full cursor-pointer"
-              >
-                {ARTICULOS_KARDEX.map((art) => (
-                  <option key={art.codigo} value={art.codigo}>
-                    {art.codigo} — {art.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0 flex-wrap">
-              <span>
-                Ubicación:{" "}
-                <strong className="text-foreground font-medium">
-                  {articuloActual.ubicacion}
-                </strong>
-              </span>
-              <span>·</span>
-              <span>
-                Cuenta Mayor:{" "}
-                <strong className="text-foreground font-medium">
-                  {articuloActual.cuentaCodigo} ({articuloActual.cuentaNombre})
-                </strong>
-              </span>
-              <span>·</span>
-              <span>
-                Unidad:{" "}
-                <strong className="text-foreground font-medium">
-                  {articuloActual.unidad}
-                </strong>
-              </span>
-            </div>
-          </div>
-
-          {/* Panel de Auditoría y Conciliación con el Método Analítico */}
-          <div className="rounded-xl border border-border bg-card p-4 shadow-xs print:hidden space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <div
-                  className={`p-2 rounded-lg ${
-                    Math.abs(
-                      totalesKardex.saldoFinal -
-                        (tomaFisica?.valor_inventario_final ?? 0),
-                    ) < 0.01
-                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                      : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                  }`}
-                >
-                  <Layers className="size-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
-                      Auditoría y Conciliación de Inventario Final
-                    </h4>
-                    {Math.abs(
-                      totalesKardex.saldoFinal -
-                        (tomaFisica?.valor_inventario_final ?? 0),
-                    ) < 0.01 ? (
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] text-emerald-600 border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/20"
-                      >
-                        <CheckCircle2 className="size-3 mr-1 inline" />{" "}
-                        Conciliado 100%
-                      </Badge>
-                    ) : (
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] text-amber-600 border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20"
-                      >
-                        Discrepancia detectada
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Conciliación de existencias en almacén para la determinación
-                    del Costo de Ventas:{" "}
-                    <span className="font-mono text-foreground font-medium">
-                      Costo de Ventas = Inv. Inicial + Compras Netas − Inv.
-                      Final
-                    </span>
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
+                            {Math.abs(totalesKardex.saldoFinal - (tomaFisica?.valor_inventario_final ?? 0)) >= 0.01 && (
                 <Button
                   type="button"
                   size="sm"
+                  variant="outline"
                   disabled={sincronizandoToma}
                   onClick={handleSincronizarConTomaFisica}
-                  className="h-8 gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer"
+                  className="h-8 px-2.5 text-xs gap-1.5 cursor-pointer border-emerald-500/30 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 print:hidden"
+                  title="Sincronizar el saldo del Kardex con la Toma Física"
                 >
-                  <RotateCcw
-                    className={`size-3.5 ${sincronizandoToma ? "animate-spin" : ""}`}
-                  />
-                  {sincronizandoToma
-                    ? "Sincronizando..."
-                    : "Sincronizar Kardex con Toma Física"}
+                  <RotateCcw className={`size-3.5 ${sincronizandoToma ? "animate-spin" : ""}`} />
+                  Sincronizar BD
                 </Button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-border/60 text-xs font-mono">
-              <div className="flex items-center justify-between p-2 rounded-lg bg-muted/40 border border-border/50">
-                <span className="text-muted-foreground font-sans text-[11px]">
-                  Saldo Kardex (Bodega CPP):
-                </span>
-                <span className="font-bold text-foreground">
-                  {formatoMoneda(totalesKardex.saldoFinal)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between p-2 rounded-lg bg-muted/40 border border-border/50">
-                <span className="text-muted-foreground font-sans text-[11px]">
-                  Toma Física Registrada:
-                </span>
-                <span className="font-bold text-foreground">
-                  {formatoMoneda(tomaFisica?.valor_inventario_final ?? 0)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between p-2 rounded-lg bg-muted/40 border border-border/50">
-                <span className="text-muted-foreground font-sans text-[11px]">
-                  Diferencia de Auditoría:
-                </span>
-                <span
-                  className={`font-bold ${
-                    Math.abs(
-                      totalesKardex.saldoFinal -
-                        (tomaFisica?.valor_inventario_final ?? 0),
-                    ) < 0.01
-                      ? "text-emerald-600 dark:text-emerald-400"
-                      : "text-amber-600 dark:text-amber-400"
-                  }`}
+              )}
+              {/* Dropdown Exportar */}
+              <div className="relative group print:hidden">
+                <button
+                  type="button"
+                  className="flex items-center gap-1.5 px-3 h-8 text-xs font-medium border border-border bg-background hover:bg-muted text-foreground rounded-md shadow-xs focus:ring-1 focus:ring-primary cursor-pointer transition-colors"
                 >
-                  {formatoMoneda(
-                    Math.abs(
-                      totalesKardex.saldoFinal -
-                        (tomaFisica?.valor_inventario_final ?? 0),
-                    ),
-                  )}
-                </span>
+                  <Download className="size-3.5" />
+                  Exportar
+                  <ChevronDown className="size-3 opacity-50 transition-transform group-hover:rotate-180" />
+                </button>
+                
+                {/* Menú Flotante */}
+                <div className="absolute right-0 top-full mt-1.5 w-36 rounded-md border border-border bg-popover p-1 shadow-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                  <button
+                    type="button"
+                    onClick={exportarPdf}
+                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs text-foreground hover:bg-muted cursor-pointer text-left"
+                  >
+                    <FileDown className="size-3.5 text-muted-foreground" />
+                    Imprimir / PDF
+                  </button>
+                  <button
+                    type="button"
+                    onClick={exportarExcel}
+                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30 cursor-pointer text-left"
+                  >
+                    <FileSpreadsheet className="size-3.5" />
+                    Hoja de Excel
+                  </button>
+                </div>
               </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={restablecerKardex}
+                title="Vaciar tarjeta de kardex y borrar movimientos en la base de datos"
+                className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+              >
+                <RotateCcw className="size-3.5" />
+                Vaciar Kardex (0)
+              </Button>
             </div>
-
-            {sincronizadoExitoso && (
-              <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs flex items-center gap-2">
-                <CheckCircle2 className="size-4 shrink-0" />
-                <span>
-                  ¡Inventario Final sincronizado con éxito en los registros
-                  contables! El Estado de Resultados y Costo de Ventas ya
-                  reflejan los {formatoMoneda(totalesKardex.saldoFinal)}{" "}
-                  calculados por el Kardex.
-                </span>
-              </div>
-            )}
           </div>
+        </header>
 
+          {mensajeExitoAuto && (
+            <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-800 dark:text-emerald-300 animate-in fade-in print:hidden">
+              <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
+              <span className="font-medium">{mensajeExitoAuto}</span>
+            </div>
+          )}
+
+          
           {/* Resumen Compacto de Existencias y Valores */}
           <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border rounded-xl border border-border bg-card text-center text-xs font-mono py-2 shadow-2xs print:hidden">
             <div className="py-1 px-3">
@@ -2051,46 +2173,73 @@ function KardexContent() {
 
             <div className="py-1 px-3">
               <span className="text-[10px] uppercase font-sans text-muted-foreground block font-medium">
-                Cuenta Mayor 1104
+                Toma Física
               </span>
               <div className="flex items-center justify-center gap-1 mt-0.5">
-                <span className="text-sm font-bold text-foreground">
-                  {formatoMoneda(totalesKardex.saldoValor)}
-                </span>
-                <span
-                  className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400"
-                  title="Conciliado con el saldo contable de Inventarios"
-                >
-                  (Cuadrado)
+                <span className={`text-sm font-bold ${Math.abs(totalesKardex.saldoFinal - (tomaFisica?.valor_inventario_final ?? 0)) < 0.01 ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
+                  {formatoMoneda(tomaFisica?.valor_inventario_final ?? 0)}
                 </span>
               </div>
               <span className="text-[10px] text-muted-foreground block">
-                {articuloActual.cuentaNombre}
+                {Math.abs(totalesKardex.saldoFinal - (tomaFisica?.valor_inventario_final ?? 0)) < 0.01 ? "100% Conciliado" : "Descuadre detectado"}
               </span>
             </div>
           </div>
 
-          {modoKardex === "manual" && (
-            <div className="flex flex-col gap-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 p-3 text-xs sm:flex-row sm:items-center sm:justify-between print:hidden">
-              <div>
-                <p className="font-semibold text-foreground">
-                  Plantilla manual de movimientos
-                </p>
-                <p className="text-muted-foreground">
-                  Los saldos se recalculan según el orden de la plantilla y las
-                  filas incompletas quedan pendientes.
-                </p>
+          {modoKardex === "manual" && filasManuales.length > 0 && (
+            <div
+              className={`flex items-center justify-between gap-3 px-3.5 py-2 rounded-lg border text-xs print:hidden transition-all ${
+                edicionManualHabilitada
+                  ? "border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200 shadow-2xs"
+                  : "border-border/60 bg-muted/30 text-muted-foreground"
+              }`}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <span
+                  className={`flex size-2 rounded-full shrink-0 ${
+                    edicionManualHabilitada
+                      ? "bg-amber-500 animate-pulse"
+                      : "bg-emerald-500"
+                  }`}
+                />
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-semibold text-foreground">
+                    {edicionManualHabilitada ? "Edición en caliente activa" : "Modo protegido (Solo lectura)"}
+                  </span>
+                  <span className="text-muted-foreground">·</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {edicionManualHabilitada
+                      ? "Celdas editables. Pulsa 'Bloquear' al terminar."
+                      : "Celdas bloqueadas. Pulsa 'Habilitar edición' o haz doble clic en cualquier fila para modificar."}
+                  </span>
+                </div>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={agregarFilaManual}
-                className="h-8 gap-1.5 text-xs shrink-0"
-              >
-                <Plus className="size-3.5" />
-                Agregar fila
-              </Button>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={edicionManualHabilitada ? "default" : "outline"}
+                  onClick={() => setEdicionManualHabilitada(!edicionManualHabilitada)}
+                  className={`h-7 px-2.5 text-xs gap-1.5 cursor-pointer font-medium ${
+                    edicionManualHabilitada
+                      ? "bg-amber-600 hover:bg-amber-700 text-white shadow-xs"
+                      : "hover:bg-background border-border shadow-2xs"
+                  }`}
+                >
+                  {edicionManualHabilitada ? (
+                    <>
+                      <Lock className="size-3" />
+                      <span>Bloquear</span>
+                    </>
+                  ) : (
+                    <>
+                      <Unlock className="size-3 text-primary" />
+                      <span className="text-primary font-semibold">Habilitar edición</span>
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           )}
 
@@ -2115,7 +2264,7 @@ function KardexContent() {
                     </th>
                     <th
                       rowSpan={2}
-                      className="py-2.5 px-3 border-r border-border/60 min-w-[220px]"
+                      className="py-2.5 px-4 border-r border-border/60 min-w-[220px]"
                     >
                       Concepto / Detalle Operativo
                     </th>
@@ -2137,6 +2286,25 @@ function KardexContent() {
                     >
                       Valores en USD
                     </th>
+                    {modoKardex === "manual" && (
+                      <th
+                        rowSpan={2}
+                        className="w-10 p-1 text-center print:hidden border-l border-border/40"
+                        title={
+                          edicionManualHabilitada
+                            ? "Eliminar fila"
+                            : "Fila protegida contra cambios"
+                        }
+                      >
+                        {edicionManualHabilitada ? (
+                          <span className="text-[9px] uppercase text-muted-foreground font-sans font-medium">
+                            Acción
+                          </span>
+                        ) : (
+                          <Lock className="size-3 text-muted-foreground/60 mx-auto" />
+                        )}
+                      </th>
+                    )}
                   </tr>
                   {/* Fila 2 de sub-encabezados */}
                   <tr className="bg-muted/60 border-b border-border text-[10px] uppercase font-semibold text-muted-foreground">
@@ -2160,15 +2328,15 @@ function KardexContent() {
                     </th>
                     <th
                       className="py-1.5 px-3 text-right border-r border-border/40 text-emerald-700 dark:text-emerald-400"
-                      title="Cargos valorados por compras (+)"
+                      title="Deudor ($) - Cargos valorados por compras o apertura (+). Editable como en Excel."
                     >
-                      Debe (+)
+                      Deudor ($)
                     </th>
                     <th
                       className="py-1.5 px-3 text-right border-r border-border/40 text-rose-700 dark:text-rose-400"
-                      title="Abonos valorados por costo de ventas (−)"
+                      title="Acreedor ($) - Abonos valorados por costo de ventas o devoluciones (−). Editable o por CPP."
                     >
-                      Haber (−)
+                      Acreedor ($)
                     </th>
                     <th
                       className="py-1.5 px-3 text-right font-bold text-foreground bg-muted/10"
@@ -2179,12 +2347,152 @@ function KardexContent() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60 font-mono">
-                  {modoKardex === "manual"
-                    ? filasManuales.map((fila, indice) => {
+                  {modoKardex === "manual" ? (
+                    filasManuales.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={11}
+                          className="py-12 text-center text-muted-foreground text-xs font-sans"
+                        >
+                          <div className="flex flex-col items-center justify-center gap-2">
+                            <Package className="size-8 text-muted-foreground/70" />
+                            <p className="font-semibold text-foreground text-sm">
+                              Tarjeta de Kardex en blanco (0 movimientos)
+                            </p>
+                            <p className="text-xs text-muted-foreground max-w-md">
+                              La base de datos está completamente limpia. Puede comenzar agregando filas en blanco o cargar directamente las 6 pólizas detectadas en el Libro Diario.
+                            </p>
+                            <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
+                              {asientosInventario.length > 0 && (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={cargarPlantillaLibroDiario}
+                                  className="h-8 text-xs gap-1.5 cursor-pointer shadow-xs bg-primary text-primary-foreground hover:bg-primary/90"
+                                >
+                                  <FileSpreadsheet className="size-3.5" />
+                                  Cargar pólizas del Libro Diario ({asientosInventario.length})
+                                </Button>
+                              )}
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={agregarFilaManual}
+                                className="h-8 text-xs gap-1.5 cursor-pointer shadow-xs"
+                              >
+                                <Plus className="size-3.5" />
+                                Agregar fila en blanco
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={abrirModalNuevoMovimiento}
+                                className="h-8 text-xs gap-1.5 cursor-pointer shadow-xs"
+                              >
+                                <Package className="size-3.5" />
+                                Registrar movimiento individual
+                              </Button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      filasManuales.map((fila, indice) => {
                         const m = movimientosManuales.movimientos.find(
                           (movimiento) => movimiento.id === fila.id,
                         );
                         const esApertura = esFilaAperturaManual(fila, indice);
+
+                        if (!edicionManualHabilitada) {
+                          return (
+                            <tr
+                              key={fila.id}
+                              onDoubleClick={() => setEdicionManualHabilitada(true)}
+                              title="Doble clic para habilitar edición en caliente"
+                              className={`hover:bg-muted/40 transition-colors cursor-pointer ${
+                                esApertura ? "bg-muted/20 font-semibold" : ""
+                              }`}
+                            >
+                              <td className="py-2.5 px-3 text-muted-foreground whitespace-nowrap text-[11px]">
+                                {fila.fecha}
+                              </td>
+                              <td className="py-2.5 px-3 font-mono font-medium text-foreground whitespace-nowrap text-[11px]">
+                                {fila.comprobante ? (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px] font-mono px-1.5 py-0 bg-background"
+                                  >
+                                    {fila.comprobante}
+                                  </Badge>
+                                ) : (
+                                  "—"
+                                )}
+                              </td>
+                              <td className="py-2 px-4 min-w-[220px]">
+                                <div className="text-[11px] font-medium text-foreground">
+                                  {fila.concepto || "—"}
+                                </div>
+                                <span className="text-[10px] text-muted-foreground uppercase font-sans">
+                                  {fila.tipo.replace(/_/g, " ")}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 text-right tabular-nums text-foreground text-[11px]">
+                                {fila.tipo === "SALIDA" ||
+                                fila.tipo === "DEVOLUCION_COMPRA"
+                                  ? "—"
+                                  : fila.unidades
+                                    ? Number(fila.unidades).toLocaleString()
+                                    : "—"}
+                              </td>
+                              <td className="py-2.5 px-3 text-right tabular-nums text-foreground text-[11px]">
+                                {fila.tipo === "SALIDA" ||
+                                fila.tipo === "DEVOLUCION_COMPRA"
+                                  ? fila.unidades
+                                    ? Number(fila.unidades).toLocaleString()
+                                    : "—"
+                                  : "—"}
+                              </td>
+                              <td className="py-2.5 px-3 text-right tabular-nums font-bold text-foreground border-r border-border/60 bg-muted/10 text-[11px]">
+                                {m ? m.unidadesSaldo.toLocaleString() : "—"}
+                              </td>
+                              <td className="py-2.5 px-3 text-right tabular-nums text-foreground font-mono text-[11px]">
+                                {fila.costoUnitario || (esApertura && m?.costoUnitario)
+                                  ? formatoMoneda(
+                                      Number(fila.costoUnitario || m?.costoUnitario),
+                                    )
+                                  : "—"}
+                              </td>
+                              <td className="py-2.5 px-3 text-right tabular-nums font-mono text-emerald-700 dark:text-emerald-400 border-r border-border/40 text-[11px]">
+                                {fila.debe !== undefined && fila.debe !== ""
+                                  ? formatoMoneda(Number(fila.debe))
+                                  : esApertura && fila.montoContable
+                                    ? formatoMoneda(Number(fila.montoContable))
+                                    : m?.debe
+                                      ? formatoMoneda(m.debe)
+                                      : "—"}
+                              </td>
+                              <td className="py-2.5 px-3 text-right tabular-nums font-mono text-rose-700 dark:text-rose-400 border-r border-border/40 text-[11px]">
+                                {fila.haber !== undefined && fila.haber !== ""
+                                  ? formatoMoneda(Number(fila.haber))
+                                  : m?.haber
+                                    ? formatoMoneda(m.haber)
+                                    : "—"}
+                              </td>
+                              <td className="py-2.5 px-3 text-right tabular-nums font-bold font-mono text-foreground bg-muted/15 text-[11px]">
+                                {m ? formatoMoneda(m.saldo) : "—"}
+                              </td>
+                              <td
+                                className="p-1.5 text-center text-muted-foreground/30 print:hidden border-l border-border/40"
+                                title="Fila protegida contra cambios accidentales"
+                              >
+                                <Lock className="size-3.5 mx-auto" />
+                              </td>
+                            </tr>
+                          );
+                        }
+
                         return (
                           <tr
                             key={fila.id}
@@ -2201,7 +2509,7 @@ function KardexContent() {
                                     e.target.value,
                                   )
                                 }
-                                className="h-8 min-w-[125px] text-[11px]"
+                                className="h-8 min-w-[125px] text-[11px] bg-muted/20 border border-transparent hover:border-border hover:bg-muted/40 focus:bg-background focus:border-primary placeholder:text-muted-foreground/70 transition-colors"
                               />
                             </td>
                             <td className="p-1.5">
@@ -2215,7 +2523,7 @@ function KardexContent() {
                                   )
                                 }
                                 placeholder="CCF-001"
-                                className="h-8 min-w-[105px] text-[11px]"
+                                className="h-8 min-w-[105px] text-[11px] bg-muted/20 border border-transparent hover:border-border hover:bg-muted/40 focus:bg-background focus:border-primary placeholder:text-muted-foreground/70 transition-colors"
                               />
                             </td>
                             <td className="p-1.5 min-w-[250px]">
@@ -2229,7 +2537,7 @@ function KardexContent() {
                                   )
                                 }
                                 placeholder="Detalle del movimiento"
-                                className="h-8 min-w-[240px] text-[11px]"
+                                className="h-8 min-w-[240px] text-[11px] bg-muted/20 border border-transparent hover:border-border hover:bg-muted/40 focus:bg-background focus:border-primary placeholder:text-muted-foreground/70 transition-colors"
                               />
                               <select
                                 value={fila.tipo}
@@ -2240,7 +2548,7 @@ function KardexContent() {
                                     e.target.value,
                                   )
                                 }
-                                className="mt-1 h-7 w-full rounded-md border border-input bg-background px-2 text-[10px]"
+                                className="mt-1 h-7 w-full rounded-md border border-transparent hover:border-border hover:bg-muted/40 focus:bg-background focus:border-primary bg-muted/20 px-2 text-[10px] transition-colors"
                               >
                                 <option value="ENTRADA">Entrada</option>
                                 <option value="SALIDA">Salida</option>
@@ -2257,7 +2565,7 @@ function KardexContent() {
                               <Input
                                 type="number"
                                 min="0"
-                                step="0.01"
+                                step="any"
                                 value={
                                   fila.tipo === "SALIDA" ||
                                   fila.tipo === "DEVOLUCION_COMPRA"
@@ -2272,14 +2580,14 @@ function KardexContent() {
                                   )
                                 }
                                 placeholder="0"
-                                className="h-8 min-w-[75px] text-right text-[11px]"
+                                className="h-8 min-w-[75px] text-right text-[11px] bg-muted/20 border border-transparent hover:border-border hover:bg-muted/40 focus:bg-background focus:border-primary placeholder:text-muted-foreground/70 transition-colors"
                               />
                             </td>
                             <td className="p-1.5">
                               <Input
                                 type="number"
                                 min="0"
-                                step="0.01"
+                                step="any"
                                 value={
                                   fila.tipo === "SALIDA" ||
                                   fila.tipo === "DEVOLUCION_COMPRA"
@@ -2294,7 +2602,7 @@ function KardexContent() {
                                   )
                                 }
                                 placeholder="0"
-                                className="h-8 min-w-[75px] text-right text-[11px]"
+                                className="h-8 min-w-[75px] text-right text-[11px] bg-muted/20 border border-transparent hover:border-border hover:bg-muted/40 focus:bg-background focus:border-primary placeholder:text-muted-foreground/70 transition-colors"
                               />
                             </td>
                             <td className="py-2.5 px-3 text-right tabular-nums font-bold text-foreground border-r border-border/60 bg-muted/10">
@@ -2304,7 +2612,7 @@ function KardexContent() {
                               <Input
                                 type="number"
                                 min="0"
-                                step="0.01"
+                                step="any"
                                 value={
                                   fila.costoUnitario ||
                                   (esApertura
@@ -2319,34 +2627,65 @@ function KardexContent() {
                                   )
                                 }
                                 placeholder="0.00"
-                                className="h-8 min-w-[85px] text-right text-[11px]"
+                                className="h-8 min-w-[85px] text-right text-[11px] bg-muted/20 border border-transparent hover:border-border hover:bg-muted/40 focus:bg-background focus:border-primary placeholder:text-muted-foreground/70 transition-colors"
                               />
                             </td>
                             <td className="p-1.5 border-r border-border/40">
-                              {esApertura ? (
+                              {fila.tipo === "ENTRADA" || fila.tipo === "DEVOLUCION_VENTA" ? (
                                 <Input
                                   type="number"
                                   min="0"
-                                  step="0.01"
-                                  value={fila.montoContable}
-                                  onChange={(e) =>
-                                    actualizarFilaManual(
-                                      fila.id,
-                                      "montoContable",
-                                      e.target.value,
-                                    )
+                                  step="any"
+                                  value={
+                                    fila.debe !== undefined
+                                      ? fila.debe
+                                      : esApertura
+                                        ? fila.montoContable
+                                        : m?.debe
+                                          ? String(m.debe)
+                                          : ""
                                   }
-                                  placeholder="6000.00"
-                                  className="h-8 min-w-[95px] text-right text-[11px] text-emerald-700 dark:text-emerald-300"
+                                  onChange={(e) => {
+                                    actualizarFilaManual(fila.id, "debe", e.target.value);
+                                    if (esApertura) {
+                                      actualizarFilaManual(fila.id, "montoContable", e.target.value);
+                                    }
+                                  }}
+                                  placeholder="0.00"
+                                  className="h-8 min-w-[95px] text-right font-mono text-[11px] text-emerald-700 dark:text-emerald-300 bg-muted/20 border border-transparent hover:border-border hover:bg-muted/40 focus:bg-background focus:border-primary placeholder:text-muted-foreground/70 transition-colors"
+                                  title="Deudor ($): Editable. Monto monetario exacto de la factura o apertura como en Excel."
                                 />
                               ) : (
-                                <span className="block py-2.5 text-right tabular-nums text-emerald-600 dark:text-emerald-400">
-                                  {m?.debe ? `+${formatoMoneda(m.debe)}` : "—"}
+                                <span className="block py-2 text-center text-muted-foreground/30 font-mono text-[11px]">
+                                  —
                                 </span>
                               )}
                             </td>
-                            <td className="py-2.5 px-3 text-right tabular-nums border-r border-border/40 text-rose-600 dark:text-rose-400">
-                              {m?.haber ? `−${formatoMoneda(m.haber)}` : "—"}
+                            <td className="p-1.5 border-r border-border/40">
+                              {fila.tipo === "SALIDA" || fila.tipo === "DEVOLUCION_COMPRA" ? (
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="any"
+                                  value={
+                                    fila.haber !== undefined
+                                      ? fila.haber
+                                      : m?.haber
+                                        ? String(m.haber)
+                                        : ""
+                                  }
+                                  onChange={(e) =>
+                                    actualizarFilaManual(fila.id, "haber", e.target.value)
+                                  }
+                                  placeholder="0.00"
+                                  className="h-8 min-w-[95px] text-right font-mono text-[11px] text-rose-700 dark:text-rose-300 bg-muted/20 border border-transparent hover:border-border hover:bg-muted/40 focus:bg-background focus:border-primary placeholder:text-muted-foreground/70 transition-colors"
+                                  title="Acreedor ($): Editable. Calculado por Costo Promedio Ponderado o ajustable a mano."
+                                />
+                              ) : (
+                                <span className="block py-2 text-center text-muted-foreground/30 font-mono text-[11px]">
+                                  —
+                                </span>
+                              )}
                             </td>
                             <td className="py-2.5 px-3 text-right tabular-nums font-bold text-foreground bg-muted/15">
                               {m ? formatoMoneda(m.saldo) : "—"}
@@ -2365,99 +2704,128 @@ function KardexContent() {
                           </tr>
                         );
                       })
-                    : movimientosKardex.map((m) => {
-                        const esApertura =
-                          m.tipo === "AJUSTE" && m.comprobante.includes("APE");
-                        const esDevolucion = m.tipo.startsWith("DEVOLUCION");
-                        return (
-                          <tr
-                            key={m.id}
-                            className={`hover:bg-muted/40 transition-colors ${
-                              esApertura ? "bg-muted/20" : ""
-                            }`}
+                    )
+                  ) : movimientosKardex.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={9}
+                        className="py-12 text-center text-muted-foreground text-xs font-sans"
+                      >
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Package className="size-8 text-muted-foreground/70" />
+                          <p className="font-semibold text-foreground text-sm">
+                            No hay movimientos registrados en el Kardex
+                          </p>
+                          <p className="text-xs text-muted-foreground max-w-md">
+                            La base de datos está limpia. Puede registrar un movimiento formal con el botón &ldquo;Registrar Movimiento&rdquo;.
+                          </p>
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={abrirModalNuevoMovimiento}
+                            className="mt-2 h-8 text-xs gap-1.5 cursor-pointer shadow-xs"
                           >
-                            <td className="py-2.5 px-3 whitespace-nowrap text-muted-foreground">
-                              {m.fecha}
-                            </td>
-                            <td className="py-2.5 px-3 whitespace-nowrap font-medium text-foreground">
-                              <span className="rounded bg-muted px-1.5 py-0.5 text-[11px]">
-                                {m.comprobante}
+                            <Plus className="size-3.5" />
+                            Registrar Movimiento
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    movimientosKardex.map((m) => {
+                      const esApertura =
+                        m.tipo === "AJUSTE" && m.comprobante.includes("APE");
+                      const esDevolucion = m.tipo.startsWith("DEVOLUCION");
+                      return (
+                        <tr
+                          key={m.id}
+                          className={`hover:bg-muted/10 transition-colors ${
+                            esApertura ? "bg-muted/20" : ""
+                          }`}
+                        >
+                          <td className="py-2.5 px-3 whitespace-nowrap text-muted-foreground">
+                            {m.fecha}
+                          </td>
+                          <td className="py-2.5 px-3 whitespace-nowrap font-medium text-foreground">
+                            <span className="rounded bg-muted px-1.5 py-0.5 text-[11px]">
+                              {m.comprobante}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 font-sans text-xs text-foreground min-w-[240px]">
+                            <div className="flex items-center gap-1.5">
+                              <span>{m.concepto}</span>
+                              {esDevolucion && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[9px] py-0 px-1 border-amber-500/50 text-amber-600 dark:text-amber-400"
+                                >
+                                  Devolución
+                                </Badge>
+                              )}
+                            </div>
+                          </td>
+                          {/* Unidades */}
+                          <td className="py-2.5 px-3 text-right tabular-nums border-r border-border/40">
+                            {m.unidadesEntrada > 0 ? (
+                              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                                +{m.unidadesEntrada.toLocaleString()}
                               </span>
-                            </td>
-                            <td className="py-2.5 px-3 font-sans text-xs text-foreground min-w-[240px]">
-                              <div className="flex items-center gap-1.5">
-                                <span>{m.concepto}</span>
-                                {esDevolucion && (
-                                  <Badge
-                                    variant="outline"
-                                    className="text-[9px] py-0 px-1 border-amber-500/50 text-amber-600 dark:text-amber-400"
-                                  >
-                                    Devolución
-                                  </Badge>
-                                )}
-                              </div>
-                            </td>
-                            {/* Unidades */}
-                            <td className="py-2.5 px-3 text-right tabular-nums border-r border-border/40">
-                              {m.unidadesEntrada > 0 ? (
-                                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
-                                  +{m.unidadesEntrada.toLocaleString()}
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground/40">
-                                  —
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-2.5 px-3 text-right tabular-nums border-r border-border/40">
-                              {m.unidadesSalida > 0 ? (
-                                <span className="text-rose-600 dark:text-rose-400 font-semibold">
-                                  −{m.unidadesSalida.toLocaleString()}
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground/40">
-                                  —
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-2.5 px-3 text-right tabular-nums font-bold text-foreground border-r border-border/60 bg-muted/10">
-                              {m.unidadesSaldo.toLocaleString()}
-                            </td>
-                            {/* Costo Unitario */}
-                            <td className="py-2.5 px-3 text-right tabular-nums text-muted-foreground border-r border-border/60">
-                              {formatoMoneda(m.costoUnitario)}
-                            </td>
-                            {/* Valores Monetarios */}
-                            <td className="py-2.5 px-3 text-right tabular-nums border-r border-border/40">
-                              {m.debe > 0 ? (
-                                <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                                  +{formatoMoneda(m.debe)}
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground/40">
-                                  —
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-2.5 px-3 text-right tabular-nums border-r border-border/40">
-                              {m.haber > 0 ? (
-                                <span className="text-rose-600 dark:text-rose-400 font-medium">
-                                  −{formatoMoneda(m.haber)}
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground/40">
-                                  —
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-2.5 px-3 text-right tabular-nums font-bold text-foreground bg-muted/15 border-l border-border/40">
-                              <strong className="text-foreground">
-                                {formatoMoneda(m.saldo)}
-                              </strong>
-                            </td>
-                          </tr>
-                        );
-                      })}
+                            ) : (
+                              <span className="text-muted-foreground/70">
+                                —
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-right tabular-nums border-r border-border/40">
+                            {m.unidadesSalida > 0 ? (
+                              <span className="text-rose-600 dark:text-rose-400 font-semibold">
+                                −{m.unidadesSalida.toLocaleString()}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground/70">
+                                —
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-right tabular-nums font-bold text-foreground border-r border-border/60 bg-muted/10">
+                            {m.unidadesSaldo.toLocaleString()}
+                          </td>
+                          {/* Costo Unitario */}
+                          <td className="py-2.5 px-3 text-right tabular-nums text-muted-foreground border-r border-border/60">
+                            {formatoMoneda(m.costoUnitario)}
+                          </td>
+                          {/* Valores Monetarios */}
+                          <td className="py-2.5 px-3 text-right tabular-nums border-r border-border/40">
+                            {m.debe > 0 ? (
+                              <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                                +{formatoMoneda(m.debe)}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground/70">
+                                —
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-right tabular-nums border-r border-border/40">
+                            {m.haber > 0 ? (
+                              <span className="text-rose-600 dark:text-rose-400 font-medium">
+                                −{formatoMoneda(m.haber)}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground/70">
+                                —
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-right tabular-nums font-bold text-foreground bg-muted/15 border-l border-border/40">
+                            <strong className="text-foreground">
+                              {formatoMoneda(m.saldo)}
+                            </strong>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-border bg-muted/50 font-mono text-xs font-bold">
@@ -2473,22 +2841,23 @@ function KardexContent() {
                     <td className="py-3 px-3 text-right tabular-nums text-rose-600 dark:text-rose-400 border-r border-border/40">
                       −{totalesKardex.totalSalidas.toLocaleString()}
                     </td>
-                    <td className="py-3 px-3 text-right tabular-nums text-foreground border-r border-border/60">
+                    <td className="py-3 px-3 text-right tabular-nums text-foreground border-r-2 border-border bg-muted/40">
                       {totalesKardex.saldoUnidades.toLocaleString()}{" "}
                       {articuloActual.unidad.toLowerCase()}
                     </td>
                     <td className="py-3 px-3 text-right tabular-nums text-muted-foreground border-r border-border/60">
                       {formatoMoneda(totalesKardex.costoPromedioActual)}
                     </td>
-                    <td className="py-3 px-3 text-right tabular-nums text-emerald-600 dark:text-emerald-400 border-r border-border/40">
+                    <td className="py-3 px-3 text-right tabular-nums text-emerald-600 dark:text-emerald-400 border-r border-border/40 bg-primary/5">
                       +{formatoMoneda(totalesKardex.totalDebe)}
                     </td>
-                    <td className="py-3 px-3 text-right tabular-nums text-rose-600 dark:text-rose-400 border-r border-border/40">
+                    <td className="py-3 px-3 text-right tabular-nums text-rose-600 dark:text-rose-400 border-r border-border/40 bg-primary/5">
                       −{formatoMoneda(totalesKardex.totalHaber)}
                     </td>
-                    <td className="py-3 px-3 text-right tabular-nums text-foreground border-b-4 border-double border-foreground/60 text-sm font-extrabold saldo-doble-linea bg-muted/20">
+                    <td className="py-3 px-3 text-right tabular-nums text-foreground border-b-4 border-double border-foreground/60 text-sm font-extrabold saldo-doble-linea bg-primary/10">
                       {formatoMoneda(totalesKardex.saldoValor)}
                     </td>
+                    {modoKardex === "manual" && <td className="p-1 print:hidden" />}
                   </tr>
                 </tfoot>
               </table>
@@ -2498,7 +2867,7 @@ function KardexContent() {
       ) : (
         <div className="space-y-5">
           {/* 1. CABECERA WEB */}
-          <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-3 print:hidden">
+          <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between border-b border-border pb-3 print:hidden">
             <div>
               <div className="flex items-center gap-2.5 flex-wrap">
                 <h1 className="text-xl font-bold tracking-tight text-foreground">
@@ -2536,14 +2905,9 @@ function KardexContent() {
                   </button>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {modoVista === "ficha"
-                  ? "Consulta y auditoría detallada de una cuenta contable específica."
-                  : "Movimientos cronológicos y saldos de todas las cuentas del ejercicio."}
-              </p>
             </div>
 
-            <div className="flex items-center gap-2 print:hidden shrink-0">
+            <div className="flex flex-wrap items-center gap-2 print:hidden">
               <Button
                 type="button"
                 variant="outline"
@@ -2831,7 +3195,7 @@ function KardexContent() {
                 <CardContent className="p-0">
                   {movimientos.length === 0 && saldoInicialPeriodo === 0 ? (
                     <div className="py-12 px-4 text-center">
-                      <ClipboardList className="mx-auto size-9 text-muted-foreground/40 mb-2.5" />
+                      <ClipboardList className="mx-auto size-9 text-muted-foreground/70 mb-2.5" />
                       <p className="text-sm font-semibold text-foreground">
                         No hay movimientos en este período para la cuenta{" "}
                         {cuentaActual?.codigo} — {cuentaActual?.nombre}.
@@ -3139,7 +3503,7 @@ function KardexContent() {
               {/* Listado secuencial de cada cuenta con su tabla de movimientos */}
               {libroContinuoData.length === 0 ? (
                 <Card className="border-border shadow-xs p-12 text-center">
-                  <ClipboardList className="mx-auto size-9 text-muted-foreground/40 mb-2" />
+                  <ClipboardList className="mx-auto size-9 text-muted-foreground/70 mb-2" />
                   <p className="text-sm font-semibold text-muted-foreground">
                     No hay movimientos registrados en este período.
                   </p>
@@ -3634,155 +3998,239 @@ function KardexContent() {
               </button>
             </div>
 
-            <form
-              onSubmit={agregarMovimientoKardex}
-              className="space-y-3.5 text-xs"
-            >
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="font-medium text-foreground">
-                    Tipo de Operación:
-                  </label>
-                  <select
-                    value={nuevoTipo}
-                    onChange={(e) => {
-                      const t = e.target.value as
-                        | "ENTRADA"
-                        | "SALIDA"
-                        | "DEVOLUCION_COMPRA"
-                        | "DEVOLUCION_VENTA"
-                        | "AJUSTE";
-                      setNuevoTipo(t);
-                      if (t === "SALIDA") {
-                        setNuevoCosto(
-                          totalesKardex.costoPromedioActual.toFixed(2),
-                        );
-                      }
-                    }}
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs focus:ring-1 focus:ring-primary focus:outline-hidden"
-                  >
-                    <option value="ENTRADA">Entrada / Compra (CCF)</option>
-                    <option value="SALIDA">Salida / Venta (Despacho)</option>
-                    <option value="DEVOLUCION_COMPRA">
-                      Devolución sobre Compra
-                    </option>
-                    <option value="DEVOLUCION_VENTA">
-                      Devolución sobre Venta
-                    </option>
-                    <option value="AJUSTE">
-                      Ajuste por Toma Física / Merma
-                    </option>
-                  </select>
-                </div>
+            {(() => {
+              const uNum = Math.max(0, parseFloat(nuevoUnidades) || 0);
+              const cNum = Math.max(0, parseFloat(nuevoCosto) || 0);
+              const esEntrada =
+                nuevoTipo === "ENTRADA" ||
+                nuevoTipo === "DEVOLUCION_VENTA" ||
+                (nuevoTipo === "AJUSTE" && cNum > 0);
+              const deltaU = esEntrada ? uNum : -uNum;
+              const stockActual = totalesKardex.saldoUnidades;
+              const stockProyectado = Math.max(0, stockActual + deltaU);
+              const montoOp = redondear(uNum * cNum);
+              const saldoActual = totalesKardex.saldoValor;
+              const saldoProyectado = Math.max(
+                0,
+                redondear(
+                  esEntrada ? saldoActual + montoOp : saldoActual - montoOp,
+                ),
+              );
+              const cppProyectado =
+                stockProyectado > 0
+                  ? redondear(saldoProyectado / stockProyectado)
+                  : 0;
 
-                <div className="space-y-1">
-                  <label className="font-medium text-foreground">Fecha:</label>
-                  <input
-                    type="date"
-                    value={nuevoFecha}
-                    onChange={(e) => setNuevoFecha(e.target.value)}
-                    required
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs focus:ring-1 focus:ring-primary focus:outline-hidden"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="font-medium text-foreground">
-                    Comprobante / Referencia:
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ej. CCF-4091, FAC-102"
-                    value={nuevoComprobante}
-                    onChange={(e) => setNuevoComprobante(e.target.value)}
-                    required
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs focus:ring-1 focus:ring-primary focus:outline-hidden"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="font-medium text-foreground">
-                    Unidades ({articuloActual.unidad}):
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={nuevoUnidades}
-                    onChange={(e) => setNuevoUnidades(e.target.value)}
-                    required
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs font-mono focus:ring-1 focus:ring-primary focus:outline-hidden"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="font-medium text-foreground">
-                  Concepto / Glosa:
-                </label>
-                <input
-                  type="text"
-                  placeholder="Detalle o descripción del movimiento"
-                  value={nuevoConcepto}
-                  onChange={(e) => setNuevoConcepto(e.target.value)}
-                  required
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs focus:ring-1 focus:ring-primary focus:outline-hidden"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="font-medium text-foreground">
-                    Costo Unitario ($):
-                  </label>
-                  <input
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    value={nuevoCosto}
-                    onChange={(e) => setNuevoCosto(e.target.value)}
-                    disabled={nuevoTipo === "SALIDA"}
-                    required
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs font-mono disabled:opacity-60 focus:ring-1 focus:ring-primary focus:outline-hidden"
-                  />
-                  {nuevoTipo === "SALIDA" && (
-                    <span className="text-[10px] text-muted-foreground block">
-                      Valuado automáticamente al costo promedio ponderado ($
-                      {totalesKardex.costoPromedioActual.toFixed(2)})
-                    </span>
-                  )}
-                </div>
-
-                <div className="space-y-1">
-                  <label className="font-medium text-foreground">
-                    Total Valorado Estimado:
-                  </label>
-                  <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs font-mono font-bold text-foreground">
-                    {formatoMoneda(
-                      (Number(nuevoUnidades) || 0) * (Number(nuevoCosto) || 0),
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setModalNuevoMovimiento(false)}
-                  className="h-8 text-xs"
+              return (
+                <form
+                  onSubmit={agregarMovimientoKardex}
+                  className="space-y-3.5 text-xs"
                 >
-                  Cancelar
-                </Button>
-                <Button type="submit" size="sm" className="h-8 text-xs gap-1.5">
-                  <CheckCircle2 className="size-3.5" />
-                  Guardar en Kardex
-                </Button>
-              </div>
-            </form>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="font-medium text-foreground">
+                        Tipo de Operación:
+                      </label>
+                      <select
+                        value={nuevoTipo}
+                        onChange={(e) =>
+                          handleCambioTipoAuto(
+                            e.target.value as MovimientoKardexInventario["tipo"],
+                          )
+                        }
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs focus:ring-1 focus:ring-primary focus:outline-hidden"
+                      >
+                        <option value="ENTRADA">Entrada / Compra (CCF)</option>
+                        <option value="SALIDA">Salida / Venta (Despacho)</option>
+                        <option value="DEVOLUCION_COMPRA">
+                          Devolución sobre Compra
+                        </option>
+                        <option value="DEVOLUCION_VENTA">
+                          Devolución sobre Venta
+                        </option>
+                        <option value="AJUSTE">
+                          Ajuste por Toma Física / Merma
+                        </option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-medium text-foreground">
+                        Fecha:
+                      </label>
+                      <input
+                        type="date"
+                        value={nuevoFecha}
+                        onChange={(e) => setNuevoFecha(e.target.value)}
+                        required
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs focus:ring-1 focus:ring-primary focus:outline-hidden"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="font-medium text-foreground">
+                        Comprobante / Referencia:
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ej. CCF-4091, FAC-102"
+                        value={nuevoComprobante}
+                        onChange={(e) => setNuevoComprobante(e.target.value)}
+                        required
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs focus:ring-1 focus:ring-primary focus:outline-hidden"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-medium text-foreground">
+                        Unidades ({articuloActual.unidad}):
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={nuevoUnidades}
+                        onChange={(e) => setNuevoUnidades(e.target.value)}
+                        required
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs font-mono focus:ring-1 focus:ring-primary focus:outline-hidden"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-medium text-foreground">
+                      Concepto / Glosa:
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Detalle o descripción del movimiento"
+                      value={nuevoConcepto}
+                      onChange={(e) => setNuevoConcepto(e.target.value)}
+                      required
+                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs focus:ring-1 focus:ring-primary focus:outline-hidden"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="font-medium text-foreground">
+                        Costo Unitario ($):
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={nuevoCosto}
+                        onChange={(e) => setNuevoCosto(e.target.value)}
+                        disabled={
+                          nuevoTipo === "SALIDA" ||
+                          nuevoTipo === "DEVOLUCION_COMPRA"
+                        }
+                        required
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs font-mono disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed disabled:border-transparent focus:ring-1 focus:ring-primary focus:outline-hidden"
+                      />
+                      {(nuevoTipo === "SALIDA" ||
+                        nuevoTipo === "DEVOLUCION_COMPRA") && (
+                        <span className="text-[10px] text-muted-foreground block">
+                          Valuado automáticamente al costo promedio ponderado ($
+                          {totalesKardex.costoPromedioActual.toFixed(2)})
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-medium text-foreground">
+                        Total Valorado de la Operación:
+                      </label>
+                      <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs font-mono font-bold text-foreground">
+                        {formatoMoneda(montoOp)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Impacto Proyectado en Almacén */}
+                  <div className="rounded-xl border-l-4 border-l-primary bg-muted/30 border-y border-r border-border p-4 space-y-3">
+                    <div className="flex items-center justify-between text-[11px] font-semibold text-primary">
+                      <span>Proyección inmediata tras registrar:</span>
+                      <span className="font-mono">
+                        CPP: {formatoMoneda(cppProyectado)} / u
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center text-[10px]">
+                      <div className="rounded bg-background/80 p-1.5 border border-border/50">
+                        <span className="text-muted-foreground block">
+                          Stock actual
+                        </span>
+                        <span className="font-bold text-foreground font-mono">
+                          {stockActual} u
+                        </span>
+                      </div>
+                      <div className="rounded bg-background/80 p-1.5 border border-border/50">
+                        <span className="text-muted-foreground block">
+                          Impacto
+                        </span>
+                        <span
+                          className={`font-bold font-mono ${
+                            deltaU >= 0
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : "text-rose-600 dark:text-rose-400"
+                          }`}
+                        >
+                          {deltaU >= 0 ? `+${uNum}` : `−${uNum}`} u
+                        </span>
+                      </div>
+                      <div className="rounded bg-background/80 p-1.5 border border-border/50">
+                        <span className="text-muted-foreground block">
+                          Nuevo Stock
+                        </span>
+                        <span className="font-bold text-primary font-mono">
+                          {stockProyectado} u
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-[10px] text-muted-foreground flex justify-between pt-1 border-t border-primary/10">
+                      <span>Saldo valorado resultante:</span>
+                      <strong className="text-foreground font-mono">
+                        {formatoMoneda(saldoProyectado)}
+                      </strong>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={guardandoMovimientoAuto}
+                      onClick={() => setModalNuevoMovimiento(false)}
+                      className="h-8 text-xs cursor-pointer text-muted-foreground hover:bg-muted/50"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={guardandoMovimientoAuto || uNum <= 0}
+                      className="h-8 text-xs gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer"
+                    >
+                      {guardandoMovimientoAuto ? (
+                        <>
+                          <RotateCcw className="size-3.5 animate-spin" />
+                          <span>Guardando en BD...</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="size-3.5" />
+                          <span>Guardar en Kardex</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              );
+            })()}
           </div>
         </div>
       )}

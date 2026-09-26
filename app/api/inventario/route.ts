@@ -5,7 +5,7 @@ export async function GET(req: Request) {
   const pool = getDbPool();
   if (!pool)
     return NextResponse.json(
-      { valor_inventario_final: 6500, existe: false },
+      { valor_inventario_final: 0, existe: false },
       { status: 200 },
     );
 
@@ -39,7 +39,7 @@ export async function GET(req: Request) {
       return NextResponse.json({
         ejercicio,
         fecha_toma: new Date().toISOString().slice(0, 10),
-        valor_inventario_final: 6500,
+        valor_inventario_final: 0,
         responsable: "",
         observaciones: "Sin toma física registrada",
         es_manual: false,
@@ -53,7 +53,7 @@ export async function GET(req: Request) {
     const msg =
       e instanceof Error ? e.message : "Error al consultar inventario físico";
     return NextResponse.json(
-      { error: msg, valor_inventario_final: 6500 },
+      { error: msg, valor_inventario_final: 0 },
       { status: 500 },
     );
   }

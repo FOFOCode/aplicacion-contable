@@ -3,6 +3,8 @@ import { Pool } from "pg"
 declare global {
   // eslint-disable-next-line no-var
   var __pgPool: Pool | undefined
+  // eslint-disable-next-line no-var
+  var __pgPoolConnectionString: string | undefined
 }
 
 export function getDbPool(): Pool | null {
@@ -11,6 +13,12 @@ export function getDbPool(): Pool | null {
 
   if (!rawConnectionString) {
     return null
+  }
+
+  // Si cambió la base de datos (switch entre oficial y pruebas), recrear pool
+  if (global.__pgPool && global.__pgPoolConnectionString !== rawConnectionString) {
+    global.__pgPool.end().catch(() => {})
+    global.__pgPool = undefined
   }
 
   if (!global.__pgPool) {
@@ -72,6 +80,7 @@ export function getDbPool(): Pool | null {
         connectionTimeoutMillis:
           10000,
       })
+    global.__pgPoolConnectionString = rawConnectionString
   }
 
   return global.__pgPool

@@ -63,11 +63,9 @@ const EJERCICIOS_DEFECTO: EjercicioFiscal[] = [
 const TOMA_FISICA_DEFECTO: InventarioTomaFisica = {
   ejercicio: 2026,
   fecha_toma: "2026-12-31",
-  valor_inventario_final: 6500,
-  responsable:
-    "Comité de Auditoría y Control de Inventarios",
-  observaciones:
-    "Toma física de existencias y conteo al cierre del ejercicio 2026 (Método Analítico)",
+  valor_inventario_final: 0,
+  responsable: "",
+  observaciones: "",
 }
 
 const ASIENTOS_EJEMPLO: Asiento[] = [
@@ -707,6 +705,11 @@ export function ContabilidadProvider({
 
               observaciones: "",
             })
+            if (typeof window !== "undefined") {
+              try {
+                localStorage.removeItem(STORAGE_TOMA)
+              } catch {}
+            }
           }
         } catch (error) {
           console.error(
@@ -1011,6 +1014,19 @@ export function ContabilidadProvider({
               setTomaFisica(
                 inventario
               )
+            } else {
+              setTomaFisica({
+                ejercicio: ejercicioActivo,
+                fecha_toma: `${ejercicioActivo}-12-31`,
+                valor_inventario_final: 0,
+                responsable: "",
+                observaciones: "",
+              })
+              if (typeof window !== "undefined") {
+                try {
+                  localStorage.removeItem(STORAGE_TOMA)
+                } catch {}
+              }
             }
           }
 
