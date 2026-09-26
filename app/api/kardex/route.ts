@@ -210,8 +210,11 @@ export async function POST(req: Request) {
           const costoUnit = Math.max(0, parseFloat(m.costoUnitario || 0))
           const debe = Math.max(0, parseFloat(m.debe || 0))
           const haber = Math.max(0, parseFloat(m.haber || 0))
-          const saldo = Math.max(0, parseFloat(m.saldo || 0))
-          const fecha = m.fecha ? String(m.fecha).slice(0, 10) : new Date().toISOString().slice(0, 10)
+          const fecha = m.fecha ? String(m.fecha).slice(0, 10) : `${ejercicio}-01-01`
+          // Validar que la fecha pertenezca al ejercicio fiscal solicitado
+          if (fecha.slice(0, 4) !== String(ejercicio)) {
+            continue
+          }
           const comprobante = m.comprobante ? String(m.comprobante).trim() : "COMP-001"
           const concepto = m.concepto ? String(m.concepto).trim() : "Movimiento de almacén"
           const tipo = m.tipo || (uEntrada > 0 ? "ENTRADA" : "SALIDA")
