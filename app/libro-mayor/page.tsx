@@ -1207,7 +1207,12 @@ export default function LibroMayorPage() {
           </div>
 
           {/* CUADRÍCULA SIMÉTRICA DE TARJETAS */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3.5 sm:gap-4 items-start">
+          <div
+            className={cn(
+              "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3.5 sm:gap-4",
+              todasExpandidas ? "items-stretch" : "items-start"
+            )}
+          >
             {mayor.map((m) => {
               const movs = movimientosPorCuenta.get(m.cuenta.codigo) || { debe: [], haber: [] }
               const saldoCero = m.saldo === 0
@@ -1226,7 +1231,7 @@ export default function LibroMayorPage() {
                   onMouseLeave={() => handleCardMouseLeave(m.cuenta.codigo)}
                   className={cn(
                     "relative transition-all duration-300",
-                    estaExpandida ? "col-span-1 md:col-span-2" : "col-span-1"
+                    estaExpandida ? "col-span-1 md:col-span-2 h-full" : "col-span-1"
                   )}
                 >
                   {/* ========================================================= */}
@@ -1323,7 +1328,7 @@ export default function LibroMayorPage() {
                     /* ========================================================= */
                     <div
                       className={cn(
-                        "rounded-2xl border bg-card text-card-foreground shadow-xs transition-all relative overflow-hidden flex flex-col justify-between report-card",
+                        "rounded-2xl border bg-card text-card-foreground shadow-xs transition-all relative overflow-hidden flex flex-col justify-between report-card h-full",
                         sobregirada ? "border-red-500/40 bg-red-500/[0.015]" : "border-primary/50 ring-1 ring-primary/20"
                       )}
                     >
@@ -1335,7 +1340,7 @@ export default function LibroMayorPage() {
                       )}
 
                       {/* Cabecera de la tarjeta expandida */}
-                      <div className="p-3.5 sm:p-4 border-b border-border/60 flex items-center justify-between gap-3 bg-muted/10">
+                      <div className="p-3.5 sm:p-4 border-b border-border/60 flex items-center justify-between gap-3 bg-muted/10 shrink-0">
                         <div className="min-w-0 flex items-center gap-2.5">
                           <span className="font-mono text-xs sm:text-sm font-extrabold px-2.5 py-1 rounded-lg bg-primary/10 text-primary shrink-0">
                             {m.cuenta.codigo}
@@ -1344,7 +1349,7 @@ export default function LibroMayorPage() {
                             <h4 className="font-bold text-sm sm:text-base text-foreground truncate" title={m.cuenta.nombre}>
                               {m.cuenta.nombre}
                             </h4>
-                            <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
+                            <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5 truncate whitespace-nowrap">
                               <span>{ETIQUETA_TIPO[m.cuenta.tipo]}</span>
                               <span>·</span>
                               <span className="capitalize">{m.cuenta.naturaleza}</span>
@@ -1356,18 +1361,18 @@ export default function LibroMayorPage() {
 
                         <div className="flex items-center gap-1.5 shrink-0">
                           {sobregirada ? (
-                            <Badge variant="warning" className="text-[10px] font-bold px-2 py-0.5">Sobregiro</Badge>
+                            <Badge variant="warning" className="text-[10px] font-bold px-2 py-0.5 shrink-0">Sobregiro</Badge>
                           ) : saldoCero ? (
-                            <Badge variant="muted" className="text-[10px] px-2 py-0.5">Saldada</Badge>
+                            <Badge variant="muted" className="text-[10px] px-2 py-0.5 shrink-0">Saldada</Badge>
                           ) : m.naturalezaSaldo === "deudora" ? (
-                            <Badge variant="deudora" className="text-[10px] font-semibold px-2.5 py-0.5">Deudor</Badge>
+                            <Badge variant="deudora" className="text-[10px] font-semibold px-2.5 py-0.5 shrink-0">Deudor</Badge>
                           ) : (
-                            <Badge variant="default" className="text-[10px] font-semibold px-2.5 py-0.5 bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200">Acreedor</Badge>
+                            <Badge variant="default" className="text-[10px] font-semibold px-2.5 py-0.5 bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 shrink-0">Acreedor</Badge>
                           )}
                           <button
                             type="button"
                             onClick={() => handleToggleExpandirTarjeta(m.cuenta.codigo)}
-                            className="size-8 rounded-xl flex items-center justify-center text-primary bg-primary/10 hover:bg-primary/20 transition-colors cursor-pointer ml-1"
+                            className="size-8 rounded-xl flex items-center justify-center text-primary bg-primary/10 hover:bg-primary/20 transition-colors cursor-pointer ml-1 shrink-0"
                             title="Contraer tarjeta"
                           >
                             <ChevronUp className="size-4" />
@@ -1376,10 +1381,10 @@ export default function LibroMayorPage() {
                       </div>
 
                       {/* Cuenta T amplia y proporcionada */}
-                      <div className="p-3.5 sm:p-4 space-y-3">
-                        <div className="rounded-xl border border-border/70 overflow-hidden text-xs">
+                      <div className="p-3.5 sm:p-4 space-y-3 flex-1 flex flex-col justify-between">
+                        <div className="rounded-xl border border-border/70 overflow-hidden text-xs flex flex-col flex-1">
                           {/* Encabezado columnas Debe y Haber */}
-                          <div className="grid grid-cols-2 border-b border-border/70 bg-muted/40 text-xs font-bold text-muted-foreground uppercase text-center divide-x divide-border/70">
+                          <div className="grid grid-cols-2 border-b border-border/70 bg-muted/40 text-xs font-bold text-muted-foreground uppercase text-center divide-x divide-border/70 shrink-0">
                             <div className="py-2 px-3 flex justify-between items-center">
                               <span>DEBE (DÉBITOS)</span>
                               <span className="font-mono text-[11px] font-normal">{movs.debe.length} cargos</span>
@@ -1390,12 +1395,12 @@ export default function LibroMayorPage() {
                             </div>
                           </div>
 
-                          {/* Lista con altura ampliada cómodamente */}
-                          <div className="grid grid-cols-2 divide-x divide-border/70 min-h-[120px] max-h-[220px] overflow-y-auto">
+                          {/* Lista con altura fija uniforme idéntica para todas */}
+                          <div className="grid grid-cols-2 divide-x divide-border/70 h-[210px] overflow-y-auto">
                             {/* Lado Debe */}
-                            <div className="p-2.5 space-y-2 divide-y divide-border/30">
+                            <div className={cn("p-2.5 space-y-2 divide-y divide-border/30", movs.debe.length === 0 && "h-full flex items-center justify-center p-0")}>
                               {movs.debe.length === 0 ? (
-                                <div className="py-10 text-center text-muted-foreground/35 text-xs italic">
+                                <div className="text-center text-muted-foreground/35 text-xs italic p-4">
                                   Sin cargos en este ejercicio
                                 </div>
                               ) : (
@@ -1423,9 +1428,9 @@ export default function LibroMayorPage() {
                             </div>
 
                             {/* Lado Haber */}
-                            <div className="p-2.5 space-y-2 divide-y divide-border/30">
+                            <div className={cn("p-2.5 space-y-2 divide-y divide-border/30", movs.haber.length === 0 && "h-full flex items-center justify-center p-0")}>
                               {movs.haber.length === 0 ? (
-                                <div className="py-10 text-center text-muted-foreground/35 text-xs italic">
+                                <div className="text-center text-muted-foreground/35 text-xs italic p-4">
                                   Sin abonos en este ejercicio
                                 </div>
                               ) : (
@@ -1454,7 +1459,7 @@ export default function LibroMayorPage() {
                           </div>
 
                           {/* Totales Debe y Haber */}
-                          <div className="grid grid-cols-2 divide-x divide-border/70 border-t border-border/70 bg-muted/25 p-2.5 font-mono font-bold text-xs sm:text-sm">
+                          <div className="grid grid-cols-2 divide-x divide-border/70 border-t border-border/70 bg-muted/25 p-2.5 font-mono font-bold text-xs sm:text-sm shrink-0">
                             <div className="flex justify-between items-center pr-2">
                               <span className="text-muted-foreground text-[10px] sm:text-xs uppercase font-semibold">Total Debe:</span>
                               <span className="tabular-nums text-foreground">{formatoMoneda(m.debe)}</span>
@@ -1467,15 +1472,15 @@ export default function LibroMayorPage() {
                         </div>
 
                         {/* Fila de Saldo y Acciones */}
-                        <div className="flex items-center justify-between gap-3 pt-1">
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-xs font-semibold text-muted-foreground">Saldo Neto:</span>
-                            <span className="font-mono font-extrabold text-base sm:text-lg text-foreground tabular-nums">
+                        <div className="flex items-center justify-between gap-3 pt-1 shrink-0">
+                          <div className="flex items-baseline gap-2 min-w-0">
+                            <span className="text-xs font-semibold text-muted-foreground shrink-0">Saldo Neto:</span>
+                            <span className="font-mono font-extrabold text-base sm:text-lg text-foreground tabular-nums truncate">
                               {formatoMoneda(Math.abs(m.saldo))}
                             </span>
                           </div>
 
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 shrink-0">
                             <Button
                               type="button"
                               variant="outline"
