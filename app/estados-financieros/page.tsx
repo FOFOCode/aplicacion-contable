@@ -47,6 +47,7 @@ import {
 
 import { exportarLibroExcel, maquetarReporteContable } from "@/lib/excel"
 import { BotonExportarUnificado } from "@/components/contabilidad/BotonExportarUnificado"
+import { ReporteImpresion } from "@/components/contabilidad/ReporteImpresion"
 
 // ============================================================
 // RENGLONES DE REPORTE
@@ -776,7 +777,8 @@ export default function EstadosFinancierosPage() {
   }
 
   return (
-    <div className="space-y-8 report-page">
+    <div className="report-page print:bg-white">
+      <div className="space-y-8 print:hidden">
       {/* ====================================================== */}
       {/* ENCABEZADO Y ACCIONES (POSICIONES EXACTAS DEL MOCKUP) */}
       {/* ====================================================== */}
@@ -883,15 +885,7 @@ export default function EstadosFinancierosPage() {
         </div>
       </header>
 
-      {/* ENCABEZADO EXCLUSIVO PARA IMPRESIÓN OFICIAL */}
-      <div className="hidden print:block mb-4 border-b border-border pb-3">
-        <h1 className="text-xl font-bold uppercase tracking-tight text-foreground">
-          Reporte Oficial de Estados Financieros
-        </h1>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          Ciclo Fiscal: {ejercicioSeleccionado} · Expresado en USD · Fecha de emisión: {new Date().toLocaleDateString("es-SV")}
-        </p>
-      </div>
+
 
       {/* ====================================================== */}
       {/* MODAL TOMA FÍSICA */}
@@ -1212,7 +1206,7 @@ export default function EstadosFinancierosPage() {
         {/* ESTADO DE RESULTADOS                                   */}
         {/* ====================================================== */}
         <div className={cn(
-          tabEstado === "resultados" ? "block" : "hidden print:block"
+          tabEstado === "resultados" ? "block" : "hidden"
         )}>
           <Card className="report-card">
             <CardHeader className="pb-3 border-b border-border/60">
@@ -1428,7 +1422,7 @@ export default function EstadosFinancierosPage() {
           {/* ========================================================= */}
           {/* DETALLE COMPLETO (EXPANDIDO O AL IMPRIMIR)                */}
           {/* ========================================================= */}
-          <div className={cn(erExpandido ? "block space-y-4 pt-2" : "hidden print:block", "print:pt-0")}>
+          <div className={cn(erExpandido ? "block space-y-4 pt-2" : "hidden")}>
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-4 print:hidden">
               <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                 <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -2998,31 +2992,9 @@ export default function EstadosFinancierosPage() {
     </div>
   </section>
 
-      {/* ====================================================== */}
-      {/* PIE PARA IMPRESIÓN */}
-      {/* ====================================================== */}
-
-      <footer className="hidden border-t border-border pt-8 text-center text-xs text-muted-foreground print:block">
-        <p>
-          Las notas son parte
-          integrante de los
-          estados financieros.
-        </p>
-
-        <div className="mt-12 grid grid-cols-3 gap-10">
-          <div className="border-t border-foreground/50 pt-2">
-            Representante legal
-          </div>
-
-          <div className="border-t border-foreground/50 pt-2">
-            Contador
-          </div>
-
-          <div className="border-t border-foreground/50 pt-2">
-            Auditor externo
-          </div>
-        </div>
-      </footer>
+      </div> {/* Fin del contenedor interactivo (print:hidden) */}
+      
+      <ReporteImpresion />
     </div>
   )
 }
