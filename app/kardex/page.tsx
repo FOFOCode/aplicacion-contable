@@ -40,6 +40,7 @@ import { Input } from "@/components/ui/field";
 import { useContabilidad } from "@/components/contabilidad-provider";
 import { formatoMoneda, redondear, totalesAsiento } from "@/lib/contabilidad";
 import { exportarLibroExcel } from "@/lib/excel";
+import { BotonExportarUnificado } from "@/components/contabilidad/BotonExportarUnificado";
 import type { Asiento, Cuenta, TipoCuenta } from "@/lib/types";
 
 interface MovimientoKardex {
@@ -2011,36 +2012,7 @@ function KardexContent() {
                       Cargar Pólizas ({asientosInventario.length})
                     </Button>
                   )}
-                  {filasManuales.length > 0 && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setEdicionManualHabilitada(!edicionManualHabilitada)}
-                      className={`h-8 gap-1.5 text-xs cursor-pointer transition-colors ${
-                        edicionManualHabilitada
-                          ? "border-amber-500/50 bg-amber-500/10 text-amber-800 dark:text-amber-300 hover:bg-amber-500/20"
-                          : "border-border text-muted-foreground hover:text-foreground hover:bg-muted"
-                      }`}
-                      title={
-                        edicionManualHabilitada
-                          ? "Bloquear celdas para evitar modificaciones accidentales"
-                          : "Habilitar modo edición para modificar valores"
-                      }
-                    >
-                      {edicionManualHabilitada ? (
-                        <>
-                          <Lock className="size-3.5 text-amber-600 dark:text-amber-400" />
-                          <span>Bloquear</span>
-                        </>
-                      ) : (
-                        <>
-                          <Unlock className="size-3.5 text-muted-foreground" />
-                          <span>Editar</span>
-                        </>
-                      )}
-                    </Button>
-                  )}
+
                   <Button
                     type="button"
                     size="sm"
@@ -2076,37 +2048,14 @@ function KardexContent() {
                   Sincronizar BD
                 </Button>
               )}
-              {/* Dropdown Exportar */}
-              <div className="relative group print:hidden">
-                <button
-                  type="button"
-                  className="flex items-center gap-1.5 px-3 h-8 text-xs font-medium border border-border bg-background hover:bg-muted text-foreground rounded-md shadow-xs focus:ring-1 focus:ring-primary cursor-pointer transition-colors"
-                >
-                  <Download className="size-3.5" />
-                  Exportar
-                  <ChevronDown className="size-3 opacity-50 transition-transform group-hover:rotate-180" />
-                </button>
-                
-                {/* Menú Flotante */}
-                <div className="absolute right-0 top-full mt-1.5 w-36 rounded-md border border-border bg-popover p-1 shadow-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-                  <button
-                    type="button"
-                    onClick={exportarPdf}
-                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs text-foreground hover:bg-muted cursor-pointer text-left"
-                  >
-                    <FileDown className="size-3.5 text-muted-foreground" />
-                    Imprimir / PDF
-                  </button>
-                  <button
-                    type="button"
-                    onClick={exportarExcel}
-                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30 cursor-pointer text-left"
-                  >
-                    <FileSpreadsheet className="size-3.5" />
-                    Hoja de Excel
-                  </button>
-                </div>
-              </div>
+              <BotonExportarUnificado
+                onExportarPdf={exportarPdf}
+                textoPdf="Imprimir / PDF"
+                descPdf="Documento formal de la tarjeta"
+                onExportarExcel={exportarExcel}
+                textoExcel="Hoja de Excel"
+                descExcel="Tarjeta valorada (.xlsx)"
+              />
               <Button
                 type="button"
                 variant="ghost"
@@ -2907,28 +2856,14 @@ function KardexContent() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 print:hidden">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={exportarPdf}
-                className="h-8 gap-1.5 text-xs shadow-xs"
-              >
-                <FileDown className="size-3.5" />
-                Imprimir {modoVista === "continuo" ? "Libro Completo" : "Ficha"}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={exportarExcel}
-                className="h-8 gap-1.5 text-xs border-emerald-600/30 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/20 shadow-xs"
-              >
-                <FileSpreadsheet className="size-3.5 text-emerald-600" />
-                Exportar Excel
-              </Button>
-            </div>
+            <BotonExportarUnificado
+              onExportarPdf={exportarPdf}
+              textoPdf={modoVista === "continuo" ? "Imprimir Libro Completo" : "Imprimir Ficha"}
+              descPdf="Vista oficial de imprenta (PDF)"
+              onExportarExcel={exportarExcel}
+              textoExcel="Exportar Excel"
+              descExcel={modoVista === "continuo" ? "Todas las tarjetas (.xlsx)" : "Tarjeta de kardex (.xlsx)"}
+            />
           </header>
 
           {/* 2. BARRA DE CONTROL */}

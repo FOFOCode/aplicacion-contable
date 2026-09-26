@@ -46,6 +46,7 @@ import {
 } from "@/lib/contabilidad"
 
 import { exportarLibroExcel } from "@/lib/excel"
+import { BotonExportarUnificado } from "@/components/contabilidad/BotonExportarUnificado"
 
 // ============================================================
 // RENGLONES DE REPORTE
@@ -775,27 +776,17 @@ export default function EstadosFinancierosPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={exportarExcel}
-              className="h-8 rounded-xl border-border/80 bg-card hover:bg-muted font-medium text-xs shadow-2xs gap-1.5"
-            >
-              <FileSpreadsheet className="size-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>Exportar Excel</span>
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={exportarPdf}
-              className="h-8 rounded-xl border-border/80 bg-card hover:bg-muted font-medium text-xs shadow-2xs gap-1.5"
-            >
-              <FileDown className="size-3.5 text-muted-foreground" />
-              <span>Exportar PDF</span>
-            </Button>
+            <BotonExportarUnificado
+              onExportarPdf={exportarPdf}
+              textoPdf="Descargar PDF"
+              descPdf="Estados financieros oficiales"
+              onExportarExcel={exportarExcel}
+              textoExcel="Exportar Excel"
+              descExcel="Balance y Resultados (.xlsx)"
+              onImprimir={() => window.print()}
+              textoImprimir="Imprimir Estados"
+              descImprimir="Vista oficial de imprenta"
+            />
 
             <Link
               href="/ciclos"

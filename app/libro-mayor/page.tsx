@@ -31,6 +31,7 @@ import { formatoMoneda, redondear } from "@/lib/contabilidad"
 import { exportarLibroExcel, type EstiloCelda } from "@/lib/excel"
 import { ETIQUETA_TIPO } from "@/lib/types"
 import { CuentaMayorFinderModal } from "@/components/contabilidad/CuentaMayorFinderModal"
+import { BotonExportarUnificado } from "@/components/contabilidad/BotonExportarUnificado"
 import { cn } from "@/lib/utils"
 
 // Cuentas que el modulo de Kardex reconoce como movimientos de inventario
@@ -508,28 +509,17 @@ export default function LibroMayorPage() {
             </Badge>
           </div>
 
-          <div className="flex items-center gap-2 print:hidden">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={exportarPdf}
-              className="h-8 gap-1.5 text-xs shadow-xs cursor-pointer"
-            >
-              <FileDown className="size-3.5" />
-              Imprimir
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={exportarExcel}
-              className="h-8 gap-1.5 text-xs border-emerald-600/30 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/20 shadow-xs cursor-pointer"
-            >
-              <FileSpreadsheet className="size-3.5 text-emerald-600" />
-              Exportar Excel
-            </Button>
-          </div>
+          <BotonExportarUnificado
+            onExportarPdf={exportarPdf}
+            textoPdf="Descargar PDF"
+            descPdf="Cuentas T y Balanza oficial"
+            onExportarExcel={exportarExcel}
+            textoExcel="Exportar Excel"
+            descExcel="Libro Mayor y saldos (.xlsx)"
+            onImprimir={() => window.print()}
+            textoImprimir="Imprimir Mayor"
+            descImprimir="Vista oficial de imprenta"
+          />
         </div>
 
         {/* FILA INFERIOR: ALTERNADOR DE 3 VISTAS + BOTÓN FINDER */}

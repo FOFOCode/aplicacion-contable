@@ -152,6 +152,12 @@ export default function LibroDiarioPage() {
     id: string;
     numero: number;
   } | null>(null);
+  const [partidaAjustando, setPartidaAjustando] = useState<{
+    id: string;
+    numero: number;
+    concepto: string;
+    notaValida: string;
+  } | null>(null);
 
   // Modal de captura
   const [modalCapturaOpen, setModalCapturaOpen] = useState(false)
@@ -213,8 +219,8 @@ export default function LibroDiarioPage() {
   }, [notificacion])
 
   // Carga del Folio según la fecha seleccionada
-  const cargarFolioFecha = useCallback(async (fecha: string) => {
-    setCargandoFolio(true)
+  const cargarFolioFecha = useCallback(async (fecha: string, silencioso = false) => {
+    if (!silencioso) setCargandoFolio(true)
     try {
       const res = await fetch(`/api/folios/hoy?fecha=${fecha}`, { cache: "no-store" })
       if (!res.ok) throw new Error("Error al obtener estado del folio")
@@ -228,31 +234,12 @@ export default function LibroDiarioPage() {
         mensaje: "Error de conexión al cargar el folio diario.",
       })
     } finally {
-      setCargandoFolio(false)
+      if (!silencioso) setCargandoFolio(false)
     }
   }, [])
 
   useEffect(() => {
     cargarFolioFecha(fechaSeleccionada)
-  }, [fechaSeleccionada, cargarFolioFecha])
-
-  // Sincronización automática de folios en segundo plano y al regresar a la pestaña
-  useEffect(() => {
-    const sincronizarFolio = () => {
-      if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        cargarFolioFecha(fechaSeleccionada)
-      }
-    }
-
-    window.addEventListener("focus", sincronizarFolio)
-    document.addEventListener("visibilitychange", sincronizarFolio)
-    const timer = setInterval(sincronizarFolio, 20000)
-
-    return () => {
-      window.removeEventListener("focus", sincronizarFolio)
-      document.removeEventListener("visibilitychange", sincronizarFolio)
-      clearInterval(timer)
-    }
   }, [fechaSeleccionada, cargarFolioFecha])
 
   // Iniciar Folio de Hoy
@@ -771,6 +758,7 @@ export default function LibroDiarioPage() {
     setConcepto("")
     setDocumentoSoporte("")
     setPartidaEnEdicion(null)
+    setPartidaAjustando(null)
     setLineas([])
   }
 
@@ -815,6 +803,12 @@ export default function LibroDiarioPage() {
     notaValida: string
   ) => {
     setPartidaEnEdicion(null)
+    setPartidaAjustando({
+      id: partidaOriginal.id,
+      numero: partidaOriginal.numero,
+      concepto: partidaOriginal.concepto,
+      notaValida,
+    })
     setTipoPartida("AJUSTE")
     setDocumentoSoporte(`Ajuste P-${partidaOriginal.numero}`)
     setConcepto(`Ajuste a Partida #${partidaOriginal.numero}: ${notaValida}`)
@@ -979,11 +973,34 @@ export default function LibroDiarioPage() {
           throw new Error(err.error || "Error al procesar la partida");
         }
 
+        // Si este nuevo asiento sustituye/ajusta a una partida original previa,
+        // marcar formalmente la partida original como ANULADA para que no sume en los totales
+        if (partidaAjustando) {
+          try {
+            await fetch(`/api/asientos/${partidaAjustando.id}`, {
+              method: "DELETE",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                motivo: `Modificada y ajustada por Asiento de Ajuste P-${partidaAjustando.numero}: ${partidaAjustando.notaValida}`,
+              }),
+            })
+          } catch (errAnular) {
+            console.error("Error al anular partida original modificada:", errAnular)
+          }
+          setPartidaAjustando(null)
+        }
+
         setNotificacion({
           tipo: "exito",
-          titulo: isEditing ? "Partida Actualizada" : "Partida Guardada",
+          titulo: isEditing
+            ? "Partida Actualizada"
+            : tipoPartida === "AJUSTE"
+            ? "Asiento de Ajuste Registrado"
+            : "Partida Guardada",
           mensaje: isEditing
             ? `Partida #${partidaEnEdicion.numero} actualizada con éxito.`
+            : tipoPartida === "AJUSTE"
+            ? "Asiento de ajuste guardado exitosamente. La partida previa quedó marcada como ajustada."
             : "Partida guardada exitosamente en el folio de hoy.",
         })
 
@@ -1009,6 +1026,7 @@ export default function LibroDiarioPage() {
       fechaSeleccionada,
       datosFolio?.folio?.id,
       partidaEnEdicion,
+      partidaAjustando,
       cargarFolioFecha,
       recargarAsientos,
     ],
@@ -1041,8 +1059,8 @@ export default function LibroDiarioPage() {
         fecha: datosFolio.folio.fecha,
         ejercicio: datosFolio.folio.ejercicio,
         estado: datosFolio.folio.estado,
-        total_debe: datosFolio.totales?.totalDebe || 0,
-        total_haber: datosFolio.totales?.totalHaber || 0,
+        total_debe: totalesFolio.totalDebe,
+        total_haber: totalesFolio.totalHaber,
         partidas: datosFolio.partidas || [],
       },
       getNombreCuenta,
@@ -1058,8 +1076,8 @@ export default function LibroDiarioPage() {
         fecha: datosFolio.folio.fecha,
         ejercicio: datosFolio.folio.ejercicio,
         estado: datosFolio.folio.estado,
-        total_debe: datosFolio.totales?.totalDebe || 0,
-        total_haber: datosFolio.totales?.totalHaber || 0,
+        total_debe: totalesFolio.totalDebe,
+        total_haber: totalesFolio.totalHaber,
         partidas: datosFolio.partidas || [],
       },
       getNombreCuenta,
@@ -1109,14 +1127,73 @@ export default function LibroDiarioPage() {
         : [],
     [datosFolio?.partidas],
   )
-  const totalesFolio = datosFolio?.totales ?? {
-    totalDebe: 0,
-    totalHaber: 0,
-    diferencia: 0,
-    cuadrado: true,
-    partidasCuadradas: 0,
-    totalPartidas: 0,
-  };
+  // Identificar partidas que fueron sustituidas o modificadas por un Asiento de Ajuste
+  const numerosAjustados = useMemo(() => {
+    const s = new Set<number>()
+    for (const p of partidasFolio) {
+      if (p.tipo === "AJUSTE") {
+        const matchDoc = p.documento_soporte?.match(/(?:Ajuste|Reversión)\s+P-(\d+)/i)
+        if (matchDoc) s.add(parseInt(matchDoc[1], 10))
+        const matchCon = p.concepto?.match(/Ajuste\s+a\s+Partida\s+#(\d+)/i)
+        if (matchCon) s.add(parseInt(matchCon[1], 10))
+      }
+    }
+    return s
+  }, [partidasFolio])
+
+  // Totales dinámicos del folio: excluyen partidas anuladas o partidas originales que sufrieron ajuste
+  const totalesFolio = useMemo(() => {
+    if (!datosFolio) {
+      return {
+        totalDebe: 0,
+        totalHaber: 0,
+        diferencia: 0,
+        cuadrado: true,
+        partidasCuadradas: 0,
+        totalPartidas: 0,
+        partidasActivas: 0,
+      }
+    }
+
+    const partidasValidas = partidasFolio.filter(
+      (p) => p.estado !== "ANULADO" && !numerosAjustados.has(p.numero)
+    )
+
+    let debeCents = 0
+    let haberCents = 0
+    let cuadradas = 0
+
+    for (const p of partidasValidas) {
+      let pDebe = 0
+      let pHaber = 0
+      for (const l of p.lineas) {
+        pDebe += Math.round((Number(l.debe) || 0) * 100)
+        pHaber += Math.round((Number(l.haber) || 0) * 100)
+      }
+      debeCents += pDebe
+      haberCents += pHaber
+      if (pDebe === pHaber && pDebe > 0) cuadradas++
+    }
+
+    const diffCents = debeCents - haberCents
+    const totalDebe = debeCents / 100
+    const totalHaber = haberCents / 100
+    const diferencia = Math.abs(diffCents) / 100
+    const cuadrado =
+      diffCents === 0 &&
+      (partidasValidas.length === 0 ||
+        (debeCents > 0 && cuadradas === partidasValidas.length))
+
+    return {
+      totalDebe,
+      totalHaber,
+      diferencia,
+      cuadrado,
+      partidasCuadradas: cuadradas,
+      totalPartidas: partidasValidas.length,
+      partidasActivas: partidasValidas.length,
+    }
+  }, [datosFolio, partidasFolio, numerosAjustados])
 
   // =========================================================================
   // RENDER: Formulario de captura (reutilizado en modal)
@@ -1863,7 +1940,8 @@ export default function LibroDiarioPage() {
                         pDebe += Number(l.debe) || 0
                         pHaber += Number(l.haber) || 0
                       })
-                      const esAnulado = partida.estado === "ANULADO"
+                      const esAjustado = numerosAjustados.has(partida.numero)
+                      const esAnulado = partida.estado === "ANULADO" || esAjustado
                       const estaEditandoEsta = partidaEnEdicion?.id === partida.id
                       const estaColapsada = partidasColapsadas.has(partida.id)
 
@@ -1919,7 +1997,7 @@ export default function LibroDiarioPage() {
                               )}
                               {esAnulado && (
                                 <Badge variant="warning" className="text-[10px]">
-                                  ANULADO
+                                  {partida.estado === "ANULADO" && !esAjustado ? "ANULADO" : "AJUSTADO"}
                                 </Badge>
                               )}
                               <span className="font-mono text-xs tabular-nums font-bold text-foreground w-24 text-right">
