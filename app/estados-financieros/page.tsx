@@ -294,22 +294,9 @@ export default function EstadosFinancierosPage() {
         "ESTADO DE RESULTADOS — FINEXA",
       ],
       [
-        "Expresado en dólares de los Estados Unidos de América (USD) | Finexa",
-      ],
-      [
-        `Ejercicio fiscal: ${ejercicioSeleccionado}`,
-      ],
-      [
-        `Origen de datos: ${
-          er.calculadoPorSql
-            ? "Motor Central Validado"
-            : "Motor Local (Modo Offline)"
-        }`,
-      ],
-      [
         `Fecha de emisión: ${new Date().toLocaleDateString(
           "es-SV"
-        )}`,
+        )}  |  Finexa · Sistema de Gestión Contable`,
       ],
       [],
       ["Concepto / Rubro Contable", "Monto Oficial (USD)"],
@@ -514,15 +501,9 @@ export default function EstadosFinancierosPage() {
         "BALANCE GENERAL — FINEXA",
       ],
       [
-        "Ecuación Contable: Activo = Pasivo + Capital Contable | Finexa",
-      ],
-      [
-        `Ejercicio fiscal: ${ejercicioSeleccionado}`,
-      ],
-      [
         `Fecha de corte: ${new Date().toLocaleDateString(
           "es-SV"
-        )}`,
+        )}  |  Finexa · Sistema de Gestión Contable`,
       ],
       [],
       ["Cuenta / Rubro Contable", "Saldo Oficial (USD)"],
@@ -616,7 +597,7 @@ export default function EstadosFinancierosPage() {
       const texto = String(fila[0] || "")
       if (texto.startsWith("(=)") || texto.includes("UTILIDAD") || texto.includes("PÉRDIDA") || texto.includes("RESULTADO")) {
         filasTotalesER.push(idx)
-      } else if (/^[0-9]\./.test(texto) || (fila[1] === "" && texto.length > 0 && idx > 5)) {
+      } else if (/^[0-9]\./.test(texto) || (fila[1] === "" && texto.length > 0 && idx > 3)) {
         filasSeccionER.push(idx)
       }
     })
@@ -640,7 +621,7 @@ export default function EstadosFinancierosPage() {
           filas: filasER,
           ...maquetarReporteContable({
             filas: filasER,
-            filaEncabezado: 5,
+            filaEncabezado: 3,
             columnasMoneda: [1],
             anchos: [55, 20],
             filasTotales: filasTotalesER,
@@ -654,7 +635,7 @@ export default function EstadosFinancierosPage() {
           filas: filasBG,
           ...maquetarReporteContable({
             filas: filasBG,
-            filaEncabezado: 5,
+            filaEncabezado: 3,
             columnasMoneda: [1],
             anchos: [55, 20],
             filasTotales: filasTotalesBG,
