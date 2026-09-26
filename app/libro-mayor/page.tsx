@@ -1775,17 +1775,11 @@ export default function LibroMayorPage() {
               <div className="text-base sm:text-lg font-bold font-mono tabular-nums text-foreground">
                 {formatoMoneda(totalDebe)}
               </div>
-              <div className="text-[11px] text-muted-foreground flex items-center gap-1">
-                {cuadraMovimientos ? (
-                  <span className="text-emerald-600 dark:text-emerald-400 font-medium inline-flex items-center gap-1">
-                    <CheckCircle2 className="size-3" /> Débito = Crédito
-                  </span>
-                ) : (
-                  <span className="text-amber-600 dark:text-amber-400 font-medium inline-flex items-center gap-1">
-                    <AlertTriangle className="size-3" /> Diferencia detectada
-                  </span>
-                )}
-              </div>
+              {!cuadraMovimientos && (
+                <div className="text-[11px] text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
+                  <AlertTriangle className="size-3" /> Diferencia detectada
+                </div>
+              )}
             </div>
 
             <div className="rounded-2xl border border-border/80 bg-card p-4 shadow-2xs space-y-1">
@@ -1795,29 +1789,23 @@ export default function LibroMayorPage() {
               <div className="text-base sm:text-lg font-bold font-mono tabular-nums text-foreground">
                 {formatoMoneda(totalDeudor)}
               </div>
-              <div className="text-[11px] text-muted-foreground flex items-center gap-1">
-                {cuadraSaldos ? (
-                  <span className="text-emerald-600 dark:text-emerald-400 font-medium inline-flex items-center gap-1">
-                    <CheckCircle2 className="size-3" /> Deudor = Acreedor
-                  </span>
-                ) : (
-                  <span className="text-amber-600 dark:text-amber-400 font-medium inline-flex items-center gap-1">
-                    <AlertTriangle className="size-3" /> Diferencia en saldos
-                  </span>
-                )}
-              </div>
+              {!cuadraSaldos && (
+                <div className="text-[11px] text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
+                  <AlertTriangle className="size-3" /> Diferencia en saldos
+                </div>
+              )}
             </div>
 
             <div className="rounded-2xl border border-border/80 bg-card p-4 shadow-2xs space-y-1">
               <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
-                Estado Partida Doble
+                Estado de Balance
               </span>
               <div className="pt-0.5">
                 <Badge
                   variant={cuadraMovimientos && cuadraSaldos ? "success" : "warning"}
-                  className="font-mono text-xs px-2 py-0.5"
+                  className="font-mono text-xs px-2.5 py-0.5"
                 >
-                  {cuadraMovimientos && cuadraSaldos ? "Cuadrada al Centavo ✓" : "Diferencia"}
+                  {cuadraMovimientos && cuadraSaldos ? "Cuadrado" : "Descuadrado"}
                 </Badge>
               </div>
               <p className="text-[10px] text-muted-foreground">
