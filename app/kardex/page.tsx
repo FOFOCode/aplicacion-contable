@@ -39,7 +39,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/field";
 import { useContabilidad } from "@/components/contabilidad-provider";
 import { formatoMoneda, redondear, totalesAsiento } from "@/lib/contabilidad";
-import { exportarLibroExcel } from "@/lib/excel";
+import { exportarLibroExcel, maquetarReporteContable } from "@/lib/excel";
 import { BotonExportarUnificado } from "@/components/contabilidad/BotonExportarUnificado";
 import type { Asiento, Cuenta, TipoCuenta } from "@/lib/types";
 
@@ -1588,6 +1588,15 @@ function KardexContent() {
         {
           nombre: `Kardex ${articuloActual.codigo}`,
           filas,
+          ...maquetarReporteContable({
+            filas,
+            filaEncabezado: 8,
+            columnasMoneda: [6, 7, 8, 9],
+            columnasNumero: [3, 4, 5],
+            columnasCentro: [0, 1],
+            anchos: [12, 18, 38, 16, 16, 18, 16, 16, 16, 16],
+            orientacion: "landscape",
+          }),
         },
       ]);
       return;
@@ -1682,6 +1691,14 @@ function KardexContent() {
         return {
           nombre: `Aux ${item.cuenta.codigo}`,
           filas,
+          ...maquetarReporteContable({
+            filas,
+            filaEncabezado: 7,
+            columnasMoneda: [5, 6, 7],
+            columnasCentro: [0, 1, 2, 3, 8],
+            anchos: [12, 10, 12, 18, 38, 16, 16, 16, 8],
+            orientacion: "landscape",
+          }),
         };
       });
 
@@ -1779,6 +1796,14 @@ function KardexContent() {
         {
           nombre: `Auxiliar ${cuentaActual.codigo}`,
           filas,
+          ...maquetarReporteContable({
+            filas,
+            filaEncabezado: 8,
+            columnasMoneda: [5, 6, 7],
+            columnasCentro: [0, 1, 2, 3, 8],
+            anchos: [12, 10, 12, 18, 38, 16, 16, 16, 8],
+            orientacion: "landscape",
+          }),
         },
       ],
     );

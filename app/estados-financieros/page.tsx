@@ -45,7 +45,7 @@ import {
   type LineaReporte,
 } from "@/lib/contabilidad"
 
-import { exportarLibroExcel } from "@/lib/excel"
+import { exportarLibroExcel, maquetarReporteContable } from "@/lib/excel"
 import { BotonExportarUnificado } from "@/components/contabilidad/BotonExportarUnificado"
 
 // ============================================================
@@ -312,6 +312,7 @@ export default function EstadosFinancierosPage() {
         )}`,
       ],
       [],
+      ["Concepto / Rubro Contable", "Monto Oficial (USD)"],
       [
         "1. DETERMINACIÓN DE VENTAS NETAS",
         "",
@@ -524,6 +525,7 @@ export default function EstadosFinancierosPage() {
         )}`,
       ],
       [],
+      ["Cuenta / Rubro Contable", "Saldo Oficial (USD)"],
       [
         "ACTIVO (Código 1)",
         "",
@@ -608,20 +610,58 @@ export default function EstadosFinancierosPage() {
         : "DESCUADRADO",
     ])
 
+    const filasTotalesER: number[] = []
+    const filasSeccionER: number[] = []
+    filasER.forEach((fila, idx) => {
+      const texto = String(fila[0] || "")
+      if (texto.startsWith("(=)") || texto.includes("UTILIDAD") || texto.includes("PÉRDIDA") || texto.includes("RESULTADO")) {
+        filasTotalesER.push(idx)
+      } else if (/^[0-9]\./.test(texto) || (fila[1] === "" && texto.length > 0 && idx > 5)) {
+        filasSeccionER.push(idx)
+      }
+    })
+
+    const filasTotalesBG: number[] = []
+    const filasSeccionBG: number[] = []
+    filasBG.forEach((fila, idx) => {
+      const texto = String(fila[0] || "")
+      if (texto.startsWith("TOTAL") || texto.startsWith("ESTADO DE CUADRE")) {
+        filasTotalesBG.push(idx)
+      } else if (texto.startsWith("ACTIVO") || texto.startsWith("PASIVO") || texto.startsWith("CAPITAL CONTABLE")) {
+        filasSeccionBG.push(idx)
+      }
+    })
+
     exportarLibroExcel(
       `Estados_Financieros_Ejercicio_${ejercicioSeleccionado}`,
       [
         {
-          nombre:
-            "Estado de Resultados",
-          filas:
-            filasER,
+          nombre: "Estado de Resultados",
+          filas: filasER,
+          ...maquetarReporteContable({
+            filas: filasER,
+            filaEncabezado: 5,
+            columnasMoneda: [1],
+            anchos: [55, 20],
+            filasTotales: filasTotalesER,
+            filasSeccion: filasSeccionER,
+            orientacion: "portrait",
+            filtro: false,
+          }),
         },
         {
-          nombre:
-            "Balance General",
-          filas:
-            filasBG,
+          nombre: "Balance General",
+          filas: filasBG,
+          ...maquetarReporteContable({
+            filas: filasBG,
+            filaEncabezado: 5,
+            columnasMoneda: [1],
+            anchos: [55, 20],
+            filasTotales: filasTotalesBG,
+            filasSeccion: filasSeccionBG,
+            orientacion: "portrait",
+            filtro: false,
+          }),
         },
       ]
     )

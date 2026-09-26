@@ -29,6 +29,7 @@ import {
   FileCheck,
   Pencil,
   FileDown,
+  FileSpreadsheet,
   Table,
   Sliders,
   Zap,
@@ -63,7 +64,7 @@ import { HistorialFoliosDrawer } from "@/components/contabilidad/HistorialFolios
 import { CuentaFinderModal, type ResultadoFinder } from "@/components/contabilidad/CuentaFinderModal"
 import { ModalAjusteContable } from "@/components/contabilidad/ModalAjusteContable"
 import { useContableKeyboard } from "@/hooks/useContableKeyboard"
-import { exportarFolioPDF, exportarFolioCSV } from "@/lib/exportFolio"
+import { exportarFolioPDF, exportarFolioCSV, exportarFolioExcel } from "@/lib/exportFolio"
 import { cn } from "@/lib/utils"
 
 interface LineaCaptura {
@@ -1084,6 +1085,23 @@ export default function LibroDiarioPage() {
     );
   };
 
+  // Exportar Excel (.xlsx con diseño profesional)
+  const handleExportExcel = () => {
+    if (!datosFolio?.folio) return;
+    exportarFolioExcel(
+      {
+        numero_folio: datosFolio.folio.numero_folio,
+        fecha: datosFolio.folio.fecha,
+        ejercicio: datosFolio.folio.ejercicio,
+        estado: datosFolio.folio.estado,
+        total_debe: totalesFolio.totalDebe,
+        total_haber: totalesFolio.totalHaber,
+        partidas: datosFolio.partidas || [],
+      },
+      getNombreCuenta,
+    );
+  };
+
   // Toggle colapsar partida
   const toggleColapsarPartida = (id: string) => {
     setPartidasColapsadas((prev) => {
@@ -1647,6 +1665,21 @@ export default function LibroDiarioPage() {
                           <div>
                             <p className="font-semibold text-foreground">Descargar PDF</p>
                             <p className="text-[10px] text-muted-foreground">Comprobante legal con firmas</p>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMenuExportarOpen(false)
+                            handleExportExcel()
+                          }}
+                          className="w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs hover:bg-muted transition-colors cursor-pointer text-left"
+                        >
+                          <FileSpreadsheet className="size-4 text-emerald-600 dark:text-emerald-400" />
+                          <div>
+                            <p className="font-semibold text-foreground">Exportar Excel (.xlsx)</p>
+                            <p className="text-[10px] text-muted-foreground">Formato oficial con diseño</p>
                           </div>
                         </button>
 

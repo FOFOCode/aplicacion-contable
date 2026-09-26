@@ -1,6 +1,18 @@
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import { formatoMoneda } from "./contabilidad"
+import {
+  exportarLibroExcel,
+  ESTILO_TITULO_EMPRESA,
+  ESTILO_SUBTITULO,
+  ESTILO_CABECERA_TABLA,
+  ESTILO_FILA_SECCION,
+  ESTILO_CELDA_NORMAL,
+  ESTILO_CELDA_CODIGO,
+  ESTILO_CELDA_MONEDA,
+  ESTILO_TOTAL_DOBLE_TEXTO,
+  ESTILO_TOTAL_DOBLE_MONEDA,
+} from "./excel"
 
 export interface FolioExportData {
   numero_folio: number
@@ -150,3 +162,109 @@ export function exportarFolioCSV(folio: FolioExportData, getNombreCuenta: (codig
   link.click()
   document.body.removeChild(link)
 }
+
+export function exportarFolioExcel(folio: FolioExportData, getNombreCuenta: (codigo: string) => string) {
+  const filas: (string | number | null | undefined)[][] = [
+    ["EMPRESA COMERCIAL S.A. DE C.V. — LIBRO DIARIO GENERAL"],
+    [`Folio Diario N°: ${String(folio.numero_folio).padStart(4, "0")}  |  Fecha de Jornada: ${folio.fecha}  |  Ejercicio: ${folio.ejercicio}`],
+    [`Estado del Folio: ${folio.estado}  |  Expresado en Dólares Estadounidenses (USD)`],
+    [],
+    ["Partida #", "Fecha", "Código", "Cuenta / Descripción", "Documento", "Debe (USD)", "Haber (USD)"],
+  ]
+
+  const anchos = [12, 12, 12, 42, 16, 16, 16]
+  const filaEncabezado = 4
+  const estilos: Record<string, any> = {
+    "0:0": ESTILO_TITULO_EMPRESA,
+    "1:0": ESTILO_SUBTITULO,
+    "2:0": ESTILO_SUBTITULO,
+  }
+
+  for (let c = 0; c < anchos.length; c++) {
+    estilos[`${filaEncabezado}:${c}`] = ESTILO_CABECERA_TABLA
+  }
+
+  const combinar: string[] = ["A1:G1", "A2:G2", "A3:G3"]
+
+  folio.partidas.forEach((p) => {
+    const fIdx = filas.length
+    filas.push([
+      `PARTIDA #${p.numero}`,
+      p.fecha,
+      "",
+      p.concepto,
+      p.documento_soporte || "",
+      "",
+      "",
+    ])
+
+    // Estilo de cabecera de partida
+    for (let c = 0; c < anchos.length; c++) {
+      estilos[`${fIdx}:${c}`] = ESTILO_FILA_SECCION
+    }
+
+    p.lineas.forEach((l) => {
+      const rowIdx = filas.length
+      filas.push([
+        "",
+        "",
+        l.codigo,
+        getNombreCuenta(l.codigo),
+        "",
+        l.debe > 0 ? l.debe : "",
+        l.haber > 0 ? l.haber : "",
+      ])
+
+      estilos[`${rowIdx}:0`] = ESTILO_CELDA_NORMAL
+      estilos[`${rowIdx}:1`] = ESTILO_CELDA_NORMAL
+      estilos[`${rowIdx}:2`] = ESTILO_CELDA_CODIGO
+      estilos[`${rowIdx}:3`] = ESTILO_CELDA_NORMAL
+      estilos[`${rowIdx}:4`] = ESTILO_CELDA_NORMAL
+      estilos[`${rowIdx}:5`] = ESTILO_CELDA_MONEDA
+      estilos[`${rowIdx}:6`] = ESTILO_CELDA_MONEDA
+    })
+  })
+
+  // Fila de Totales
+  const fTotal = filas.length
+  filas.push([
+    "TOTALES DEL FOLIO DIARIO",
+    "",
+    "",
+    "",
+    "",
+    folio.total_debe,
+    folio.total_haber,
+  ])
+
+  for (let c = 0; c < anchos.length; c++) {
+    if (c === 5 || c === 6) {
+      estilos[`${fTotal}:${c}`] = ESTILO_TOTAL_DOBLE_MONEDA
+    } else {
+      estilos[`${fTotal}:${c}`] = ESTILO_TOTAL_DOBLE_TEXTO
+    }
+  }
+
+  const alturas = filas.map((_, i) => {
+    if (i === 0) return 24
+    if (i < filaEncabezado) return 15
+    if (i === filaEncabezado) return 26
+    if (i === fTotal) return 22
+    return 18
+  })
+
+  exportarLibroExcel(`Folio_Diario_${String(folio.numero_folio).padStart(3, "0")}_${folio.fecha}`, [
+    {
+      nombre: `Folio ${folio.numero_folio}`,
+      filas,
+      anchos,
+      alturas,
+      combinar,
+      estilos,
+      orientacion: "landscape",
+      fitToWidth: 1,
+      fitToHeight: 0,
+    },
+  ])
+}
+

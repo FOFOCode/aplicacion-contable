@@ -50,34 +50,41 @@ const CUENTAS_INVENTARIO = new Set([
 // ============================================================
 
 const BORDE = {
-  top: { style: "thin", color: { rgb: "94A3B8" } },
-  bottom: { style: "thin", color: { rgb: "94A3B8" } },
-  left: { style: "thin", color: { rgb: "94A3B8" } },
-  right: { style: "thin", color: { rgb: "94A3B8" } },
+  top: { style: "thin", color: { rgb: "CBD5E1" } },
+  bottom: { style: "thin", color: { rgb: "CBD5E1" } },
+  left: { style: "thin", color: { rgb: "CBD5E1" } },
+  right: { style: "thin", color: { rgb: "CBD5E1" } },
 } as const
 
 const BORDE_DOBLE = {
-  ...BORDE,
-  top: { style: "double", color: { rgb: "334155" } },
+  top: { style: "thin", color: { rgb: "0F172A" } },
+  bottom: { style: "double", color: { rgb: "0F172A" } },
+  left: { style: "thin", color: { rgb: "CBD5E1" } },
+  right: { style: "thin", color: { rgb: "CBD5E1" } },
 } as const
 
 const TITULO: EstiloCelda = { font: { bold: true, sz: 14, color: { rgb: "0F172A" } } }
-const SUBTITULO: EstiloCelda = { font: { sz: 10, color: { rgb: "475569" } } }
+const SUBTITULO: EstiloCelda = { font: { sz: 10, italic: true, color: { rgb: "475569" } } }
 const ENCABEZADO: EstiloCelda = {
   font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } },
-  fill: { patternType: "solid", fgColor: { rgb: "0F766E" } },
+  fill: { patternType: "solid", fgColor: { rgb: "1E293B" } },
   alignment: { horizontal: "center", vertical: "center", wrapText: true },
-  border: BORDE,
+  border: {
+    top: { style: "medium", color: { rgb: "1E293B" } },
+    bottom: { style: "medium", color: { rgb: "1E293B" } },
+    left: { style: "thin", color: { rgb: "334155" } },
+    right: { style: "thin", color: { rgb: "334155" } },
+  },
 }
 const TOTAL: EstiloCelda = {
-  font: { bold: true, sz: 10 },
+  font: { bold: true, sz: 10, color: { rgb: "0F172A" } },
   fill: { patternType: "solid", fgColor: { rgb: "E2E8F0" } },
   border: BORDE_DOBLE,
 }
-const MONEDA: EstiloCelda = { numFmt: "#,##0.00" }
-const MONEDA_TOTAL: EstiloCelda = { numFmt: "#,##0.00", font: { bold: true } }
+const MONEDA: EstiloCelda = { numFmt: "$#,##0.00;($#,##0.00);\"-\"", alignment: { horizontal: "right" } }
+const MONEDA_TOTAL: EstiloCelda = { numFmt: "$#,##0.00;($#,##0.00);\"-\"", font: { bold: true }, alignment: { horizontal: "right" } }
 
-/** Encabezado + cuerpo con bordes, y pie de totales resaltado. */
+/** Encabezado + cuerpo con bordes, zebra striping y pie de totales formal resaltado. */
 function maquetar(
   filas: (string | number | null | undefined)[][],
   filaEncabezado: number,
@@ -97,13 +104,19 @@ function maquetar(
   }
 
   const ultima = filas.length - 1
+  let contadorCuerpo = 0
   for (let f = filaEncabezado + 1; f < ultima; f++) {
     const fila = filas[f]
     if (!fila || fila.every((v) => v === null || v === undefined || v === "")) continue
+    const esPar = contadorCuerpo % 2 === 0
+    contadorCuerpo++
+    const fillZebra = esPar ? undefined : { patternType: "solid" as const, fgColor: { rgb: "F8FAFC" } }
+
     for (let c = 0; c < anchos.length; c++) {
       const esMoneda = columnasMoneda.includes(c)
       estilos[`${f}:${c}`] = {
-        ...(esMoneda ? MONEDA : {}),
+        ...(esMoneda ? MONEDA : { alignment: { vertical: "center" as const } }),
+        ...(fillZebra ? { fill: fillZebra } : {}),
         border: BORDE,
       }
     }
@@ -123,10 +136,13 @@ function maquetar(
 
   return {
     anchos,
-    alturas: filas.map((_, i) => (i === filaEncabezado ? 26 : i === 0 ? 20 : 14)),
+    alturas: filas.map((_, i) => (i === filaEncabezado ? 26 : i === 0 ? 22 : i === ultima ? 22 : 18)),
     combinar: [`A1:${letraFinal}1`],
     filtro: filtro ?? `A${filaEncabezado + 1}:${letraFinal}${ultima - 1}`,
     estilos,
+    orientacion: "landscape" as const,
+    fitToWidth: 1,
+    fitToHeight: 0,
   }
 }
 
