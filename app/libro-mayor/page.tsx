@@ -1349,26 +1349,28 @@ export default function LibroMayorPage() {
                           {/* Lista con altura ampliada cómodamente */}
                           <div className="grid grid-cols-2 divide-x divide-border/70 min-h-[120px] max-h-[220px] overflow-y-auto">
                             {/* Lado Debe */}
-                            <div className="p-2 space-y-1.5 divide-y divide-border/30">
+                            <div className="p-2.5 space-y-2 divide-y divide-border/30">
                               {movs.debe.length === 0 ? (
                                 <div className="py-10 text-center text-muted-foreground/35 text-xs italic">
                                   Sin cargos en este ejercicio
                                 </div>
                               ) : (
                                 movs.debe.map((d, i) => (
-                                  <div key={i} className="flex justify-between items-center gap-2 pt-1.5 first:pt-0">
-                                    <div className="flex items-center gap-1.5 min-w-0 pr-1">
-                                      <span className="font-mono text-[11px] font-bold text-primary px-1.5 py-0.2 rounded bg-primary/10 shrink-0">
-                                        #{d.numero}
-                                      </span>
-                                      <span className="text-[11px] text-muted-foreground font-mono shrink-0 hidden sm:inline">
-                                        {d.fecha}
-                                      </span>
-                                      <span className="text-xs text-foreground font-medium truncate max-w-[110px] sm:max-w-[180px]" title={d.concepto}>
+                                  <div key={i} className="flex items-start justify-between gap-2.5 pt-2 first:pt-0">
+                                    <div className="min-w-0 flex-1 space-y-0.5">
+                                      {/* Fecha y partida arriba */}
+                                      <div className="flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground">
+                                        <span className="font-bold text-primary px-1.5 py-0.2 rounded bg-primary/10 text-[10px]">
+                                          #{d.numero}
+                                        </span>
+                                        <span>{d.fecha}</span>
+                                      </div>
+                                      {/* Concepto / Cuenta completo abajo */}
+                                      <p className="text-xs text-foreground font-medium leading-snug break-words">
                                         {d.concepto}
-                                      </span>
+                                      </p>
                                     </div>
-                                    <span className="font-mono font-bold text-xs sm:text-sm text-foreground shrink-0 tabular-nums">
+                                    <span className="font-mono font-bold text-xs sm:text-sm text-foreground shrink-0 tabular-nums pt-0.5">
                                       {formatoMoneda(d.monto)}
                                     </span>
                                   </div>
@@ -1377,26 +1379,28 @@ export default function LibroMayorPage() {
                             </div>
 
                             {/* Lado Haber */}
-                            <div className="p-2 space-y-1.5 divide-y divide-border/30">
+                            <div className="p-2.5 space-y-2 divide-y divide-border/30">
                               {movs.haber.length === 0 ? (
                                 <div className="py-10 text-center text-muted-foreground/35 text-xs italic">
                                   Sin abonos en este ejercicio
                                 </div>
                               ) : (
                                 movs.haber.map((h, i) => (
-                                  <div key={i} className="flex justify-between items-center gap-2 pt-1.5 first:pt-0">
-                                    <div className="flex items-center gap-1.5 min-w-0 pr-1">
-                                      <span className="font-mono text-[11px] font-bold text-primary px-1.5 py-0.2 rounded bg-primary/10 shrink-0">
-                                        #{h.numero}
-                                      </span>
-                                      <span className="text-[11px] text-muted-foreground font-mono shrink-0 hidden sm:inline">
-                                        {h.fecha}
-                                      </span>
-                                      <span className="text-xs text-foreground font-medium truncate max-w-[110px] sm:max-w-[180px]" title={h.concepto}>
+                                  <div key={i} className="flex items-start justify-between gap-2.5 pt-2 first:pt-0">
+                                    <div className="min-w-0 flex-1 space-y-0.5">
+                                      {/* Fecha y partida arriba */}
+                                      <div className="flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground">
+                                        <span className="font-bold text-primary px-1.5 py-0.2 rounded bg-primary/10 text-[10px]">
+                                          #{h.numero}
+                                        </span>
+                                        <span>{h.fecha}</span>
+                                      </div>
+                                      {/* Concepto / Cuenta completo abajo */}
+                                      <p className="text-xs text-foreground font-medium leading-snug break-words">
                                         {h.concepto}
-                                      </span>
+                                      </p>
                                     </div>
-                                    <span className="font-mono font-bold text-xs sm:text-sm text-foreground shrink-0 tabular-nums">
+                                    <span className="font-mono font-bold text-xs sm:text-sm text-foreground shrink-0 tabular-nums pt-0.5">
                                       {formatoMoneda(h.monto)}
                                     </span>
                                   </div>
@@ -1476,9 +1480,10 @@ export default function LibroMayorPage() {
             return (
               <div
                 className={cn(
-                  "fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 transition-all duration-300",
-                  "bg-black/60 dark:bg-black/80 backdrop-blur-md",
-                  modalCerrando ? "opacity-0 pointer-events-none" : "opacity-100"
+                  "fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 dark:bg-black/80",
+                  modalCerrando
+                    ? "animate-modal-backdrop-out pointer-events-none"
+                    : "animate-modal-backdrop-in"
                 )}
                 onClick={handleCerrarModalCentrado}
               >
@@ -1493,10 +1498,10 @@ export default function LibroMayorPage() {
                     }
                   }}
                   className={cn(
-                    "w-full max-w-3xl max-h-[90vh] bg-card rounded-3xl border border-primary/40 shadow-2xl overflow-hidden flex flex-col justify-between transition-all duration-300 transform",
+                    "w-full max-w-3xl max-h-[90vh] bg-card rounded-3xl border border-primary/40 shadow-2xl overflow-hidden flex flex-col justify-between",
                     modalCerrando
-                      ? "scale-90 opacity-0 translate-y-6"
-                      : "scale-100 opacity-100 translate-y-0"
+                      ? "animate-modal-zoom-out pointer-events-none"
+                      : "animate-modal-zoom-in"
                   )}
                 >
                   {/* CABECERA MODAL */}
