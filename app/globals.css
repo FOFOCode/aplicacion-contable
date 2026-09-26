@@ -258,3 +258,12 @@
     border-bottom: 2pt double #000 !important;
   }
 }
+
+@keyframes progress5s {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+
+.animate-progress-5s {
+  animation: progress5s 4.8s linear forwards;
+}
