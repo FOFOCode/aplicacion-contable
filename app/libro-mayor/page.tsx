@@ -172,14 +172,44 @@ export default function LibroMayorPage() {
   const [cuentaEnHover, setCuentaEnHover] = useState<string | null>(null)
   const hoverTimerRef = useRef<NodeJS.Timeout | null>(null)
 
+  const cancelarHoverTimer = useCallback(() => {
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current)
+      hoverTimerRef.current = null
+    }
+    setCuentaEnHover(null)
+  }, [])
+
   const handleCerrarModalCentrado = useCallback(() => {
     setModalCerrando(true)
     setTimeout(() => {
       setCuentaModalCentrada(null)
       setModalCerrando(false)
       mouseEnteredModalRef.current = false
-    }, 250)
+    }, 260)
   }, [])
+
+  // Limpiar timer y modal cuando cambie la vista o se desmonte el componente
+  useEffect(() => {
+    cancelarHoverTimer()
+    setCuentaModalCentrada(null)
+    setModalCerrando(false)
+    mouseEnteredModalRef.current = false
+    return () => {
+      cancelarHoverTimer()
+    }
+  }, [vista, cancelarHoverTimer])
+
+  // Navegar a vista individual cancelando cualquier timer activo
+  const irAVistaIndividual = useCallback((codigo: string) => {
+    cancelarHoverTimer()
+    setCuentaModalCentrada(null)
+    setModalCerrando(false)
+    mouseEnteredModalRef.current = false
+    setCuentaActivaCodigo(codigo)
+    setVista("individual")
+    setMenuAbierto(false)
+  }, [cancelarHoverTimer])
 
   // Atajo de teclado global (⌘K o /) para abrir el Finder y Esc para cerrar modal centrado
   useEffect(() => {
@@ -287,14 +317,16 @@ export default function LibroMayorPage() {
   const todasExpandidas = mayor.length > 0 && cuentasExpandidas.size === mayor.length
 
   const handleToggleExpandirTodas = useCallback(() => {
+    cancelarHoverTimer()
     if (todasExpandidas) {
       setCuentasExpandidas(new Set())
     } else {
       setCuentasExpandidas(new Set(mayor.map((m) => m.cuenta.codigo)))
     }
-  }, [todasExpandidas, mayor])
+  }, [todasExpandidas, mayor, cancelarHoverTimer])
 
   const handleToggleExpandirTarjeta = useCallback((codigo: string) => {
+    cancelarHoverTimer()
     setCuentasExpandidas((prev) => {
       const next = new Set(prev)
       if (next.has(codigo)) {
@@ -304,19 +336,25 @@ export default function LibroMayorPage() {
       }
       return next
     })
-  }, [])
+  }, [cancelarHoverTimer])
 
   // Temporizador de Hover 5s: sobresale enfrente y en medio de la pantalla
   const handleCardMouseEnter = useCallback((codigo: string) => {
-    if (cuentaModalCentrada) return
+    if (cuentaModalCentrada || vista !== "todas") return
     setCuentaEnHover(codigo)
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current)
     hoverTimerRef.current = setTimeout(() => {
-      mouseEnteredModalRef.current = false
-      setCuentaModalCentrada(codigo)
+      // Validar que el usuario siga en la vista "todas"
+      setVista((currentVista) => {
+        if (currentVista === "todas") {
+          mouseEnteredModalRef.current = false
+          setCuentaModalCentrada(codigo)
+        }
+        return currentVista
+      })
       setCuentaEnHover(null)
     }, 4800) // ~5 segundos
-  }, [cuentaModalCentrada])
+  }, [cuentaModalCentrada, vista])
 
   const handleCardMouseLeave = useCallback((codigo: string) => {
     if (hoverTimerRef.current) {
@@ -501,7 +539,10 @@ export default function LibroMayorPage() {
             <div className="inline-flex rounded-xl p-1 bg-neutral-900 dark:bg-neutral-900 border border-neutral-800 text-neutral-300 shadow-2xs">
               <button
                 type="button"
-                onClick={() => setVista("todas")}
+                onClick={() => {
+                  cancelarHoverTimer()
+                  setVista("todas")
+                }}
                 className={cn(
                   "flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer",
                   vista === "todas"
@@ -515,7 +556,10 @@ export default function LibroMayorPage() {
 
               <button
                 type="button"
-                onClick={() => setVista("individual")}
+                onClick={() => {
+                  cancelarHoverTimer()
+                  setVista("individual")
+                }}
                 className={cn(
                   "flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer",
                   vista === "individual"
@@ -529,7 +573,10 @@ export default function LibroMayorPage() {
 
               <button
                 type="button"
-                onClick={() => setVista("comprobacion")}
+                onClick={() => {
+                  cancelarHoverTimer()
+                  setVista("comprobacion")
+                }}
                 className={cn(
                   "flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer",
                   vista === "comprobacion"
@@ -1218,10 +1265,7 @@ export default function LibroMayorPage() {
                         <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
                           <button
                             type="button"
-                            onClick={() => {
-                              setCuentaActivaCodigo(m.cuenta.codigo)
-                              setVista("individual")
-                            }}
+                            onClick={() => irAVistaIndividual(m.cuenta.codigo)}
                             className="size-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer"
                             title="Ver en vista individual"
                           >
@@ -1444,10 +1488,7 @@ export default function LibroMayorPage() {
                             <Button
                               type="button"
                               size="sm"
-                              onClick={() => {
-                                setCuentaActivaCodigo(m.cuenta.codigo)
-                                setVista("individual")
-                              }}
+                              onClick={() => irAVistaIndividual(m.cuenta.codigo)}
                               className="h-8 px-3 gap-1.5 text-xs font-semibold cursor-pointer"
                             >
                               <span>Ver individual</span>
@@ -1705,8 +1746,7 @@ export default function LibroMayorPage() {
                         type="button"
                         size="sm"
                         onClick={() => {
-                          setCuentaActivaCodigo(m.cuenta.codigo)
-                          setVista("individual")
+                          irAVistaIndividual(m.cuenta.codigo)
                           handleCerrarModalCentrado()
                         }}
                         className="h-8 px-3 gap-1.5 text-xs font-semibold cursor-pointer"
