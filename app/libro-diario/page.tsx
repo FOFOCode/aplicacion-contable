@@ -1567,9 +1567,6 @@ export default function LibroDiarioPage() {
                   </Badge>
                 )}
               </div>
-              <p className="text-[11px] text-muted-foreground font-medium">
-                Altura jerárquica: A1-R (Día) · A1-R (Guardia) · A1-A (Guardia)
-              </p>
             </div>
 
             {/* Derecha: 2 Niveles Ordenados (Navegación / Exportar y Acciones Principales) */}
