@@ -569,6 +569,8 @@ function KardexContent() {
     }
 
     if (!dbConnected) return;
+    // Solo persistir lote si estamos explícitamente trabajando en modo manual
+    if (modoKardex !== "manual") return;
     // Solo sincronizar a BD si hay al menos un movimiento con unidades válidas
     if (movimientosManuales.movimientos.length === 0) return;
 
@@ -698,6 +700,8 @@ function KardexContent() {
   useEffect(() => {
     if (!dbConnected) return;
     let cancel = false;
+    setMovimientosKardex([]);
+    setFilasManuales([]);
     async function cargarKardexDb() {
       try {
         const res = await fetch(
