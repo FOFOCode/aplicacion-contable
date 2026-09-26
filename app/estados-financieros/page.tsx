@@ -1213,30 +1213,60 @@ export default function EstadosFinancierosPage() {
                   <CardTitle className="text-lg font-bold">
                     Estado de Resultados
                   </CardTitle>
-                  <CardDescription className="text-xs mt-0.5">
-                    Determinación analítica de Ventas Netas, Costo de Ventas y Utilidades · Ejercicio {ejercicioSeleccionado}
-                  </CardDescription>
                 </div>
 
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setErExpandido((prev) => !prev)}
-                  className="h-8 px-3 rounded-xl border-border/80 bg-card hover:bg-muted font-semibold text-xs shadow-2xs gap-1.5 cursor-pointer shrink-0 print:hidden"
-                >
-                  {erExpandido ? (
-                    <>
-                      <ChevronUp className="size-3.5 text-primary" />
-                      <span>Contraer a resumen</span>
-                    </>
-                  ) : (
-                    <>
-                      <ChevronDown className="size-3.5 text-primary" />
-                      <span>Expandir detalle completo</span>
-                    </>
+                <div className="flex flex-wrap items-center gap-2 print:hidden">
+                  {erExpandido && (
+                    <div className="flex items-center gap-1 p-0.5 rounded-xl bg-muted/60 border border-border/60 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setModoVista("analitico")}
+                        className={cn(
+                          "px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5",
+                          modoVista === "analitico"
+                            ? "bg-card text-foreground shadow-2xs border border-border/80"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        <Calculator className="size-3 text-primary" />
+                        <span>Analítico</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setModoVista("general")}
+                        className={cn(
+                          "px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5",
+                          modoVista === "general"
+                            ? "bg-card text-foreground shadow-2xs border border-border/80"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        <Layers className="size-3 text-primary" />
+                        <span>Ver por Cuentas</span>
+                      </button>
+                    </div>
                   )}
-                </Button>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setErExpandido((prev) => !prev)}
+                    className="h-8 px-3 rounded-xl border-border/80 bg-card hover:bg-muted font-semibold text-xs shadow-2xs gap-1.5 cursor-pointer shrink-0"
+                  >
+                    {erExpandido ? (
+                      <>
+                        <ChevronUp className="size-3.5 text-primary" />
+                        <span>Contraer a resumen</span>
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="size-3.5 text-primary" />
+                        <span>Expandir detalle completo</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             </CardHeader>
 
@@ -1385,27 +1415,47 @@ export default function EstadosFinancierosPage() {
               </div>
             </div>
 
-            {/* Prompt interactivo cuando está contraído */}
-            {!erExpandido && (
-              <button
-                type="button"
-                onClick={() => setErExpandido(true)}
-                className="w-full py-2.5 px-4 rounded-xl border border-dashed border-primary/40 bg-primary/[0.02] hover:bg-primary/[0.06] text-primary text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer print:hidden"
-              >
-                <ChevronDown className="size-4" />
-                <span>Ver desglose analítico completo de cuentas y operaciones</span>
-              </button>
-            )}
           </div>
 
           {/* ========================================================= */}
           {/* DETALLE COMPLETO (EXPANDIDO O AL IMPRIMIR)                */}
           {/* ========================================================= */}
           <div className={cn(erExpandido ? "block space-y-4 pt-2" : "hidden print:block", "print:pt-0")}>
-            <div className="flex items-center justify-between border-t border-border/60 pt-4 print:hidden">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Desglose Analítico Oficial
-              </span>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-4 print:hidden">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Modo de Vista:
+                </span>
+                <div className="flex items-center gap-1 p-0.5 rounded-xl bg-muted/60 border border-border/60 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setModoVista("analitico")}
+                    className={cn(
+                      "px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5",
+                      modoVista === "analitico"
+                        ? "bg-card text-foreground shadow-2xs border border-border/80"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Calculator className="size-3 text-primary" />
+                    <span>Analítico</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModoVista("general")}
+                    className={cn(
+                      "px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5",
+                      modoVista === "general"
+                        ? "bg-card text-foreground shadow-2xs border border-border/80"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Layers className="size-3 text-primary" />
+                    <span>Ver por Cuentas</span>
+                  </button>
+                </div>
+              </div>
+
               <Button
                 type="button"
                 variant="ghost"
@@ -1994,9 +2044,6 @@ export default function EstadosFinancierosPage() {
               <CardTitle className="text-lg font-bold">
                 Balance General
               </CardTitle>
-              <CardDescription className="text-xs mt-0.5">
-                Activo = Pasivo + Capital Contable · Verificación de cuadre · Ejercicio {ejercicioSeleccionado}
-              </CardDescription>
             </div>
 
             <Button
@@ -2026,40 +2073,27 @@ export default function EstadosFinancierosPage() {
           {/* RESUMEN EJECUTIVO / ACCESO RÁPIDO (SIEMPRE VISIBLE)       */}
           {/* ========================================================= */}
           <div className="space-y-4">
-            {/* Header del resumen con Estado de Balance y Ecuación Fundamental */}
-            <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl border border-border/80 bg-card shadow-2xs">
-              <div className="space-y-1">
-                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
-                  Estado de Balance & Ecuación Fundamental
-                </span>
-                <div className="flex items-center gap-3">
-                  <Badge
-                    variant={bg.cuadra ? "success" : "warning"}
-                    className="font-mono text-xs px-2.5 py-0.5"
-                  >
-                    {bg.cuadra ? "Cuadrado" : "Diferencia detectada"}
-                  </Badge>
-                  <span className="font-mono text-sm text-muted-foreground">
-                    Activo = Pasivo + Capital Contable
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 sm:gap-6 text-xs border-t sm:border-t-0 sm:border-l border-border/60 pt-2 sm:pt-0 sm:pl-6 font-mono tabular-nums">
-                <div>
-                  <span className="text-muted-foreground block text-[10px] uppercase font-semibold">
+            {/* Ecuación Fundamental Centrada y en Grande */}
+            <div className="flex items-center justify-center p-4 sm:p-5 rounded-2xl border border-border/80 bg-card shadow-2xs">
+              <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-10 font-mono tabular-nums text-center">
+                <div className="flex flex-col items-center">
+                  <span className="text-muted-foreground block text-[11px] uppercase font-semibold tracking-wider">
                     Total Activo
                   </span>
-                  <span className="font-mono text-sm font-bold text-foreground">
+                  <span className="font-mono text-2xl sm:text-3xl font-extrabold text-foreground mt-1">
                     {formatoMoneda(bg.totalActivo)}
                   </span>
                 </div>
-                <span className="text-muted-foreground text-sm font-semibold">=</span>
-                <div>
-                  <span className="text-muted-foreground block text-[10px] uppercase font-semibold">
+
+                <span className="text-muted-foreground/80 text-2xl sm:text-3xl font-bold pb-0.5 select-none">
+                  =
+                </span>
+
+                <div className="flex flex-col items-center">
+                  <span className="text-muted-foreground block text-[11px] uppercase font-semibold tracking-wider">
                     Pasivo + Capital
                   </span>
-                  <span className="font-mono text-sm font-bold text-foreground">
+                  <span className="font-mono text-2xl sm:text-3xl font-extrabold text-foreground mt-1">
                     {formatoMoneda(bg.totalPasivoMasCapital)}
                   </span>
                 </div>
@@ -2159,17 +2193,6 @@ export default function EstadosFinancierosPage() {
               </div>
             </div>
 
-            {/* Prompt interactivo cuando está contraído */}
-            {!bgExpandido && (
-              <button
-                type="button"
-                onClick={() => setBgExpandido(true)}
-                className="w-full py-2.5 px-4 rounded-xl border border-dashed border-primary/40 bg-primary/[0.02] hover:bg-primary/[0.06] text-primary text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer print:hidden"
-              >
-                <ChevronDown className="size-4" />
-                <span>Ver desglose detallado de cuentas (Activo, Pasivo y Capital)</span>
-              </button>
-            )}
           </div>
 
           {/* ========================================================= */}
