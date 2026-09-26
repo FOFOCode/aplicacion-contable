@@ -292,8 +292,6 @@ function KardexContent() {
   const [nuevoConcepto, setNuevoConcepto] = useState("");
   const [nuevoUnidades, setNuevoUnidades] = useState<string>("100");
   const [nuevoCosto, setNuevoCosto] = useState<string>("5.00");
-  const [sincronizandoToma, setSincronizandoToma] = useState(false);
-  const [sincronizadoExitoso, setSincronizadoExitoso] = useState(false);
   const [estadoGuardadoManual, setEstadoGuardadoManual] = useState<
     "idle" | "guardando" | "guardado" | "error"
   >("idle");
@@ -1001,69 +999,6 @@ function KardexContent() {
       console.error("Error al registrar movimiento:", err);
     } finally {
       setGuardandoMovimientoAuto(false);
-    }
-  }
-
-  async function handleSincronizarConTomaFisica() {
-    setSincronizandoToma(true);
-    try {
-      if (modoKardex === "manual") {
-        if (
-          filasManualesPendientes > 0 ||
-          movimientosManuales.movimientos.length === 0
-        ) {
-          return;
-        }
-
-        const guardado = await guardarTomaFisica({
-          ejercicio: ejercicioSeleccionado,
-          fecha_toma: `${ejercicioSeleccionado}-12-31`,
-          valor_inventario_final: movimientosManuales.saldo,
-          responsable: "Control de Almacén y Auditoría",
-          observaciones: `Inventario final valorizado mediante plantilla manual de Kardex (CPP). ${filasManuales.length} movimientos revisados.`,
-          es_manual: true,
-          origen: "KARDEX_MANUAL",
-        });
-        if (guardado) {
-          setSincronizadoExitoso(true);
-          setTimeout(() => setSincronizadoExitoso(false), 5000);
-        }
-        return;
-      }
-
-      if (dbConnected) {
-        const res = await fetch("/api/kardex", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "sincronizar_toma",
-            ejercicio: ejercicioSeleccionado,
-            responsable: "Comité de Auditoría y Control de Inventarios",
-            observaciones: `Inventario final conciliado directamente desde las tarjetas de Kardex (CPP) ($${totalesKardex.saldoFinal.toFixed(2)})`,
-          }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.tomaFisica) {
-            await guardarTomaFisica(data.tomaFisica);
-          }
-        }
-      } else {
-        await guardarTomaFisica({
-          ejercicio: ejercicioSeleccionado,
-          valor_inventario_final: totalesKardex.saldoFinal,
-          responsable: "Control de Almacén y Auditoría",
-          observaciones: `Inventario final valorado según tarjeta de Kardex (CPP) ($${totalesKardex.saldoFinal.toFixed(2)})`,
-          es_manual: false,
-          origen: "KARDEX_AUTO",
-        });
-      }
-      setSincronizadoExitoso(true);
-      setTimeout(() => setSincronizadoExitoso(false), 5000);
-    } catch (e) {
-      console.error("Error al sincronizar kardex con toma física:", e);
-    } finally {
-      setSincronizandoToma(false);
     }
   }
 
@@ -2043,20 +1978,6 @@ function KardexContent() {
                 >
                   <Plus className="size-3.5" />
                   Registrar Movimiento
-                </Button>
-              )}
-                            {Math.abs(totalesKardex.saldoFinal - (tomaFisica?.valor_inventario_final ?? 0)) >= 0.01 && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={sincronizandoToma}
-                  onClick={handleSincronizarConTomaFisica}
-                  className="h-8 px-2.5 text-xs gap-1.5 cursor-pointer border-emerald-500/30 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 print:hidden"
-                  title="Sincronizar el saldo del Kardex con la Toma Física"
-                >
-                  <RotateCcw className={`size-3.5 ${sincronizandoToma ? "animate-spin" : ""}`} />
-                  Sincronizar BD
                 </Button>
               )}
               <BotonExportarUnificado
