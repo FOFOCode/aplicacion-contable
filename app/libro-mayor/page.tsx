@@ -20,7 +20,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/field"
 import { useContabilidad } from "@/components/contabilidad-provider"
 import { formatoMoneda, redondear } from "@/lib/contabilidad"
-import { exportarLibroExcel } from "@/lib/excel"
+import { exportarLibroExcel, type EstiloCelda } from "@/lib/excel"
 import { ETIQUETA_TIPO, type TipoCuenta } from "@/lib/types"
 
 const CATEGORIAS: { valor: string; label: string }[] = [
@@ -31,6 +31,118 @@ const CATEGORIAS: { valor: string; label: string }[] = [
   { valor: "gasto", label: "4. Costos y Gastos" },
   { valor: "ingreso", label: "5. Ingresos" },
 ]
+
+// Cuentas que el modulo de Kardex reconoce como movimientos de inventario
+// (declaradas en app/kardex/page.tsx). El enlace "Auxiliar" solo tiene
+// sentido para estas: en Capital Social o Gastos de Sueldos el destino
+// abriria el kardex de un articulo sin relacion con la cuenta elegida.
+const CUENTAS_INVENTARIO = new Set([
+  "1104",
+  "4101",
+  "5101",
+  "5102",
+  "4103",
+  "4106",
+  "5103",
+])
+
+// ============================================================
+// MAQUETACION DE LA EXPORTACION A EXCEL
+// ============================================================
+
+const BORDE = {
+  top: { style: "thin", color: { rgb: "94A3B8" } },
+  bottom: { style: "thin", color: { rgb: "94A3B8" } },
+  left: { style: "thin", color: { rgb: "94A3B8" } },
+  right: { style: "thin", color: { rgb: "94A3B8" } },
+} as const
+
+const BORDE_DOBLE = {
+  ...BORDE,
+  top: { style: "double", color: { rgb: "334155" } },
+} as const
+
+const TITULO: EstiloCelda = { font: { bold: true, sz: 14, color: { rgb: "0F172A" } } }
+const SUBTITULO: EstiloCelda = { font: { sz: 10, color: { rgb: "475569" } } }
+const ENCABEZADO: EstiloCelda = {
+  font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } },
+  fill: { patternType: "solid", fgColor: { rgb: "0F766E" } },
+  alignment: { horizontal: "center", vertical: "center", wrapText: true },
+  border: BORDE,
+}
+const TOTAL: EstiloCelda = {
+  font: { bold: true, sz: 10 },
+  fill: { patternType: "solid", fgColor: { rgb: "E2E8F0" } },
+  border: BORDE_DOBLE,
+}
+const MONEDA: EstiloCelda = { numFmt: "#,##0.00" }
+const MONEDA_TOTAL: EstiloCelda = { numFmt: "#,##0.00", font: { bold: true } }
+const CENTRO: EstiloCelda = { alignment: { horizontal: "center" } }
+
+/** Encabezado + cuerpo con bordes, y pie de totales resaltado. */
+function maquetar(
+  filas: (string | number | null | undefined)[][],
+  filaEncabezado: number,
+  columnasMoneda: number[],
+  anchos: number[],
+  anchoTitulo: number,
+  filtro?: string,
+) {
+  const estilos: Record<string, EstiloCelda> = {
+    "0:0": TITULO,
+    "1:0": SUBTITULO,
+    "2:0": SUBTITULO,
+  }
+
+  for (let c = 0; c < anchos.length; c++) {
+    estilos[`${filaEncabezado}:${c}`] = ENCABEZADO
+  }
+
+  const ultima = filas.length - 1
+  for (let f = filaEncabezado + 1; f < ultima; f++) {
+    const fila = filas[f]
+    if (!fila || fila.every((v) => v === null || v === undefined || v === "")) continue
+    for (let c = 0; c < anchos.length; c++) {
+      const esMoneda = columnasMoneda.includes(c)
+      estilos[`${f}:${c}`] = {
+        ...(esMoneda ? MONEDA : {}),
+        border: BORDE,
+      }
+    }
+    if (fila[0] !== undefined && fila[0] !== null && fila[0] !== "") {
+      estilos[`${f}:0`] = { ...estilos[`${f}:0`], font: { bold: false, sz: 10 } }
+    }
+  }
+
+  for (let c = 0; c < anchos.length; c++) {
+    estilos[`${ultima}:${c}`] = columnasMoneda.includes(c) ? { ...TOTAL, ...MONEDA_TOTAL } : TOTAL
+  }
+
+  const totalColumnas = anchos.length
+  const letraFinal = totalColumnas > 0
+    ? XLSX_ENCODE_COL(totalColumnas - 1)
+    : "A"
+
+  return {
+    anchos,
+    alturas: filas.map((_, i) => (i === filaEncabezado ? 26 : i === 0 ? 20 : 14)),
+    combinar: [`A1:${letraFinal}1`],
+    filtro: filtro ?? `A${filaEncabezado + 1}:${letraFinal}${ultima - 1}`,
+    estilos,
+  }
+}
+
+/** "0" -> "A", "25" -> "Z", "26" -> "AA" */
+function XLSX_ENCODE_COL(n: number) {
+  let s = ""
+  let x = n + 1
+  while (x > 0) {
+    const resto = (x - 1) % 26
+    s = String.fromCharCode(65 + resto) + s
+    x = Math.floor((x - 1) / 26)
+  }
+  return s
+}
 
 export default function LibroMayorPage() {
   const { mayor, asientos, ejercicioSeleccionado } = useContabilidad()
@@ -43,6 +155,12 @@ export default function LibroMayorPage() {
     return asientos
       .filter((a) => {
         if (a.estado === "ANULADO") return false
+        // Debe replicar exactamente los filtros de calcularMayor
+        // (lib/contabilidad.ts), que recibe incluirCierre=false desde el
+        // provider. Sin esto, las partidas de cierre aparecian listadas en la
+        // Cuenta T mientras la "Suma:" del pie las excluia y las lineas
+        // visibles no cuadraban con el total de su propia tarjeta.
+        if (a.tipo === "CIERRE") return false
         const ej = a.ejercicio || (a.fecha ? new Date(a.fecha).getFullYear() : undefined)
         return ej === undefined || ej === ejercicioSeleccionado
       })
@@ -97,6 +215,32 @@ export default function LibroMayorPage() {
   const totalAcreedor = redondear(
     mayor.filter((m) => m.naturalezaSaldo === "acreedora").reduce((s, m) => s + Math.abs(m.saldo), 0),
   )
+
+  // Los totales del libro completo nunca deben confundirse con las filas
+  // visibles: al filtrar por categoria o buscar texto la tabla muestra un
+  // subconjunto, pero el pie anunciaba la suma de todo. Se calculan aparte y
+  // se etiquetan de forma explicita.
+  const hayFiltroActivo = categoria !== "todas" || busqueda.trim() !== ""
+
+  const totalesVisibles = useMemo(() => {
+    const items = hayFiltroActivo ? cuentasFiltradas : mayor
+    return {
+      debe: redondear(items.reduce((s, m) => s + m.debe, 0)),
+      haber: redondear(items.reduce((s, m) => s + m.haber, 0)),
+      deudor: redondear(
+        items.filter((m) => m.naturalezaSaldo === "deudora").reduce((s, m) => s + Math.abs(m.saldo), 0),
+      ),
+      acreedor: redondear(
+        items.filter((m) => m.naturalezaSaldo === "acreedora").reduce((s, m) => s + Math.abs(m.saldo), 0),
+      ),
+    }
+  }, [cuentasFiltradas, mayor, hayFiltroActivo])
+
+  // La igualdad se calcula, no se escribe a mano: antes el texto imprimia los
+  // signos "=" aunque los importes no coincidieran.
+  const cuadraMovimientos = totalesVisibles.debe === totalesVisibles.haber
+  const cuadraSaldos = totalesVisibles.deudor === totalesVisibles.acreedor
+  const cuadraLibroCompleto = totalDebe === totalHaber && totalDeudor === totalAcreedor
 
   function exportarExcel() {
     const filasMayor: (string | number | null | undefined)[][] = [
@@ -195,9 +339,21 @@ export default function LibroMayorPage() {
     filasComprobacion.push(["SUMAS IGUALES", "", totalDebe, totalHaber, totalDeudor, totalAcreedor])
 
     exportarLibroExcel(`Libro_Mayor_Ejercicio_${ejercicioSeleccionado}`, [
-      { nombre: "Libro Mayor", filas: filasMayor },
-      { nombre: "Detalle Cuentas T", filas: filasDetalle },
-      { nombre: "Balance de Comprobación", filas: filasComprobacion },
+      {
+        nombre: "Libro Mayor",
+        filas: filasMayor,
+        ...maquetar(filasMayor, 4, [4, 5, 6], [10, 38, 11, 13, 15, 15, 15, 13], 8),
+      },
+      {
+        nombre: "Detalle Cuentas T",
+        filas: filasDetalle,
+        ...maquetar(filasDetalle, 4, [5, 6, 7], [10, 34, 8, 12, 52, 14, 14, 14, 13], 9),
+      },
+      {
+        nombre: "Balance de Comprobación",
+        filas: filasComprobacion,
+        ...maquetar(filasComprobacion, 4, [2, 3, 4, 5], [10, 38, 17, 17, 15, 15], 6),
+      },
     ])
   }
 
@@ -212,7 +368,7 @@ export default function LibroMayorPage() {
 
   return (
     <div className="space-y-6">
-      <header className="space-y-2">
+      <header className="space-y-2 report-header">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
@@ -334,15 +490,22 @@ export default function LibroMayorPage() {
         <section className="grid gap-4 sm:grid-cols-2">
           {cuentasFiltradas.map((m) => {
             const movs = movimientosPorCuenta.get(m.cuenta.codigo) || { debe: [], haber: [] }
-            // Detección de anomalías contables
-            const esActivo = m.cuenta.tipo === "activo"
-            const sobregirada = esActivo && m.naturalezaSaldo === "acreedora"
-            const saldoCero = m.naturalezaSaldo === null
+            // Deteccion de anomalias contables
+            //
+            // Un saldo solo es anomalo cuando el signo CONTRADICE la naturaleza
+            // configurada de la cuenta. Antes se comparaba contra el signo del
+            // saldo, lo que marcaba como sobregiro a toda cuenta acreedora de
+            // tipo activo (p.ej. 1206 Depreciacion acumulada), que son
+            // precisamente las que acumulan saldo en el haber por diseno.
+            const saldoCero = m.saldo === 0
+            const contradiceNaturaleza =
+              m.cuenta.naturaleza === "deudora" ? m.saldo < 0 : m.saldo > 0
+            const sobregirada = m.cuenta.tipo === "activo" && contradiceNaturaleza
 
             return (
               <Card
                 key={m.cuenta.codigo}
-                className={sobregirada ? "border-red-500/40 bg-red-500/[0.02]" : ""}
+                className={`report-card ${sobregirada ? "border-red-500/40 bg-red-500/[0.02]" : ""}`}
               >
                 <CardHeader className="pb-3 border-b border-border/60">
                   <div className="flex items-start justify-between gap-2">
@@ -356,19 +519,21 @@ export default function LibroMayorPage() {
                       </CardDescription>
                     </div>
 
-                    <Link
-                      href={`/kardex?codigo=${m.cuenta.codigo}`}
-                      className="text-xs text-primary hover:underline inline-flex items-center gap-1 font-medium bg-primary/10 hover:bg-primary/20 px-2 py-1 rounded"
-                      title="Abrir extracto auxiliar de esta cuenta"
-                    >
-                      Auxiliar <ArrowRight className="size-3" />
-                    </Link>
+                    {CUENTAS_INVENTARIO.has(m.cuenta.codigo) && (
+                      <Link
+                        href={`/kardex?codigo=${m.cuenta.codigo}`}
+                        className="text-xs text-primary hover:underline inline-flex items-center gap-1 font-medium bg-primary/10 hover:bg-primary/20 px-2 py-1 rounded"
+                        title="Abrir extracto auxiliar de esta cuenta"
+                      >
+                        Auxiliar <ArrowRight className="size-3" />
+                      </Link>
+                    )}
                   </div>
                 </CardHeader>
 
                 <CardContent className="p-4 space-y-3">
                   {/* Estructura formal de Cuenta T */}
-                  <div className="grid grid-cols-2 rounded-lg border border-border overflow-hidden text-xs">
+                  <div className="grid grid-cols-2 rounded-lg border border-border overflow-hidden text-xs print-accounting-table">
                     {/* Columna DEBE */}
                     <div className="border-r border-border flex flex-col justify-between">
                       <div>
@@ -439,7 +604,7 @@ export default function LibroMayorPage() {
                   </div>
 
                   {/* Saldo Final y Estado */}
-                  <div className="flex items-center justify-between pt-1 text-xs">
+                  <div className="flex items-center justify-between pt-1 text-xs saldo-doble-linea">
                     <span className="text-muted-foreground font-medium">Saldo Neto:</span>
                     <div className="flex items-center gap-2">
                       <span className="font-mono font-bold text-sm text-foreground">
@@ -449,7 +614,7 @@ export default function LibroMayorPage() {
                       {sobregirada ? (
                         <Badge variant="warning" className="text-[10px] flex items-center gap-1 font-bold">
                           <AlertTriangle className="size-3" />
-                          ¡Sobregiro! (Acreedor)
+                          {`¡Sobregiro! (Saldo ${m.naturalezaSaldo === "deudora" ? "Deudor" : "Acreedor"})`}
                         </Badge>
                       ) : saldoCero ? (
                         <Badge variant="muted" className="text-[10px] flex items-center gap-1">
@@ -485,7 +650,7 @@ export default function LibroMayorPage() {
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full min-w-[700px] text-sm">
+              <table className="w-full min-w-[700px] text-sm print-accounting-table">
                 <thead className="bg-muted/60 text-xs uppercase tracking-wide text-muted-foreground">
                   <tr className="border-b border-border">
                     <th rowSpan={2} className="py-2.5 px-3 text-left">Código</th>
@@ -548,37 +713,82 @@ export default function LibroMayorPage() {
                 <tfoot className="border-t-2 border-border bg-muted/40 font-bold border-b-4 border-double border-foreground/30">
                   <tr>
                     <td colSpan={2} className="py-3 px-3 uppercase text-xs tracking-wider text-muted-foreground">
-                      Sumas Iguales
+                      {hayFiltroActivo ? "Suma de cuentas filtradas" : "Sumas Iguales"}
                     </td>
                     <td className="py-3 px-3 text-right font-mono tabular-nums">
-                      {formatoMoneda(totalDebe)}
+                      {formatoMoneda(totalesVisibles.debe)}
                     </td>
                     <td className="py-3 px-3 text-right font-mono tabular-nums">
-                      {formatoMoneda(totalHaber)}
+                      {formatoMoneda(totalesVisibles.haber)}
                     </td>
                     <td className="py-3 px-3 text-right font-mono tabular-nums text-foreground">
-                      {formatoMoneda(totalDeudor)}
+                      {formatoMoneda(totalesVisibles.deudor)}
                     </td>
                     <td className="py-3 px-3 text-right font-mono tabular-nums text-foreground">
-                      {formatoMoneda(totalAcreedor)}
+                      {formatoMoneda(totalesVisibles.acreedor)}
                     </td>
                   </tr>
+
+                  {/* Los totales generales se muestran aparte y rotulados, para
+                      que con un filtro activo nunca se confundan con la suma de
+                      las filas visibles. */}
+                  {hayFiltroActivo && (
+                    <tr className="border-t border-border/60">
+                      <td colSpan={2} className="py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground/80">
+                        Totales generales (Libro Completo)
+                      </td>
+                      <td className="py-2 px-3 text-right font-mono tabular-nums text-xs text-muted-foreground">
+                        {formatoMoneda(totalDebe)}
+                      </td>
+                      <td className="py-2 px-3 text-right font-mono tabular-nums text-xs text-muted-foreground">
+                        {formatoMoneda(totalHaber)}
+                      </td>
+                      <td className="py-2 px-3 text-right font-mono tabular-nums text-xs text-muted-foreground">
+                        {formatoMoneda(totalDeudor)}
+                      </td>
+                      <td className="py-2 px-3 text-right font-mono tabular-nums text-xs text-muted-foreground">
+                        {formatoMoneda(totalAcreedor)}
+                      </td>
+                    </tr>
+                  )}
                 </tfoot>
               </table>
 
               {/* BANDA DE VERIFICACIÓN DE CUADRE DE BALANZA */}
               <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-muted/20 border-t border-border text-xs text-muted-foreground">
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="size-4 text-emerald-600" />
+                  {cuadraMovimientos && cuadraSaldos ? (
+                    <CheckCircle2 className="size-4 text-emerald-600" />
+                  ) : (
+                    <AlertTriangle className="size-4 text-amber-600" />
+                  )}
                   <span>
-                    <strong>Verificación de Partida Doble:</strong> Débitos ({formatoMoneda(totalDebe)}) = Créditos ({formatoMoneda(totalHaber)}) · Saldos Deudores ({formatoMoneda(totalDeudor)}) = Saldos Acreedores ({formatoMoneda(totalAcreedor)})
+                    <strong>
+                      {hayFiltroActivo
+                        ? "Verificación de la vista filtrada:"
+                        : "Verificación de Partida Doble:"}
+                    </strong>{" "}
+                    Débitos ({formatoMoneda(totalesVisibles.debe)}){" "}
+                    {cuadraMovimientos ? "=" : "≠"} Créditos ({formatoMoneda(totalesVisibles.haber)}) ·
+                    Saldos Deudores ({formatoMoneda(totalesVisibles.deudor)}){" "}
+                    {cuadraSaldos ? "=" : "≠"} Saldos Acreedores ({formatoMoneda(totalesVisibles.acreedor)})
                   </span>
                 </div>
+
+                {/* Con un filtro activo la comprobacion parcial no certifica el
+                    libro entero, asi que se informa tambien del total general. */}
+                {hayFiltroActivo && (
+                  <span className="text-[10px] text-muted-foreground/80">
+                    Libro completo: {formatoMoneda(totalDebe)} {cuadraLibroCompleto ? "=" : "≠"}{" "}
+                    {formatoMoneda(totalHaber)}
+                  </span>
+                )}
+
                 <Badge
-                  variant={totalDebe === totalHaber && totalDeudor === totalAcreedor ? "success" : "warning"}
+                  variant={cuadraMovimientos && cuadraSaldos ? "success" : "warning"}
                   className="font-mono text-[10px]"
                 >
-                  {totalDebe === totalHaber && totalDeudor === totalAcreedor
+                  {cuadraMovimientos && cuadraSaldos
                     ? "Balanza Cuadrada al Centavo ✓"
                     : "Diferencia detectada"}
                 </Badge>
