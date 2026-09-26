@@ -1,6 +1,24 @@
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import { formatoMoneda } from "./contabilidad"
+import {
+  exportarLibroExcel,
+  ESTILO_BANNER_EMPRESA,
+  ESTILO_BANNER_SUBTITULO,
+  ESTILO_TITULO_EMPRESA,
+  ESTILO_SUBTITULO,
+  ESTILO_CABECERA_TABLA,
+  ESTILO_CABECERA_DEBE,
+  ESTILO_CABECERA_HABER,
+  ESTILO_FILA_SECCION,
+  ESTILO_CELDA_NORMAL,
+  ESTILO_CELDA_CODIGO,
+  ESTILO_CELDA_MONEDA,
+  ESTILO_CELDA_DEBE,
+  ESTILO_CELDA_HABER,
+  ESTILO_TOTAL_DOBLE_TEXTO,
+  ESTILO_TOTAL_DOBLE_MONEDA,
+} from "./excel"
 
 export interface FolioExportData {
   numero_folio: number
@@ -150,3 +168,112 @@ export function exportarFolioCSV(folio: FolioExportData, getNombreCuenta: (codig
   link.click()
   document.body.removeChild(link)
 }
+
+export function exportarFolioExcel(folio: FolioExportData, getNombreCuenta: (codigo: string) => string) {
+  const filas: (string | number | null | undefined)[][] = [
+    ["LIBRO DIARIO GENERAL — FINEXA"],
+    [`Folio Diario N°: ${String(folio.numero_folio).padStart(4, "0")}  |  Fecha: ${folio.fecha}  |  Finexa · Sistema de Gestión Contable`],
+    [],
+    ["Partida #", "Fecha", "Código", "Cuenta / Descripción", "Documento", "Debe (USD)", "Haber (USD)"],
+  ]
+
+  const anchos = [12, 12, 12, 42, 16, 16, 16]
+  const filaEncabezado = 3
+  const estilos: Record<string, any> = {}
+
+  for (let c = 0; c < anchos.length; c++) {
+    estilos[`0:${c}`] = ESTILO_BANNER_EMPRESA
+    estilos[`1:${c}`] = ESTILO_BANNER_SUBTITULO
+    if (c === 5) {
+      estilos[`${filaEncabezado}:${c}`] = ESTILO_CABECERA_DEBE
+    } else if (c === 6) {
+      estilos[`${filaEncabezado}:${c}`] = ESTILO_CABECERA_HABER
+    } else {
+      estilos[`${filaEncabezado}:${c}`] = ESTILO_CABECERA_TABLA
+    }
+  }
+
+  const combinar: string[] = ["A1:G1", "A2:G2"]
+
+  folio.partidas.forEach((p) => {
+    const fIdx = filas.length
+    filas.push([
+      `PARTIDA #${p.numero}`,
+      p.fecha,
+      "",
+      p.concepto,
+      p.documento_soporte || "",
+      "",
+      "",
+    ])
+
+    // Estilo de cabecera de partida (Acento azul celeste)
+    for (let c = 0; c < anchos.length; c++) {
+      estilos[`${fIdx}:${c}`] = ESTILO_FILA_SECCION
+    }
+
+    p.lineas.forEach((l) => {
+      const rowIdx = filas.length
+      filas.push([
+        "",
+        "",
+        l.codigo,
+        getNombreCuenta(l.codigo),
+        "",
+        l.debe > 0 ? l.debe : "",
+        l.haber > 0 ? l.haber : "",
+      ])
+
+      estilos[`${rowIdx}:0`] = ESTILO_CELDA_NORMAL
+      estilos[`${rowIdx}:1`] = ESTILO_CELDA_NORMAL
+      estilos[`${rowIdx}:2`] = ESTILO_CELDA_CODIGO
+      estilos[`${rowIdx}:3`] = ESTILO_CELDA_NORMAL
+      estilos[`${rowIdx}:4`] = ESTILO_CELDA_NORMAL
+      estilos[`${rowIdx}:5`] = l.debe > 0 ? ESTILO_CELDA_DEBE : ESTILO_CELDA_MONEDA
+      estilos[`${rowIdx}:6`] = l.haber > 0 ? ESTILO_CELDA_HABER : ESTILO_CELDA_MONEDA
+    })
+  })
+
+  // Fila de Totales
+  const fTotal = filas.length
+  filas.push([
+    "TOTALES DEL FOLIO DIARIO",
+    "",
+    "",
+    "",
+    "",
+    folio.total_debe,
+    folio.total_haber,
+  ])
+
+  for (let c = 0; c < anchos.length; c++) {
+    if (c === 5 || c === 6) {
+      estilos[`${fTotal}:${c}`] = ESTILO_TOTAL_DOBLE_MONEDA
+    } else {
+      estilos[`${fTotal}:${c}`] = ESTILO_TOTAL_DOBLE_TEXTO
+    }
+  }
+
+  const alturas = filas.map((_, i) => {
+    if (i === 0) return 24
+    if (i < filaEncabezado) return 15
+    if (i === filaEncabezado) return 26
+    if (i === fTotal) return 22
+    return 18
+  })
+
+  exportarLibroExcel(`Folio_Diario_${String(folio.numero_folio).padStart(3, "0")}_${folio.fecha}`, [
+    {
+      nombre: `Folio ${folio.numero_folio}`,
+      filas,
+      anchos,
+      alturas,
+      combinar,
+      estilos,
+      orientacion: "landscape",
+      fitToWidth: 1,
+      fitToHeight: 0,
+    },
+  ])
+}
+

@@ -39,7 +39,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/field";
 import { useContabilidad } from "@/components/contabilidad-provider";
 import { formatoMoneda, redondear, totalesAsiento } from "@/lib/contabilidad";
-import { exportarLibroExcel } from "@/lib/excel";
+import { exportarLibroExcel, maquetarReporteContable } from "@/lib/excel";
 import { BotonExportarUnificado } from "@/components/contabilidad/BotonExportarUnificado";
 import type { Asiento, Cuenta, TipoCuenta } from "@/lib/types";
 
@@ -1528,18 +1528,9 @@ function KardexContent() {
     if (pestañaPrincipal === "kardex_inventario") {
       const filas: (string | number | null | undefined)[][] = [
         [
-          "SISTEMA CONTABLE OFICIAL - TARJETA DE CONTROL DE INVENTARIOS (KARDEX)",
+          "TARJETA DE CONTROL DE INVENTARIOS (KARDEX) — FINEXA",
         ],
-        [`Ejercicio fiscal: ${ejercicioSeleccionado}`],
-        [`Artículo: ${articuloActual.codigo} - ${articuloActual.nombre}`],
-        [
-          `Método de Valuación: Costo Promedio Ponderado (Art. 143 C.T.) · Unidad: ${articuloActual.unidad}`,
-        ],
-        [
-          `Cuenta Contable: ${articuloActual.cuentaCodigo} - ${articuloActual.cuentaNombre}`,
-        ],
-        [`Ubicación: ${articuloActual.ubicacion}`],
-        [`Fecha de emisión: ${new Date().toLocaleDateString("es-SV")}`],
+        [`Fecha de emisión: ${new Date().toLocaleDateString("es-SV")}  |  Finexa · Sistema de Gestión Contable`],
         [],
         [
           "Fecha",
@@ -1588,6 +1579,19 @@ function KardexContent() {
         {
           nombre: `Kardex ${articuloActual.codigo}`,
           filas,
+          ...maquetarReporteContable({
+            filas,
+            filaEncabezado: 3,
+            columnasDebe: [7],
+            columnasHaber: [8],
+            columnasSaldo: [5, 9],
+            columnasSalidas: [4],
+            columnasNumero: [3],
+            columnasMoneda: [6],
+            columnasCentro: [0, 1],
+            anchos: [12, 18, 38, 16, 16, 18, 16, 16, 16, 16],
+            orientacion: "landscape",
+          }),
         },
       ]);
       return;
@@ -1596,16 +1600,10 @@ function KardexContent() {
     if (modoVista === "continuo") {
       const hojas = libroContinuoData.map((item) => {
         const filas: (string | number | null | undefined)[][] = [
-          ["SISTEMA CONTABLE OFICIAL - LIBRO AUXILIAR DE MAYOR"],
-          [`Ejercicio fiscal: ${ejercicioSeleccionado}`],
-          [`Cuenta: ${item.cuenta.codigo} - ${item.cuenta.nombre}`],
+          ["LIBRO AUXILIAR DE MAYOR — FINEXA"],
           [
-            `Clasificación: ${item.cuenta.tipo.toUpperCase()} | Naturaleza: ${item.cuenta.naturaleza.toUpperCase()}`,
+            `Cuenta: ${item.cuenta.codigo} - ${item.cuenta.nombre}  |  Fecha: ${new Date().toLocaleDateString("es-SV")}  |  Finexa · Sistema de Gestión Contable`,
           ],
-          [
-            `Período reportado: ${MESES.find((m) => m.valor === mesFiltro)?.label || "Todo el año"}`,
-          ],
-          [`Fecha de emisión: ${new Date().toLocaleDateString("es-SV")}`],
           [],
           [
             "Fecha",
@@ -1682,6 +1680,16 @@ function KardexContent() {
         return {
           nombre: `Aux ${item.cuenta.codigo}`,
           filas,
+          ...maquetarReporteContable({
+            filas,
+            filaEncabezado: 3,
+            columnasDebe: [5],
+            columnasHaber: [6],
+            columnasSaldo: [7],
+            columnasCentro: [0, 1, 2, 3, 8],
+            anchos: [12, 10, 12, 18, 38, 16, 16, 16, 8],
+            orientacion: "landscape",
+          }),
         };
       });
 
@@ -1695,17 +1703,10 @@ function KardexContent() {
     if (!cuentaActual) return;
 
     const filas: (string | number | null | undefined)[][] = [
-      ["SISTEMA CONTABLE OFICIAL - LIBRO AUXILIAR DE CUENTAS MAYORES"],
-      [`Ejercicio fiscal: ${ejercicioSeleccionado}`],
-      [`Cuenta: ${cuentaActual.codigo} - ${cuentaActual.nombre}`],
+      ["LIBRO AUXILIAR DE CUENTAS MAYORES — FINEXA"],
       [
-        `Clasificación: ${cuentaActual.tipo.toUpperCase()} | Naturaleza Normal: ${cuentaActual.naturaleza.toUpperCase()}`,
+        `Cuenta: ${cuentaActual.codigo} - ${cuentaActual.nombre}  |  Fecha: ${new Date().toLocaleDateString("es-SV")}  |  Finexa · Sistema de Gestión Contable`,
       ],
-      [
-        `Período reportado: ${MESES.find((m) => m.valor === mesFiltro)?.label || "Todo el año"}`,
-      ],
-      [`Condición del Saldo: ${condicionSaldoTexto}`],
-      [`Fecha de emisión: ${new Date().toLocaleDateString("es-SV")}`],
       [],
       [
         "Fecha",
@@ -1779,6 +1780,16 @@ function KardexContent() {
         {
           nombre: `Auxiliar ${cuentaActual.codigo}`,
           filas,
+          ...maquetarReporteContable({
+            filas,
+            filaEncabezado: 3,
+            columnasDebe: [5],
+            columnasHaber: [6],
+            columnasSaldo: [7],
+            columnasCentro: [0, 1, 2, 3, 8],
+            anchos: [12, 10, 12, 18, 38, 16, 16, 16, 8],
+            orientacion: "landscape",
+          }),
         },
       ],
     );
