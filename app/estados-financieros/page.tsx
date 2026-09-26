@@ -2736,87 +2736,79 @@ export default function EstadosFinancierosPage() {
                   .
                 </span>
               </label>
-
-              <label className="flex cursor-pointer select-none items-start gap-2 rounded-lg border border-primary/25 bg-primary/5 p-2.5 pt-1 text-xs">
-                <input
-                  type="checkbox"
-                  checked={
-                    aperturarSiguienteCheckbox
-                  }
-                  onChange={(
-                    event
-                  ) =>
-                    setAperturarSiguienteCheckbox(
-                      event
-                        .target
-                        .checked
-                    )
-                  }
-                  className="mt-0.5 size-4 rounded border-border text-primary focus:ring-primary"
-                />
-
-                <span className="leading-snug">
-                  <strong className="text-foreground">
-                    Transición
-                    Contable
-                    Automática:
-                  </strong>{" "}
-
-                  Crear el
-                  ejercicio
-                  fiscal{" "}
-
-                  <strong>
-                    {ejercicioSeleccionado +
-                      1}
-                  </strong>{" "}
-
-                  y generar su{" "}
-
-                  <strong>
-                    Partida #1 de
-                    Apertura
-                  </strong>{" "}
-
-                  con los saldos
-                  de balance y
-                  el inventario
-                  final contado.
-                </span>
-              </label>
             </div>
 
-            <div className="flex justify-end gap-2 border-t border-border pt-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() =>
-                  setModalCierreAbierto(
-                    false
-                  )
-                }
-                disabled={
-                  ejecutandoCierre
-                }
-              >
-                Cancelar
-              </Button>
+            {/* BOTONES DE ACCIÓN — DOS MODOS */}
+            <div className="flex flex-col gap-2 border-t border-border pt-3">
+              <p className="text-xs font-medium text-muted-foreground">
+                Elegí cómo ejecutar el cierre:
+              </p>
 
-              <Button
-                type="button"
-                onClick={
-                  ejecutarCierreSeguro
-                }
-                disabled={
-                  !cierreConfirmadoCheckbox ||
-                  ejecutandoCierre
-                }
-                className="bg-amber-600 text-white hover:bg-amber-700"
-              >
-                {ejecutandoCierre
-                  ? "Procesando Cierre..."
-                  : "Confirmar y Cerrar Ejercicio"}
-              </Button>
+              <div className="grid grid-cols-2 gap-2">
+                {/* Opción A: Solo cerrar */}
+                <button
+                  type="button"
+                  disabled={
+                    !cierreConfirmadoCheckbox ||
+                    ejecutandoCierre
+                  }
+                  onClick={() => {
+                    setAperturarSiguienteCheckbox(false)
+                    ejecutarCierreSeguro()
+                  }}
+                  className="flex flex-col items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-left text-xs font-medium text-amber-900 transition-colors hover:bg-amber-500/20 disabled:pointer-events-none disabled:opacity-40 dark:text-amber-200"
+                >
+                  <Lock className="size-4 shrink-0" />
+                  <span className="text-center font-semibold leading-tight">
+                    Solo cerrar {ejercicioSeleccionado}
+                  </span>
+                  <span className="text-center text-[10px] leading-tight text-amber-700/80 dark:text-amber-300/70">
+                    Liquida las cuentas de resultado. Podés aperturar el {ejercicioSeleccionado + 1} después manualmente.
+                  </span>
+                </button>
+
+                {/* Opción B: Cerrar + Aperturar siguiente */}
+                <button
+                  type="button"
+                  disabled={
+                    !cierreConfirmadoCheckbox ||
+                    ejecutandoCierre
+                  }
+                  onClick={() => {
+                    setAperturarSiguienteCheckbox(true)
+                    ejecutarCierreSeguro()
+                  }}
+                  className="flex flex-col items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 p-3 text-left text-xs font-medium text-primary transition-colors hover:bg-primary/20 disabled:pointer-events-none disabled:opacity-40"
+                >
+                  <CalendarPlus className="size-4 shrink-0" />
+                  <span className="text-center font-semibold leading-tight">
+                    Cerrar {ejercicioSeleccionado} + aperturar {ejercicioSeleccionado + 1}
+                  </span>
+                  <span className="text-center text-[10px] leading-tight text-primary/70">
+                    Recomendado — traspasa saldos e inventario automáticamente al nuevo año.
+                  </span>
+                </button>
+              </div>
+
+              {ejecutandoCierre && (
+                <p className="text-center text-xs text-muted-foreground animate-pulse">
+                  Procesando cierre, no cerrés esta ventana…
+                </p>
+              )}
+
+              <div className="flex justify-end pt-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setModalCierreAbierto(false)
+                  }
+                  disabled={ejecutandoCierre}
+                >
+                  Cancelar
+                </Button>
+              </div>
             </div>
           </div>
         </div>
