@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import {
   AlertTriangle,
@@ -9,28 +9,34 @@ import {
   CheckCircle2,
   FileDown,
   FileSpreadsheet,
-  Filter,
   ListTree,
   Search,
   TableProperties,
+  X,
+  Scale,
+  DollarSign,
+  TrendingUp,
+  TrendingDown,
+  Layers,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/field"
 import { useContabilidad } from "@/components/contabilidad-provider"
 import { formatoMoneda, redondear } from "@/lib/contabilidad"
 import { exportarLibroExcel, type EstiloCelda } from "@/lib/excel"
-import { ETIQUETA_TIPO, type TipoCuenta } from "@/lib/types"
+import { ETIQUETA_TIPO } from "@/lib/types"
+import { CuentaMayorFinderModal } from "@/components/contabilidad/CuentaMayorFinderModal"
+import { cn } from "@/lib/utils"
 
-const CATEGORIAS: { valor: string; label: string }[] = [
-  { valor: "todas", label: "Todas las cuentas" },
-  { valor: "activo", label: "1. Activos" },
-  { valor: "pasivo", label: "2. Pasivos" },
-  { valor: "capital", label: "3. Capital Contable" },
-  { valor: "gasto", label: "4. Costos y Gastos" },
-  { valor: "ingreso", label: "5. Ingresos" },
-]
+const CATEGORIAS_LABELS: Record<string, string> = {
+  todas: "Todas las cuentas",
+  activo: "1. Activos",
+  pasivo: "2. Pasivos",
+  capital: "3. Capital Contable",
+  gasto: "4. Costos y Gastos",
+  ingreso: "5. Ingresos",
+}
 
 // Cuentas que el modulo de Kardex reconoce como movimientos de inventario
 // (declaradas en app/kardex/page.tsx). El enlace "Auxiliar" solo tiene
@@ -77,7 +83,6 @@ const TOTAL: EstiloCelda = {
 }
 const MONEDA: EstiloCelda = { numFmt: "#,##0.00" }
 const MONEDA_TOTAL: EstiloCelda = { numFmt: "#,##0.00", font: { bold: true } }
-const CENTRO: EstiloCelda = { alignment: { horizontal: "center" } }
 
 /** Encabezado + cuerpo con bordes, y pie de totales resaltado. */
 function maquetar(
@@ -149,6 +154,23 @@ export default function LibroMayorPage() {
   const [vista, setVista] = useState<"cuentasT" | "comprobacion">("cuentasT")
   const [busqueda, setBusqueda] = useState("")
   const [categoria, setCategoria] = useState("todas")
+  const [cuentaFiltroCodigo, setCuentaFiltroCodigo] = useState<string | null>(null)
+  const [finderOpen, setFinderOpen] = useState(false)
+
+  // Atajo de teclado global (⌘K o /) para abrir el Finder
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault()
+        setFinderOpen(true)
+      } else if (e.key === "/" && !["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement)?.tagName)) {
+        e.preventDefault()
+        setFinderOpen(true)
+      }
+    }
+    window.addEventListener("keydown", handleGlobalKeyDown)
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown)
+  }, [])
 
   // Asientos del ejercicio actual ordenados cronológicamente
   const asientosEjercicio = useMemo(() => {
@@ -195,7 +217,12 @@ export default function LibroMayorPage() {
     return mapa
   }, [asientosEjercicio])
 
+  // Filtrado de cuentas
   const cuentasFiltradas = useMemo(() => {
+    if (cuentaFiltroCodigo) {
+      return mayor.filter((m) => m.cuenta.codigo === cuentaFiltroCodigo)
+    }
+
     const q = busqueda.trim().toLowerCase()
     return mayor.filter((m) => {
       if (categoria !== "todas" && m.cuenta.tipo !== categoria) return false
@@ -205,7 +232,7 @@ export default function LibroMayorPage() {
         m.cuenta.nombre.toLowerCase().includes(q)
       )
     })
-  }, [mayor, busqueda, categoria])
+  }, [mayor, cuentaFiltroCodigo, busqueda, categoria])
 
   const totalDebe = redondear(mayor.reduce((s, m) => s + m.debe, 0))
   const totalHaber = redondear(mayor.reduce((s, m) => s + m.haber, 0))
@@ -216,11 +243,7 @@ export default function LibroMayorPage() {
     mayor.filter((m) => m.naturalezaSaldo === "acreedora").reduce((s, m) => s + Math.abs(m.saldo), 0),
   )
 
-  // Los totales del libro completo nunca deben confundirse con las filas
-  // visibles: al filtrar por categoria o buscar texto la tabla muestra un
-  // subconjunto, pero el pie anunciaba la suma de todo. Se calculan aparte y
-  // se etiquetan de forma explicita.
-  const hayFiltroActivo = categoria !== "todas" || busqueda.trim() !== ""
+  const hayFiltroActivo = Boolean(cuentaFiltroCodigo || categoria !== "todas" || busqueda.trim() !== "")
 
   const totalesVisibles = useMemo(() => {
     const items = hayFiltroActivo ? cuentasFiltradas : mayor
@@ -236,11 +259,36 @@ export default function LibroMayorPage() {
     }
   }, [cuentasFiltradas, mayor, hayFiltroActivo])
 
-  // La igualdad se calcula, no se escribe a mano: antes el texto imprimia los
-  // signos "=" aunque los importes no coincidieran.
   const cuadraMovimientos = totalesVisibles.debe === totalesVisibles.haber
   const cuadraSaldos = totalesVisibles.deudor === totalesVisibles.acreedor
   const cuadraLibroCompleto = totalDebe === totalHaber && totalDeudor === totalAcreedor
+
+  // Cuenta activa para mostrar en el botón si hay selección individual
+  const cuentaFiltroSeleccionada = useMemo(() => {
+    if (!cuentaFiltroCodigo) return null
+    return mayor.find((m) => m.cuenta.codigo === cuentaFiltroCodigo) || null
+  }, [mayor, cuentaFiltroCodigo])
+
+  // Limpiar todos los filtros
+  const handleLimpiarFiltros = useCallback(() => {
+    setCuentaFiltroCodigo(null)
+    setBusqueda("")
+    setCategoria("todas")
+  }, [])
+
+  // Manejar selección desde el Finder
+  const handleSeleccionarCuentaDesdeFinder = useCallback((codigo: string | null) => {
+    setCuentaFiltroCodigo(codigo)
+    setBusqueda("")
+    setCategoria("todas")
+  }, [])
+
+  // Manejar filtro de texto y categoría desde el Finder
+  const handleAplicarFiltroTextoDesdeFinder = useCallback((q: string, cat: string) => {
+    setCuentaFiltroCodigo(null)
+    setBusqueda(q)
+    setCategoria(cat)
+  }, [])
 
   function exportarExcel() {
     const filasMayor: (string | number | null | undefined)[][] = [
@@ -368,31 +416,31 @@ export default function LibroMayorPage() {
 
   return (
     <div className="space-y-6">
-      <header className="space-y-2 report-header">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-primary">Mayorización Central</span>
-              <span className="text-xs text-muted-foreground">·</span>
-              <Badge variant="default" className="text-xs font-mono">
-                Ciclo Fiscal {ejercicioSeleccionado}
-              </Badge>
-              <Badge variant="success" className="text-[10px]">
-                Mayorización automática
-              </Badge>
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight md:text-3xl mt-0.5">Libro Mayor y Balanza</h1>
-            <p className="max-w-2xl text-xs sm:text-sm text-muted-foreground">
-              Consolidación automática en tiempo real de débitos y créditos en Cuentas T y Balance de Comprobación.
-            </p>
+      {/* ===================================================================== */}
+      {/* ENCABEZADO Y CONTROLES SEGÚN MAQUETA                                  */}
+      {/* ===================================================================== */}
+      <div className="space-y-4 report-header">
+        {/* FILA SUPERIOR: TÍTULO + CICLO FISCAL Y BOTONES DE ACCIÓN */}
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight md:text-3xl text-foreground">
+              Libro Mayor y Balanza
+            </h1>
+            <Badge
+              variant="default"
+              className="text-xs font-mono bg-neutral-900 text-white dark:bg-neutral-800 dark:text-neutral-200 border border-neutral-700/60 px-2.5 py-1 rounded-full shadow-2xs"
+            >
+              Ciclo Fiscal {ejercicioSeleccionado}
+            </Badge>
           </div>
+
           <div className="flex items-center gap-2 print:hidden">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={exportarPdf}
-              className="h-8 gap-1.5 text-xs shadow-xs"
+              className="h-8 gap-1.5 text-xs shadow-xs cursor-pointer"
             >
               <FileDown className="size-3.5" />
               Imprimir
@@ -402,400 +450,607 @@ export default function LibroMayorPage() {
               variant="outline"
               size="sm"
               onClick={exportarExcel}
-              className="h-8 gap-1.5 text-xs border-emerald-600/30 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/20 shadow-xs"
+              className="h-8 gap-1.5 text-xs border-emerald-600/30 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/20 shadow-xs cursor-pointer"
             >
               <FileSpreadsheet className="size-3.5 text-emerald-600" />
               Exportar Excel
             </Button>
           </div>
         </div>
-      </header>
 
-      {/* BARRA DE HERRAMIENTAS: BÚSQUEDA, FILTRO Y ALTERNADOR DE VISTAS */}
-      <Card className="print:hidden">
-        <CardContent className="p-4 sm:p-5 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {/* Alternador de Vistas */}
-            <div className="inline-flex rounded-lg border border-border p-1 bg-muted/40">
+        {/* FILA INFERIOR: ALTERNADOR DE VISTAS + BOTÓN BUSCADOR DE CUENTAS */}
+        <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Alternador de Vistas: Dark Container Pill como en el diseño de referencia */}
+            <div className="inline-flex rounded-xl p-1 bg-neutral-900 dark:bg-neutral-900 border border-neutral-800 text-neutral-300 shadow-2xs">
               <button
                 type="button"
                 onClick={() => setVista("cuentasT")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                className={cn(
+                  "flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer",
                   vista === "cuentasT"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+                    ? "bg-neutral-800 text-white shadow-xs font-bold"
+                    : "text-neutral-400 hover:text-white"
+                )}
               >
                 <BookOpen className="size-3.5" />
-                Cuentas T (Detallado)
+                <span>Cuentas T (Detallado)</span>
               </button>
               <button
                 type="button"
                 onClick={() => setVista("comprobacion")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                className={cn(
+                  "flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer",
                   vista === "comprobacion"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+                    ? "bg-neutral-800 text-white shadow-xs font-bold"
+                    : "text-neutral-400 hover:text-white"
+                )}
               >
                 <TableProperties className="size-3.5" />
-                Balance de Comprobación
+                <span>Balance de Comprobación</span>
               </button>
             </div>
 
-            {/* Contador de cuentas filtradas */}
-            <Badge variant="muted" className="text-xs">
+            {/* Botón Finder: "Buscar por cuenta" */}
+            <div className="flex items-center gap-1.5">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setFinderOpen(true)}
+                className={cn(
+                  "h-9 px-4 gap-2 text-xs font-medium rounded-xl shadow-2xs cursor-pointer transition-all border",
+                  hayFiltroActivo
+                    ? "bg-primary/10 border-primary/40 text-primary font-semibold hover:bg-primary/15"
+                    : "bg-card hover:bg-muted/60 text-foreground border-border"
+                )}
+              >
+                <Search className="size-3.5 text-muted-foreground" />
+                <span className="truncate max-w-[200px] sm:max-w-[260px]">
+                  {cuentaFiltroSeleccionada
+                    ? `${cuentaFiltroSeleccionada.cuenta.codigo} · ${cuentaFiltroSeleccionada.cuenta.nombre}`
+                    : busqueda
+                    ? `Búsqueda: "${busqueda}"`
+                    : categoria !== "todas"
+                    ? CATEGORIAS_LABELS[categoria]
+                    : "Buscar por cuenta"}
+                </span>
+                <kbd className="hidden sm:inline-block ml-1 px-1.5 py-0.5 text-[10px] font-mono rounded bg-muted text-muted-foreground border border-border/80">
+                  ⌘K
+                </kbd>
+              </Button>
+
+              {/* Botón rápido para limpiar filtro si hay alguno activo */}
+              {hayFiltroActivo && (
+                <button
+                  type="button"
+                  onClick={handleLimpiarFiltros}
+                  className="size-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/80 border border-border/80 transition-colors cursor-pointer"
+                  title="Restablecer filtro y ver todas las cuentas"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Contador de cuentas visibles */}
+          <div className="flex items-center gap-2">
+            <Badge variant="muted" className="text-xs font-mono font-medium">
               {cuentasFiltradas.length} de {mayor.length} cuentas con saldo
             </Badge>
           </div>
+        </div>
+      </div>
 
-          <div className="grid gap-3 sm:grid-cols-[1fr_220px]">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Buscar cuenta por código o nombre..."
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-                className="pl-9 h-10 text-sm"
-              />
-            </div>
+      {/* ===================================================================== */}
+      {/* MODAL FINDER DE CUENTAS ESTILO SPOTLIGHT                              */}
+      {/* ===================================================================== */}
+      <CuentaMayorFinderModal
+        isOpen={finderOpen}
+        onClose={() => setFinderOpen(false)}
+        cuentasMayor={mayor}
+        cuentaFiltroCodigo={cuentaFiltroCodigo}
+        busquedaTexto={busqueda}
+        categoriaFiltro={categoria}
+        onSeleccionarCuenta={handleSeleccionarCuentaDesdeFinder}
+        onAplicarFiltroTexto={handleAplicarFiltroTextoDesdeFinder}
+        onLimpiarFiltros={handleLimpiarFiltros}
+      />
 
-            <div className="relative">
-              <select
-                value={categoria}
-                onChange={(e) => setCategoria(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {CATEGORIAS.map((cat) => (
-                  <option key={cat.valor} value={cat.valor}>
-                    {cat.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
+      {/* ===================================================================== */}
+      {/* CONTENIDO PRINCIPAL: CUENTAS T O BALANCE DE COMPROBACIÓN              */}
+      {/* ===================================================================== */}
       {mayor.length === 0 ? (
-        <Card>
+        <Card className="rounded-2xl border-border/80 shadow-2xs">
           <CardContent className="p-12 text-center text-sm text-muted-foreground">
             <ListTree className="mx-auto size-10 text-muted-foreground/40 mb-3" />
-            <p className="font-semibold text-foreground">No hay movimientos en este ejercicio</p>
-            <p className="text-xs mt-1">Registra asientos en el Libro Diario para generar la mayorización automática.</p>
+            <p className="font-semibold text-foreground text-base">No hay movimientos en este ejercicio</p>
+            <p className="text-xs mt-1 max-w-md mx-auto">
+              Registra asientos en el Libro Diario para generar la mayorización automática de débitos y créditos.
+            </p>
+          </CardContent>
+        </Card>
+      ) : cuentasFiltradas.length === 0 ? (
+        <Card className="rounded-2xl border-border/80 shadow-2xs">
+          <CardContent className="p-12 text-center text-sm text-muted-foreground space-y-3">
+            <Search className="mx-auto size-9 text-muted-foreground/40" />
+            <div>
+              <p className="font-semibold text-foreground text-base">No se encontraron cuentas para este filtro</p>
+              <p className="text-xs mt-1 text-muted-foreground">
+                Prueba con otro término de búsqueda o categoría en el buscador.
+              </p>
+            </div>
+            <div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleLimpiarFiltros}
+                className="text-xs cursor-pointer"
+              >
+                Ver todas las cuentas
+              </Button>
+            </div>
           </CardContent>
         </Card>
       ) : vista === "cuentasT" ? (
-        /* VISTA: CUENTAS T REALES Y DETALLADAS */
-        <section className="grid gap-4 sm:grid-cols-2">
+        /* =================================================================== */
+        /* VISTA 1: TARJETAS DE CUENTAS T (DISEÑO MINIMALISTA Y REFINADO)       */
+        /* =================================================================== */
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-5">
           {cuentasFiltradas.map((m) => {
             const movs = movimientosPorCuenta.get(m.cuenta.codigo) || { debe: [], haber: [] }
-            // Deteccion de anomalias contables
-            //
-            // Un saldo solo es anomalo cuando el signo CONTRADICE la naturaleza
-            // configurada de la cuenta. Antes se comparaba contra el signo del
-            // saldo, lo que marcaba como sobregiro a toda cuenta acreedora de
-            // tipo activo (p.ej. 1206 Depreciacion acumulada), que son
-            // precisamente las que acumulan saldo en el haber por diseno.
             const saldoCero = m.saldo === 0
             const contradiceNaturaleza =
               m.cuenta.naturaleza === "deudora" ? m.saldo < 0 : m.saldo > 0
             const sobregirada = m.cuenta.tipo === "activo" && contradiceNaturaleza
+            const totalMovimientos = movs.debe.length + movs.haber.length
 
             return (
-              <Card
+              <div
                 key={m.cuenta.codigo}
-                className={`report-card ${sobregirada ? "border-red-500/40 bg-red-500/[0.02]" : ""}`}
+                className={cn(
+                  "report-card rounded-2xl border bg-card text-card-foreground shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between overflow-hidden",
+                  sobregirada
+                    ? "border-red-500/40 bg-red-500/[0.015]"
+                    : "border-border/80 hover:border-primary/40"
+                )}
               >
-                <CardHeader className="pb-3 border-b border-border/60">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <span className="font-mono text-primary font-bold">{m.cuenta.codigo}</span>
-                        <span>{m.cuenta.nombre}</span>
-                      </CardTitle>
-                      <CardDescription className="text-xs mt-0.5">
-                        {ETIQUETA_TIPO[m.cuenta.tipo]} · Naturaleza {m.cuenta.naturaleza}
-                      </CardDescription>
+                {/* CABECERA MINIMALISTA DE LA CUENTA */}
+                <div className="p-4 sm:p-5 border-b border-border/70 flex items-start justify-between gap-3">
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-lg bg-primary/10 text-primary shrink-0">
+                        {m.cuenta.codigo}
+                      </span>
+                      <h2 className="text-sm sm:text-base font-bold text-foreground truncate">
+                        {m.cuenta.nombre}
+                      </h2>
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground flex-wrap">
+                      <span>{ETIQUETA_TIPO[m.cuenta.tipo]}</span>
+                      <span>·</span>
+                      <span className="capitalize">Naturaleza {m.cuenta.naturaleza}</span>
+                      <span>·</span>
+                      <span>{totalMovimientos} {totalMovimientos === 1 ? "movimiento" : "movimientos"}</span>
+                    </div>
+                  </div>
+
+                  {CUENTAS_INVENTARIO.has(m.cuenta.codigo) && (
+                    <Link
+                      href={`/kardex?codigo=${m.cuenta.codigo}`}
+                      className="text-[11px] font-medium text-primary hover:underline inline-flex items-center gap-1 bg-primary/10 hover:bg-primary/20 px-2 py-1 rounded-lg shrink-0 transition-colors"
+                      title="Abrir extracto auxiliar de esta cuenta"
+                    >
+                      <span>Auxiliar</span>
+                      <ArrowRight className="size-3" />
+                    </Link>
+                  )}
+                </div>
+
+                {/* CUERPO: ESTRUCTURA FORMAL DE CUENTA T */}
+                <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-4">
+                  <div className="rounded-xl border border-border/80 overflow-hidden text-xs print-accounting-table">
+                    {/* ENCABEZADOS DEBE Y HABER */}
+                    <div className="grid grid-cols-2 border-b border-border/80 bg-muted/40 text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-center divide-x divide-border/80">
+                      <div className="py-2 px-3">Debe (Cargos)</div>
+                      <div className="py-2 px-3">Haber (Abonos)</div>
                     </div>
 
-                    {CUENTAS_INVENTARIO.has(m.cuenta.codigo) && (
-                      <Link
-                        href={`/kardex?codigo=${m.cuenta.codigo}`}
-                        className="text-xs text-primary hover:underline inline-flex items-center gap-1 font-medium bg-primary/10 hover:bg-primary/20 px-2 py-1 rounded"
-                        title="Abrir extracto auxiliar de esta cuenta"
-                      >
-                        Auxiliar <ArrowRight className="size-3" />
-                      </Link>
-                    )}
-                  </div>
-                </CardHeader>
-
-                <CardContent className="p-4 space-y-3">
-                  {/* Estructura formal de Cuenta T */}
-                  <div className="grid grid-cols-2 rounded-lg border border-border overflow-hidden text-xs print-accounting-table">
-                    {/* Columna DEBE */}
-                    <div className="border-r border-border flex flex-col justify-between">
-                      <div>
-                        <div className="bg-muted/60 p-2 text-center font-bold text-muted-foreground uppercase border-b border-border text-[11px]">
-                          Debe (Cargos)
-                        </div>
-                        <div className="p-2 space-y-1 max-h-36 overflow-y-auto divide-y divide-border/40">
+                    {/* COLUMNAS DE MOVIMIENTOS EN T */}
+                    <div className="grid grid-cols-2 divide-x divide-border/80 min-h-[140px]">
+                      {/* LADO DEBE */}
+                      <div className="flex flex-col justify-between">
+                        <div className="p-2 space-y-1.5 max-h-44 overflow-y-auto divide-y divide-border/30">
                           {movs.debe.length === 0 ? (
-                            <p className="text-center text-muted-foreground/40 py-2">-</p>
+                            <div className="py-8 text-center text-muted-foreground/30 text-xs italic">
+                              Sin cargos
+                            </div>
                           ) : (
                             movs.debe.map((item, idx) => (
-                              <div key={idx} className="flex items-start justify-between gap-2 pt-1">
-                                <div className="min-w-0">
-                                  <span className="block font-mono text-[10px] text-muted-foreground">
-                                    #{item.numero} ({item.fecha.slice(5)})
-                                  </span>
-                                  <span className="mt-0.5 block truncate text-[10px] text-foreground" title={item.concepto}>
+                              <div
+                                key={idx}
+                                className="flex items-start justify-between gap-2 pt-1.5 first:pt-0 group hover:bg-muted/30 px-1 rounded transition-colors"
+                              >
+                                <div className="min-w-0 pr-1">
+                                  <div className="font-mono text-[10px] text-muted-foreground font-semibold">
+                                    #{item.numero} <span className="font-normal">({item.fecha.slice(5)})</span>
+                                  </div>
+                                  <span
+                                    className="block truncate text-[10px] text-foreground/90"
+                                    title={item.concepto}
+                                  >
                                     {item.concepto}
                                   </span>
                                 </div>
-                                <span className="shrink-0 font-mono font-medium text-foreground">
+                                <span className="shrink-0 font-mono font-semibold tabular-nums text-foreground text-right text-[11px]">
                                   {formatoMoneda(item.monto)}
                                 </span>
                               </div>
                             ))
                           )}
                         </div>
-                      </div>
-                      <div className="bg-muted/30 p-2 border-t border-border flex justify-between font-mono font-bold">
-                        <span className="text-muted-foreground text-[10px]">Suma:</span>
-                        <span>{formatoMoneda(m.debe)}</span>
-                      </div>
-                    </div>
-
-                    {/* Columna HABER */}
-                    <div className="flex flex-col justify-between">
-                      <div>
-                        <div className="bg-muted/60 p-2 text-center font-bold text-muted-foreground uppercase border-b border-border text-[11px]">
-                          Haber (Abonos)
+                        {/* TOTAL DEBE */}
+                        <div className="bg-muted/30 px-3 py-2 border-t border-border/80 flex items-center justify-between font-mono font-bold text-xs">
+                          <span className="text-muted-foreground text-[10px] uppercase font-semibold">
+                            Total Debe
+                          </span>
+                          <span className="tabular-nums text-foreground">{formatoMoneda(m.debe)}</span>
                         </div>
-                        <div className="p-2 space-y-1 max-h-36 overflow-y-auto divide-y divide-border/40">
+                      </div>
+
+                      {/* LADO HABER */}
+                      <div className="flex flex-col justify-between">
+                        <div className="p-2 space-y-1.5 max-h-44 overflow-y-auto divide-y divide-border/30">
                           {movs.haber.length === 0 ? (
-                            <p className="text-center text-muted-foreground/40 py-2">-</p>
+                            <div className="py-8 text-center text-muted-foreground/30 text-xs italic">
+                              Sin abonos
+                            </div>
                           ) : (
                             movs.haber.map((item, idx) => (
-                              <div key={idx} className="flex items-start justify-between gap-2 pt-1">
-                                <div className="min-w-0">
-                                  <span className="block font-mono text-[10px] text-muted-foreground">
-                                    #{item.numero} ({item.fecha.slice(5)})
-                                  </span>
-                                  <span className="mt-0.5 block truncate text-[10px] text-foreground" title={item.concepto}>
+                              <div
+                                key={idx}
+                                className="flex items-start justify-between gap-2 pt-1.5 first:pt-0 group hover:bg-muted/30 px-1 rounded transition-colors"
+                              >
+                                <div className="min-w-0 pr-1">
+                                  <div className="font-mono text-[10px] text-muted-foreground font-semibold">
+                                    #{item.numero} <span className="font-normal">({item.fecha.slice(5)})</span>
+                                  </div>
+                                  <span
+                                    className="block truncate text-[10px] text-foreground/90"
+                                    title={item.concepto}
+                                  >
                                     {item.concepto}
                                   </span>
                                 </div>
-                                <span className="shrink-0 font-mono font-medium text-foreground">
+                                <span className="shrink-0 font-mono font-semibold tabular-nums text-foreground text-right text-[11px]">
                                   {formatoMoneda(item.monto)}
                                 </span>
                               </div>
                             ))
                           )}
                         </div>
-                      </div>
-                      <div className="bg-muted/30 p-2 border-t border-border flex justify-between font-mono font-bold">
-                        <span className="text-muted-foreground text-[10px]">Suma:</span>
-                        <span>{formatoMoneda(m.haber)}</span>
+                        {/* TOTAL HABER */}
+                        <div className="bg-muted/30 px-3 py-2 border-t border-border/80 flex items-center justify-between font-mono font-bold text-xs">
+                          <span className="text-muted-foreground text-[10px] uppercase font-semibold">
+                            Total Haber
+                          </span>
+                          <span className="tabular-nums text-foreground">{formatoMoneda(m.haber)}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
+                </div>
 
-                  {/* Saldo Final y Estado */}
-                  <div className="flex items-center justify-between pt-1 text-xs saldo-doble-linea">
-                    <span className="text-muted-foreground font-medium">Saldo Neto:</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-sm text-foreground">
-                        {formatoMoneda(Math.abs(m.saldo))}
-                      </span>
-
-                      {sobregirada ? (
-                        <Badge variant="warning" className="text-[10px] flex items-center gap-1 font-bold">
-                          <AlertTriangle className="size-3" />
-                          {`¡Sobregiro! (Saldo ${m.naturalezaSaldo === "deudora" ? "Deudor" : "Acreedor"})`}
-                        </Badge>
-                      ) : saldoCero ? (
-                        <Badge variant="muted" className="text-[10px] flex items-center gap-1">
-                          <CheckCircle2 className="size-3 text-emerald-600" />
-                          Saldada
-                        </Badge>
-                      ) : m.naturalezaSaldo === "deudora" ? (
-                        <Badge variant="deudora" className="text-[10px]">
-                          Saldo Deudor
-                        </Badge>
-                      ) : (
-                        <Badge variant="default" className="text-[10px] bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200">
-                          Saldo Acreedor
-                        </Badge>
-                      )}
-                    </div>
+                {/* PIE DE LA TARJETA: SALDO NETO Y CONDICIÓN */}
+                <div className="px-4 sm:px-5 py-3 bg-muted/25 dark:bg-muted/15 border-t border-border/70 flex items-center justify-between gap-3 text-xs saldo-doble-linea">
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground text-xs font-medium">Saldo Neto:</span>
+                    <span className="font-mono font-bold text-sm sm:text-base text-foreground tabular-nums">
+                      {formatoMoneda(Math.abs(m.saldo))}
+                    </span>
                   </div>
-                </CardContent>
-              </Card>
+
+                  <div className="flex items-center gap-1.5">
+                    {sobregirada ? (
+                      <Badge variant="warning" className="text-[10px] font-bold flex items-center gap-1">
+                        <AlertTriangle className="size-3" />
+                        <span>¡Sobregiro!</span>
+                      </Badge>
+                    ) : saldoCero ? (
+                      <Badge variant="muted" className="text-[10px] flex items-center gap-1">
+                        <CheckCircle2 className="size-3 text-emerald-600" />
+                        <span>Saldada</span>
+                      </Badge>
+                    ) : m.naturalezaSaldo === "deudora" ? (
+                      <Badge variant="deudora" className="text-[10px]">
+                        Saldo Deudor
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant="default"
+                        className="text-[10px] bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200"
+                      >
+                        Saldo Acreedor
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
             )
           })}
         </section>
       ) : (
-        /* VISTA: BALANCE DE COMPROBACIÓN FORMAL */
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold">
-              Balance de Comprobación de Sumas y Saldos
-            </CardTitle>
-            <CardDescription>
-              Comprobación estricta de igualdad matemática entre movimientos y saldos deudores y acreedores.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full min-w-[700px] text-sm print-accounting-table">
-                <thead className="bg-muted/60 text-xs uppercase tracking-wide text-muted-foreground">
-                  <tr className="border-b border-border">
-                    <th rowSpan={2} className="py-2.5 px-3 text-left">Código</th>
-                    <th rowSpan={2} className="py-2.5 px-3 text-left">Nombre de la Cuenta</th>
-                    <th colSpan={2} className="py-1 px-3 text-center border-b border-border">
-                      Movimientos
-                    </th>
-                    <th colSpan={2} className="py-1 px-3 text-center border-b border-border">
-                      Saldos
-                    </th>
-                  </tr>
-                  <tr className="border-b border-border text-[11px]">
-                    <th className="py-1.5 px-3 text-right">Debe</th>
-                    <th className="py-1.5 px-3 text-right">Haber</th>
-                    <th className="py-1.5 px-3 text-right">Deudor</th>
-                    <th className="py-1.5 px-3 text-right">Acreedor</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/60">
-                  {cuentasFiltradas.map((m) => {
-                    const deudor = m.naturalezaSaldo === "deudora" ? Math.abs(m.saldo) : 0
-                    const acreedor = m.naturalezaSaldo === "acreedora" ? Math.abs(m.saldo) : 0
-                    return (
-                      <tr key={m.cuenta.codigo} className="hover:bg-muted/30 transition-colors group">
-                        <td className="py-2.5 px-3 font-mono font-medium text-xs">
-                          <Link
-                            href={`/kardex?codigo=${m.cuenta.codigo}`}
-                            className="text-primary hover:underline font-bold inline-flex items-center gap-1"
-                            title="Abrir extracto en Libro Auxiliar"
-                          >
-                            <span>{m.cuenta.codigo}</span>
-                            <ArrowRight className="size-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </Link>
-                        </td>
-                        <td className="py-2.5 px-3 text-foreground">
-                          <Link
-                            href={`/kardex?codigo=${m.cuenta.codigo}`}
-                            className="hover:underline"
-                            title="Abrir extracto en Libro Auxiliar"
-                          >
-                            {m.cuenta.nombre}
-                          </Link>
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono tabular-nums">
-                          {m.debe > 0 ? formatoMoneda(m.debe) : "-"}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono tabular-nums">
-                          {m.haber > 0 ? formatoMoneda(m.haber) : "-"}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono tabular-nums font-semibold text-foreground">
-                          {deudor > 0 ? formatoMoneda(deudor) : "-"}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono tabular-nums font-semibold text-foreground">
-                          {acreedor > 0 ? formatoMoneda(acreedor) : "-"}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-                <tfoot className="border-t-2 border-border bg-muted/40 font-bold border-b-4 border-double border-foreground/30">
-                  <tr>
-                    <td colSpan={2} className="py-3 px-3 uppercase text-xs tracking-wider text-muted-foreground">
-                      {hayFiltroActivo ? "Suma de cuentas filtradas" : "Sumas Iguales"}
-                    </td>
-                    <td className="py-3 px-3 text-right font-mono tabular-nums">
-                      {formatoMoneda(totalesVisibles.debe)}
-                    </td>
-                    <td className="py-3 px-3 text-right font-mono tabular-nums">
-                      {formatoMoneda(totalesVisibles.haber)}
-                    </td>
-                    <td className="py-3 px-3 text-right font-mono tabular-nums text-foreground">
-                      {formatoMoneda(totalesVisibles.deudor)}
-                    </td>
-                    <td className="py-3 px-3 text-right font-mono tabular-nums text-foreground">
-                      {formatoMoneda(totalesVisibles.acreedor)}
-                    </td>
-                  </tr>
-
-                  {/* Los totales generales se muestran aparte y rotulados, para
-                      que con un filtro activo nunca se confundan con la suma de
-                      las filas visibles. */}
-                  {hayFiltroActivo && (
-                    <tr className="border-t border-border/60">
-                      <td colSpan={2} className="py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground/80">
-                        Totales generales (Libro Completo)
-                      </td>
-                      <td className="py-2 px-3 text-right font-mono tabular-nums text-xs text-muted-foreground">
-                        {formatoMoneda(totalDebe)}
-                      </td>
-                      <td className="py-2 px-3 text-right font-mono tabular-nums text-xs text-muted-foreground">
-                        {formatoMoneda(totalHaber)}
-                      </td>
-                      <td className="py-2 px-3 text-right font-mono tabular-nums text-xs text-muted-foreground">
-                        {formatoMoneda(totalDeudor)}
-                      </td>
-                      <td className="py-2 px-3 text-right font-mono tabular-nums text-xs text-muted-foreground">
-                        {formatoMoneda(totalAcreedor)}
-                      </td>
-                    </tr>
-                  )}
-                </tfoot>
-              </table>
-
-              {/* BANDA DE VERIFICACIÓN DE CUADRE DE BALANZA */}
-              <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-muted/20 border-t border-border text-xs text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  {cuadraMovimientos && cuadraSaldos ? (
-                    <CheckCircle2 className="size-4 text-emerald-600" />
-                  ) : (
-                    <AlertTriangle className="size-4 text-amber-600" />
-                  )}
-                  <span>
-                    <strong>
-                      {hayFiltroActivo
-                        ? "Verificación de la vista filtrada:"
-                        : "Verificación de Partida Doble:"}
-                    </strong>{" "}
-                    Débitos ({formatoMoneda(totalesVisibles.debe)}){" "}
-                    {cuadraMovimientos ? "=" : "≠"} Créditos ({formatoMoneda(totalesVisibles.haber)}) ·
-                    Saldos Deudores ({formatoMoneda(totalesVisibles.deudor)}){" "}
-                    {cuadraSaldos ? "=" : "≠"} Saldos Acreedores ({formatoMoneda(totalesVisibles.acreedor)})
+        /* =================================================================== */
+        /* VISTA 2: BALANCE DE COMPROBACIÓN FORMAL Y MINIMALISTA                */
+        /* =================================================================== */
+        <div className="space-y-4">
+          {/* TIRA DE MÉTRICAS / RESUMEN EJECUTIVO DE COMPROBACIÓN */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 print:hidden">
+            <div className="rounded-2xl border border-border/80 bg-card p-4 shadow-2xs space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                Total Movimientos
+              </span>
+              <div className="text-base sm:text-lg font-bold font-mono tabular-nums text-foreground">
+                {formatoMoneda(totalesVisibles.debe)}
+              </div>
+              <div className="text-[11px] text-muted-foreground flex items-center gap-1">
+                {cuadraMovimientos ? (
+                  <span className="text-emerald-600 dark:text-emerald-400 font-medium inline-flex items-center gap-1">
+                    <CheckCircle2 className="size-3" /> Débito = Crédito
                   </span>
-                </div>
-
-                {/* Con un filtro activo la comprobacion parcial no certifica el
-                    libro entero, asi que se informa tambien del total general. */}
-                {hayFiltroActivo && (
-                  <span className="text-[10px] text-muted-foreground/80">
-                    Libro completo: {formatoMoneda(totalDebe)} {cuadraLibroCompleto ? "=" : "≠"}{" "}
-                    {formatoMoneda(totalHaber)}
+                ) : (
+                  <span className="text-amber-600 dark:text-amber-400 font-medium inline-flex items-center gap-1">
+                    <AlertTriangle className="size-3" /> Diferencia detectada
                   </span>
                 )}
-
-                <Badge
-                  variant={cuadraMovimientos && cuadraSaldos ? "success" : "warning"}
-                  className="font-mono text-[10px]"
-                >
-                  {cuadraMovimientos && cuadraSaldos
-                    ? "Balanza Cuadrada al Centavo ✓"
-                    : "Diferencia detectada"}
-                </Badge>
               </div>
             </div>
-          </CardContent>
-        </Card>
+
+            <div className="rounded-2xl border border-border/80 bg-card p-4 shadow-2xs space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                Total Saldos
+              </span>
+              <div className="text-base sm:text-lg font-bold font-mono tabular-nums text-foreground">
+                {formatoMoneda(totalesVisibles.deudor)}
+              </div>
+              <div className="text-[11px] text-muted-foreground flex items-center gap-1">
+                {cuadraSaldos ? (
+                  <span className="text-emerald-600 dark:text-emerald-400 font-medium inline-flex items-center gap-1">
+                    <CheckCircle2 className="size-3" /> Deudor = Acreedor
+                  </span>
+                ) : (
+                  <span className="text-amber-600 dark:text-amber-400 font-medium inline-flex items-center gap-1">
+                    <AlertTriangle className="size-3" /> Diferencia en saldos
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border/80 bg-card p-4 shadow-2xs space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                Estado Partida Doble
+              </span>
+              <div className="pt-0.5">
+                <Badge
+                  variant={cuadraMovimientos && cuadraSaldos ? "success" : "warning"}
+                  className="font-mono text-xs px-2 py-0.5"
+                >
+                  {cuadraMovimientos && cuadraSaldos ? "Cuadrada al Centavo ✓" : "Diferencia"}
+                </Badge>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                {cuadraMovimientos && cuadraSaldos
+                  ? "Cumple estricta igualdad contable"
+                  : "Revisar asientos del ejercicio"}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-border/80 bg-card p-4 shadow-2xs space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                Cuentas en Balanza
+              </span>
+              <div className="text-base sm:text-lg font-bold font-mono tabular-nums text-foreground">
+                {cuentasFiltradas.length}
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                {hayFiltroActivo ? "Filtradas del libro completo" : "Cuentas con saldo en el ejercicio"}
+              </p>
+            </div>
+          </div>
+
+          {/* TABLA PRINCIPAL DE BALANCE DE COMPROBACIÓN */}
+          <Card className="rounded-2xl border-border/80 overflow-hidden shadow-2xs">
+            <CardHeader className="pb-3 border-b border-border/60">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <CardTitle className="text-base font-bold text-foreground">
+                    Balance de Comprobación de Sumas y Saldos
+                  </CardTitle>
+                  <CardDescription className="text-xs mt-0.5">
+                    Comprobación rigurosa de igualdad matemática entre movimientos (débitos/créditos) y saldos (deudores/acreedores).
+                  </CardDescription>
+                </div>
+
+                <Badge variant="muted" className="text-xs font-mono font-medium">
+                  {cuentasFiltradas.length} cuentas
+                </Badge>
+              </div>
+            </CardHeader>
+
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[700px] text-sm print-accounting-table">
+                  <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground font-semibold">
+                    <tr className="border-b border-border">
+                      <th rowSpan={2} className="py-2.5 px-3.5 text-left font-bold">
+                        Código
+                      </th>
+                      <th rowSpan={2} className="py-2.5 px-3.5 text-left font-bold">
+                        Nombre de la Cuenta
+                      </th>
+                      <th colSpan={2} className="py-1 px-3.5 text-center border-b border-border font-bold">
+                        Movimientos
+                      </th>
+                      <th colSpan={2} className="py-1 px-3.5 text-center border-b border-border font-bold">
+                        Saldos
+                      </th>
+                    </tr>
+                    <tr className="border-b border-border text-[11px]">
+                      <th className="py-1.5 px-3.5 text-right font-bold">Debe</th>
+                      <th className="py-1.5 px-3.5 text-right font-bold">Haber</th>
+                      <th className="py-1.5 px-3.5 text-right font-bold">Deudor</th>
+                      <th className="py-1.5 px-3.5 text-right font-bold">Acreedor</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {cuentasFiltradas.map((m) => {
+                      const deudor = m.naturalezaSaldo === "deudora" ? Math.abs(m.saldo) : 0
+                      const acreedor = m.naturalezaSaldo === "acreedora" ? Math.abs(m.saldo) : 0
+                      return (
+                        <tr
+                          key={m.cuenta.codigo}
+                          className="hover:bg-muted/30 transition-colors group"
+                        >
+                          <td className="py-2.5 px-3.5 font-mono font-semibold text-xs">
+                            <Link
+                              href={`/kardex?codigo=${m.cuenta.codigo}`}
+                              className="text-primary hover:underline font-bold inline-flex items-center gap-1"
+                              title="Abrir extracto en Libro Auxiliar"
+                            >
+                              <span>{m.cuenta.codigo}</span>
+                              <ArrowRight className="size-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </Link>
+                          </td>
+                          <td className="py-2.5 px-3.5 text-foreground font-medium">
+                            <Link
+                              href={`/kardex?codigo=${m.cuenta.codigo}`}
+                              className="hover:underline"
+                              title="Abrir extracto en Libro Auxiliar"
+                            >
+                              {m.cuenta.nombre}
+                            </Link>
+                          </td>
+                          <td className="py-2.5 px-3.5 text-right font-mono tabular-nums text-xs">
+                            {m.debe > 0 ? (
+                              formatoMoneda(m.debe)
+                            ) : (
+                              <span className="text-muted-foreground/40">-</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3.5 text-right font-mono tabular-nums text-xs">
+                            {m.haber > 0 ? (
+                              formatoMoneda(m.haber)
+                            ) : (
+                              <span className="text-muted-foreground/40">-</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3.5 text-right font-mono tabular-nums font-semibold text-foreground text-xs">
+                            {deudor > 0 ? (
+                              formatoMoneda(deudor)
+                            ) : (
+                              <span className="text-muted-foreground/40 font-normal">-</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3.5 text-right font-mono tabular-nums font-semibold text-foreground text-xs">
+                            {acreedor > 0 ? (
+                              formatoMoneda(acreedor)
+                            ) : (
+                              <span className="text-muted-foreground/40 font-normal">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                  <tfoot className="border-t-2 border-border bg-muted/40 font-bold border-b-4 border-double border-foreground/30">
+                    <tr>
+                      <td
+                        colSpan={2}
+                        className="py-3 px-3.5 uppercase text-xs tracking-wider text-muted-foreground font-bold"
+                      >
+                        {hayFiltroActivo ? "Suma de cuentas filtradas" : "Sumas Iguales"}
+                      </td>
+                      <td className="py-3 px-3.5 text-right font-mono tabular-nums text-xs">
+                        {formatoMoneda(totalesVisibles.debe)}
+                      </td>
+                      <td className="py-3 px-3.5 text-right font-mono tabular-nums text-xs">
+                        {formatoMoneda(totalesVisibles.haber)}
+                      </td>
+                      <td className="py-3 px-3.5 text-right font-mono tabular-nums text-foreground text-xs">
+                        {formatoMoneda(totalesVisibles.deudor)}
+                      </td>
+                      <td className="py-3 px-3.5 text-right font-mono tabular-nums text-foreground text-xs">
+                        {formatoMoneda(totalesVisibles.acreedor)}
+                      </td>
+                    </tr>
+
+                    {hayFiltroActivo && (
+                      <tr className="border-t border-border/60">
+                        <td
+                          colSpan={2}
+                          className="py-2 px-3.5 text-[10px] uppercase tracking-wider text-muted-foreground/80 font-bold"
+                        >
+                          Totales generales (Libro Completo)
+                        </td>
+                        <td className="py-2 px-3.5 text-right font-mono tabular-nums text-xs text-muted-foreground">
+                          {formatoMoneda(totalDebe)}
+                        </td>
+                        <td className="py-2 px-3.5 text-right font-mono tabular-nums text-xs text-muted-foreground">
+                          {formatoMoneda(totalHaber)}
+                        </td>
+                        <td className="py-2 px-3.5 text-right font-mono tabular-nums text-xs text-muted-foreground">
+                          {formatoMoneda(totalDeudor)}
+                        </td>
+                        <td className="py-2 px-3.5 text-right font-mono tabular-nums text-xs text-muted-foreground">
+                          {formatoMoneda(totalAcreedor)}
+                        </td>
+                      </tr>
+                    )}
+                  </tfoot>
+                </table>
+
+                {/* BANDA DE VERIFICACIÓN DE CUADRE DE BALANZA */}
+                <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-muted/20 border-t border-border text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    {cuadraMovimientos && cuadraSaldos ? (
+                      <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
+                    ) : (
+                      <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400" />
+                    )}
+                    <span>
+                      <strong>
+                        {hayFiltroActivo
+                          ? "Verificación de la vista filtrada:"
+                          : "Verificación de Partida Doble:"}
+                      </strong>{" "}
+                      Débitos ({formatoMoneda(totalesVisibles.debe)}){" "}
+                      {cuadraMovimientos ? "=" : "≠"} Créditos ({formatoMoneda(totalesVisibles.haber)}) ·
+                      Saldos Deudores ({formatoMoneda(totalesVisibles.deudor)}){" "}
+                      {cuadraSaldos ? "=" : "≠"} Saldos Acreedores ({formatoMoneda(totalesVisibles.acreedor)})
+                    </span>
+                  </div>
+
+                  {hayFiltroActivo && (
+                    <span className="text-[10px] text-muted-foreground/80 font-mono">
+                      Libro completo: {formatoMoneda(totalDebe)} {cuadraLibroCompleto ? "=" : "≠"}{" "}
+                      {formatoMoneda(totalHaber)}
+                    </span>
+                  )}
+
+                  <Badge
+                    variant={cuadraMovimientos && cuadraSaldos ? "success" : "warning"}
+                    className="font-mono text-[10px]"
+                  >
+                    {cuadraMovimientos && cuadraSaldos
+                      ? "Balanza Cuadrada al Centavo ✓"
+                      : "Diferencia detectada"}
+                  </Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* PIE DE FIRMAS DE AUDITORÍA (IMPRESIÓN OFICIAL) */}
