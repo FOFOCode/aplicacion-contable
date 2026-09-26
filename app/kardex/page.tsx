@@ -2186,70 +2186,58 @@ function KardexContent() {
             </div>
           </div>
 
-          {modoKardex === "manual" && (
+          {modoKardex === "manual" && filasManuales.length > 0 && (
             <div
-              className={`flex flex-col gap-2 rounded-xl border p-3 text-xs sm:flex-row sm:items-center sm:justify-between print:hidden transition-colors ${
+              className={`flex items-center justify-between gap-3 px-3.5 py-2 rounded-lg border text-xs print:hidden transition-all ${
                 edicionManualHabilitada
-                  ? "border-amber-500/40 bg-amber-500/5 text-amber-950 dark:text-amber-200"
-                  : "border-border/80 bg-muted/20 text-foreground"
+                  ? "border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200 shadow-2xs"
+                  : "border-border/60 bg-muted/30 text-muted-foreground"
               }`}
             >
-              <div className="flex items-center gap-2.5">
-                {edicionManualHabilitada ? (
-                  <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-amber-500/15 text-amber-600">
-                    <Unlock className="size-4" />
-                  </div>
-                ) : (
-                  <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                    <Lock className="size-4" />
-                  </div>
-                )}
-                <div>
-                  <p className="font-semibold text-foreground">
+              <div className="flex items-center gap-2 min-w-0">
+                <span
+                  className={`flex size-2 rounded-full shrink-0 ${
+                    edicionManualHabilitada
+                      ? "bg-amber-500 animate-pulse"
+                      : "bg-emerald-500"
+                  }`}
+                />
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-semibold text-foreground">
+                    {edicionManualHabilitada ? "Edición en caliente activa" : "Modo protegido (Solo lectura)"}
+                  </span>
+                  <span className="text-muted-foreground">·</span>
+                  <span className="text-[11px] text-muted-foreground">
                     {edicionManualHabilitada
-                      ? "Modo edición activo (Celdas modificables)"
-                      : "Modo protegido contra cambios accidentales (Solo lectura)"}
-                  </p>
-                  <p className="text-muted-foreground text-[11px]">
-                    {edicionManualHabilitada
-                      ? "Puede editar directamente los campos de la tabla. Al terminar, pulse 'Bloquear' para asegurar los datos."
-                      : "Las celdas están bloqueadas para evitar modificaciones involuntarias. Pulse 'Habilitar edición' si necesita ajustar valores."}
-                  </p>
+                      ? "Celdas editables. Pulsa 'Bloquear' al terminar."
+                      : "Celdas bloqueadas. Pulsa 'Habilitar edición' o haz doble clic en cualquier fila para modificar."}
+                  </span>
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+
+              <div className="flex items-center gap-1.5 shrink-0">
                 <Button
                   type="button"
-                  variant="outline"
                   size="sm"
+                  variant={edicionManualHabilitada ? "default" : "outline"}
                   onClick={() => setEdicionManualHabilitada(!edicionManualHabilitada)}
-                  className={`h-8 gap-1.5 text-xs cursor-pointer ${
+                  className={`h-7 px-2.5 text-xs gap-1.5 cursor-pointer font-medium ${
                     edicionManualHabilitada
-                      ? "border-amber-500/50 bg-amber-100/60 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300"
-                      : "border-border text-foreground hover:bg-muted"
+                      ? "bg-amber-600 hover:bg-amber-700 text-white shadow-xs"
+                      : "hover:bg-background border-border shadow-2xs"
                   }`}
                 >
                   {edicionManualHabilitada ? (
                     <>
-                      <Lock className="size-3.5" />
-                      <span>Bloquear edición</span>
+                      <Lock className="size-3" />
+                      <span>Bloquear</span>
                     </>
                   ) : (
                     <>
-                      <Unlock className="size-3.5" />
-                      <span>Habilitar edición</span>
+                      <Unlock className="size-3 text-primary" />
+                      <span className="text-primary font-semibold">Habilitar edición</span>
                     </>
                   )}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={agregarFilaManual}
-                  className="h-8 gap-1.5 text-xs"
-                >
-                  <Plus className="size-3.5" />
-                  Agregar fila
                 </Button>
               </div>
             </div>
@@ -2421,7 +2409,9 @@ function KardexContent() {
                           return (
                             <tr
                               key={fila.id}
-                              className={`hover:bg-muted/40 transition-colors ${
+                              onDoubleClick={() => setEdicionManualHabilitada(true)}
+                              title="Doble clic para habilitar edición en caliente"
+                              className={`hover:bg-muted/40 transition-colors cursor-pointer ${
                                 esApertura ? "bg-muted/20 font-semibold" : ""
                               }`}
                             >
