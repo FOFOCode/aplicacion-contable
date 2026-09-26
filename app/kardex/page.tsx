@@ -2087,7 +2087,8 @@ function KardexContent() {
                 Vaciar Kardex (0)
               </Button>
             </div>
-          </header>
+          </div>
+        </header>
 
           {mensajeExitoAuto && (
             <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-800 dark:text-emerald-300 animate-in fade-in print:hidden">
