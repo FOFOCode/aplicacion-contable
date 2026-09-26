@@ -108,6 +108,8 @@ export function AppShell({
   children: ReactNode
 }) {
   const pathname = usePathname()
+  const ocultarBadgeDb =
+    pathname?.startsWith("/libro-mayor") || pathname?.startsWith("/libro-diario")
 
   const [open, setOpen] = useState(false)
 
@@ -932,22 +934,18 @@ function toggleTheme() {
 
             <div className="flex flex-wrap items-center gap-2.5">
 
-              {dbConnected ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
-
-                  <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
-
-                  Base de Datos Conectada
-
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-300">
-
-                  <span className="size-1.5 rounded-full bg-amber-500" />
-
-                  Modo Navegador (Offline)
-
-                </span>
+              {!ocultarBadgeDb && (
+                dbConnected ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                    <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
+                    Base de Datos Conectada
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-300">
+                    <span className="size-1.5 rounded-full bg-amber-500" />
+                    Modo Navegador (Offline)
+                  </span>
+                )
               )}
 
               {/* SELECTOR DE CICLO */}
