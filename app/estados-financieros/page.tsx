@@ -7,6 +7,8 @@ import {
   Calculator,
   CalendarPlus,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   CircleCheck,
   ClipboardCheck,
   Edit3,
@@ -14,8 +16,12 @@ import {
   FileSpreadsheet,
   History,
   Layers,
+  Lock,
   RotateCcw,
   Save,
+  Scale,
+  TrendingDown,
+  TrendingUp,
   TriangleAlert,
   X,
 } from "lucide-react"
@@ -32,6 +38,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input, Label } from "@/components/ui/field"
 
 import { useContabilidad } from "@/components/contabilidad-provider"
+import { cn } from "@/lib/utils"
 
 import {
   formatoMoneda,
@@ -39,6 +46,7 @@ import {
 } from "@/lib/contabilidad"
 
 import { exportarLibroExcel } from "@/lib/excel"
+import { BotonExportarUnificado } from "@/components/contabilidad/BotonExportarUnificado"
 
 // ============================================================
 // RENGLONES DE REPORTE
@@ -178,6 +186,18 @@ export default function EstadosFinancierosPage() {
     "analitico" |
     "general"
   >("analitico")
+
+  const [
+    tabEstado,
+    setTabEstado,
+  ] = useState<
+    "resultados" |
+    "balance" |
+    "cierre"
+  >("resultados")
+
+  const [erExpandido, setErExpandido] = useState(false)
+  const [bgExpandido, setBgExpandido] = useState(false)
 
   // ============================================================
   // TOMA FÍSICA
@@ -741,199 +761,120 @@ export default function EstadosFinancierosPage() {
   return (
     <div className="space-y-8 report-page">
       {/* ====================================================== */}
-      {/* ENCABEZADO */}
+      {/* ENCABEZADO Y ACCIONES (POSICIONES EXACTAS DEL MOCKUP) */}
       {/* ====================================================== */}
-
-      <header className="space-y-3 report-header">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium text-primary">
-              Reportes contables
-              oficiales
-            </p>
-
-            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
-              Reporte de Estados
-              Financieros
+      <header className="space-y-3.5 print:hidden">
+        {/* Fila 1: Título con badge de ciclo a la izquierda | Botones de acción a la derecha */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">
+              Estados financieros
             </h1>
-
-            <p className="mt-1 text-sm text-muted-foreground">
-              Ciclo:{" "}
-              <strong className="text-foreground">
-                {
-                  ejercicioSeleccionado
-                }
-              </strong>{" "}
-              · Corte oficial
-              expresado en
-              dólares de los
-              Estados Unidos de
-              América (USD)
-            </p>
+            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-mono font-semibold bg-muted text-foreground border border-border/80 shadow-2xs">
+              Ciclo Fiscal {ejercicioSeleccionado}
+            </span>
           </div>
 
-          <div className="flex flex-wrap gap-2 print:hidden">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={
-                exportarExcel
-              }
-              className="border-emerald-600/40 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/20"
-            >
-              <FileSpreadsheet className="mr-1.5 size-4 text-emerald-600" />
-
-              Exportar Excel
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              onClick={
-                exportarPdf
-              }
-            >
-              <FileDown className="mr-1.5 size-4" />
-
-              Exportar PDF
-            </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <BotonExportarUnificado
+              onExportarPdf={exportarPdf}
+              textoPdf="Descargar PDF"
+              descPdf="Estados financieros oficiales"
+              onExportarExcel={exportarExcel}
+              textoExcel="Exportar Excel"
+              descExcel="Balance y Resultados (.xlsx)"
+              onImprimir={() => window.print()}
+              textoImprimir="Imprimir Estados"
+              descImprimir="Vista oficial de imprenta"
+            />
 
             <Link
               href="/ciclos"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground shadow-xs transition-colors hover:bg-muted"
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-xl border border-border/80 bg-card hover:bg-muted text-xs font-medium text-foreground shadow-2xs transition-colors"
             >
-              <History className="size-4 text-primary" />
-
-              Historial de
-              Ciclos
+              <History className="size-3.5 text-primary" />
+              <span>Historial de Ciclos</span>
             </Link>
           </div>
         </div>
 
-        <p className="max-w-3xl text-sm text-muted-foreground">
-          Preparado
-          automáticamente a
-          partir de los asientos
-          mayorizados y
-          clasificados bajo el
-          Método Analítico o
-          Pormenorizado, con
-          cruce real de Toma
-          Física de Inventarios.
-        </p>
-      </header>
-
-      {/* ====================================================== */}
-      {/* TOMA FÍSICA */}
-      {/* ====================================================== */}
-
-      <Card className="border-primary/20 bg-primary/[0.02]">
-        <CardContent className="p-4 sm:p-5">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5">
-              <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <ClipboardCheck className="size-5" />
-              </div>
-
-              <div>
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-foreground">
-                    Toma Física
-                    Oficial de
-                    Inventario:{" "}
-
-                    <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400">
-                      {formatoMoneda(
-                        er
-                          .analitico
-                          .valorInventarioFinal
-                      )}
-                    </span>
-                  </p>
-
-                  {dbConnected && (
-                    <Badge
-                      variant="success"
-                      className="border-emerald-500/40 bg-emerald-500/10 text-[10px] text-emerald-700 dark:text-emerald-300"
-                    >
-                      Sincronizado
-                      en Libros
-                    </Badge>
-                  )}
-                </div>
-
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Fecha de
-                  Conteo:{" "}
-
-                  <strong>
-                    {er
-                      .analitico
-                      .fechaInventarioFinal ||
-                      `${ejercicioSeleccionado}-12-31`}
-                  </strong>{" "}
-                  · Responsable:{" "}
-
-                  <strong>
-                    {er
-                      .analitico
-                      .responsableInventarioFinal ||
-                      "Comité de Auditoría"}
-                  </strong>
-                </p>
-              </div>
+        {/* Fila 2: Tarjeta compacta de Toma Física a la izquierda con botón de actualizar a su lado */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-border/80 bg-card px-3.5 py-2 shadow-2xs text-xs">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-foreground">
+                Toma Física Oficial de Inventario:
+              </span>
+              <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                {formatoMoneda(er.analitico.valorInventarioFinal)}
+              </span>
+              {dbConnected && (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
+                  Sincronizado en Libros
+                </span>
+              )}
             </div>
 
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setValorToma(
-                  (
-                    tomaFisica
-                      ?.valor_inventario_final ??
-                    er
-                      .analitico
-                      .valorInventarioFinal
-                  ).toString()
-                )
-
-                setFechaToma(
-                  tomaFisica
-                    ?.fecha_toma ||
-                    `${ejercicioSeleccionado}-12-31`
-                )
-
-                setResponsableToma(
-                  tomaFisica
-                    ?.responsable ||
-                    "Comité de Auditoría y Control de Inventarios"
-                )
-
-                setObservacionesToma(
-                  tomaFisica
-                    ?.observaciones ||
-                    ""
-                )
-
-                setModalTomaAbierto(
-                  true
-                )
-              }}
-              disabled={
-                esEjercicioCerrado
-              }
-              className="border-primary/30 text-primary hover:bg-primary/5 print:hidden"
-            >
-              <Edit3 className="mr-1.5 size-3.5" />
-
-              Actualizar Toma
-              Física
-            </Button>
+            <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+              <span>
+                Fecha de Conteo:{" "}
+                <strong className="text-foreground/80 font-mono">
+                  {er.analitico.fechaInventarioFinal || `${ejercicioSeleccionado}-12-31`}
+                </strong>
+              </span>
+              <span>·</span>
+              <span>
+                Responsable:{" "}
+                <strong className="text-foreground/80">
+                  {er.analitico.responsableInventarioFinal || "Control de Almacén y Auditoría"}
+                </strong>
+              </span>
+            </div>
           </div>
-        </CardContent>
-      </Card>
+
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setValorToma(
+                (
+                  tomaFisica?.valor_inventario_final ??
+                  er.analitico.valorInventarioFinal
+                ).toString()
+              )
+              setFechaToma(
+                tomaFisica?.fecha_toma ||
+                `${ejercicioSeleccionado}-12-31`
+              )
+              setResponsableToma(
+                tomaFisica?.responsable ||
+                "Control de Almacén y Auditoría"
+              )
+              setObservacionesToma(
+                tomaFisica?.observaciones ||
+                ""
+              )
+              setModalTomaAbierto(true)
+            }}
+            disabled={esEjercicioCerrado}
+            className="h-8 rounded-xl border-border/80 bg-card hover:bg-muted font-medium text-xs shadow-2xs gap-1.5 text-foreground cursor-pointer"
+          >
+            <Edit3 className="size-3.5 text-muted-foreground" />
+            <span>Actualizar Toma Física</span>
+          </Button>
+        </div>
+      </header>
+
+      {/* ENCABEZADO EXCLUSIVO PARA IMPRESIÓN OFICIAL */}
+      <div className="hidden print:block mb-4 border-b border-border pb-3">
+        <h1 className="text-xl font-bold uppercase tracking-tight text-foreground">
+          Reporte Oficial de Estados Financieros
+        </h1>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Ciclo Fiscal: {ejercicioSeleccionado} · Expresado en USD · Fecha de emisión: {new Date().toLocaleDateString("es-SV")}
+        </p>
+      </div>
 
       {/* ====================================================== */}
       {/* MODAL TOMA FÍSICA */}
@@ -1200,78 +1141,324 @@ export default function EstadosFinancierosPage() {
       )}
 
       {/* ====================================================== */}
-      {/* ESTADO DE RESULTADOS */}
+      {/* SECCIÓN PRINCIPAL: ESTADOS                             */}
       {/* ====================================================== */}
+      <section className="space-y-4">
+        {/* NAVEGACIÓN ENTRE ESTADOS (SEGMENTED CONTROL MINIMALISTA) */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-3 print:hidden">
+          <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-muted/60 border border-border/60">
+            <button
+              type="button"
+              onClick={() => setTabEstado("resultados")}
+              className={cn(
+                "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer",
+                tabEstado === "resultados"
+                  ? "bg-card text-foreground shadow-2xs border border-border/80"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+              )}
+            >
+              <Calculator className="size-3.5 text-primary" />
+              <span>Estado de Resultados</span>
+            </button>
 
-      <Card className="report-card">
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <CardTitle>
-                Estado de
-                Resultados
-              </CardTitle>
+            <button
+              type="button"
+              onClick={() => setTabEstado("balance")}
+              className={cn(
+                "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer",
+                tabEstado === "balance"
+                  ? "bg-card text-foreground shadow-2xs border border-border/80"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+              )}
+            >
+              <Scale className="size-3.5 text-primary" />
+              <span>Balance General</span>
+            </button>
 
-              <CardDescription className="mt-1">
-                Determinación
-                analítica de
-                Ventas Netas,
-                Compras Netas,
-                Mercancías
-                Disponibles,
-                Costo de Ventas
-                y Utilidades para
-                el ejercicio{" "}
-                {
-                  ejercicioSeleccionado
-                }
-                .
-              </CardDescription>
-            </div>
-
-            <div className="flex items-center gap-2 print:hidden">
-              <Button
-                type="button"
-                size="sm"
-                variant={
-                  modoVista ===
-                  "analitico"
-                    ? "default"
-                    : "outline"
-                }
-                onClick={() =>
-                  setModoVista(
-                    "analitico"
-                  )
-                }
-              >
-                <Calculator className="mr-1 size-3.5" />
-
-                Método Analítico
-              </Button>
-
-              <Button
-                type="button"
-                size="sm"
-                variant={
-                  modoVista ===
-                  "general"
-                    ? "default"
-                    : "outline"
-                }
-                onClick={() =>
-                  setModoVista(
-                    "general"
-                  )
-                }
-              >
-                Vista por Cuentas
-              </Button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setTabEstado("cierre")}
+              className={cn(
+                "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer",
+                tabEstado === "cierre"
+                  ? "bg-card text-foreground shadow-2xs border border-border/80"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+              )}
+            >
+              <Lock className="size-3.5 text-primary" />
+              <span>Cierre y Liquidación</span>
+            </button>
           </div>
-        </CardHeader>
+        </div>
 
-        <CardContent className="space-y-5">
+        {/* ====================================================== */}
+        {/* ESTADO DE RESULTADOS                                   */}
+        {/* ====================================================== */}
+        <div className={cn(
+          tabEstado === "resultados" ? "block" : "hidden print:block"
+        )}>
+          <Card className="report-card">
+            <CardHeader className="pb-3 border-b border-border/60">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-lg font-bold">
+                    Estado de Resultados
+                  </CardTitle>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 print:hidden">
+                  {erExpandido && (
+                    <div className="flex items-center gap-1 p-0.5 rounded-xl bg-muted/60 border border-border/60 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setModoVista("analitico")}
+                        className={cn(
+                          "px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5",
+                          modoVista === "analitico"
+                            ? "bg-card text-foreground shadow-2xs border border-border/80"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        <Calculator className="size-3 text-primary" />
+                        <span>Analítico</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setModoVista("general")}
+                        className={cn(
+                          "px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5",
+                          modoVista === "general"
+                            ? "bg-card text-foreground shadow-2xs border border-border/80"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        <Layers className="size-3 text-primary" />
+                        <span>Ver por Cuentas</span>
+                      </button>
+                    </div>
+                  )}
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setErExpandido((prev) => !prev)}
+                    className="h-8 px-3 rounded-xl border-border/80 bg-card hover:bg-muted font-semibold text-xs shadow-2xs gap-1.5 cursor-pointer shrink-0"
+                  >
+                    {erExpandido ? (
+                      <>
+                        <ChevronUp className="size-3.5 text-primary" />
+                        <span>Contraer a resumen</span>
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="size-3.5 text-primary" />
+                        <span>Expandir detalle completo</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+
+        <CardContent className="p-4 sm:p-6 space-y-5">
+          {/* ========================================================= */}
+          {/* RESUMEN EJECUTIVO (INFORMACIÓN CLAVE DE ACCESO RÁPIDO)    */}
+          {/* ========================================================= */}
+          <div className="space-y-3.5">
+            {/* Fila principal: Resultado Neto */}
+            <div
+              className={cn(
+                "flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl border",
+                er.utilidad >= 0
+                  ? "border-emerald-500/30 bg-emerald-500/[0.04]"
+                  : "border-red-500/30 bg-red-500/[0.04]"
+              )}
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className={cn(
+                    "size-10 rounded-xl flex items-center justify-center shrink-0",
+                    er.utilidad >= 0
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      : "bg-red-500/10 text-red-600 dark:text-red-400"
+                  )}
+                >
+                  {er.utilidad >= 0 ? (
+                    <TrendingUp className="size-5" />
+                  ) : (
+                    <TrendingDown className="size-5" />
+                  )}
+                </div>
+                <div>
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground block">
+                    Resultado Neto del Ejercicio
+                  </span>
+                  <div className="flex flex-wrap items-baseline gap-2">
+                    <span
+                      className={cn(
+                        "font-mono text-2xl sm:text-3xl font-extrabold tabular-nums",
+                        er.utilidad >= 0
+                          ? "text-emerald-700 dark:text-emerald-300"
+                          : "text-red-700 dark:text-red-300"
+                      )}
+                    >
+                      {formatoMoneda(er.utilidad)}
+                    </span>
+                    <Badge
+                      variant={er.utilidad >= 0 ? "success" : "destructive"}
+                      className="text-xs px-2 py-0.5 font-semibold"
+                    >
+                      {er.utilidad >= 0 ? "Utilidad Neta" : "Pérdida Neta"}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              {er.analitico.ventasNetas > 0 && (
+                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                  <div className="text-right">
+                    <span className="block text-[10px] uppercase font-bold text-muted-foreground/70">
+                      Margen Bruto
+                    </span>
+                    <span className="font-mono font-bold text-foreground text-sm">
+                      {(
+                        (er.analitico.utilidadBruta /
+                          er.analitico.ventasNetas) *
+                        100
+                      ).toFixed(1)}
+                      %
+                    </span>
+                  </div>
+                  <div className="h-8 w-px bg-border/80" />
+                  <div className="text-right">
+                    <span className="block text-[10px] uppercase font-bold text-muted-foreground/70">
+                      Margen Neto
+                    </span>
+                    <span
+                      className={cn(
+                        "font-mono font-bold text-sm",
+                        er.utilidad >= 0
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : "text-red-600 dark:text-red-400"
+                      )}
+                    >
+                      {(
+                        (er.utilidad / er.analitico.ventasNetas) *
+                        100
+                      ).toFixed(1)}
+                      %
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Cuadrícula de 4 cifras clave */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="p-3.5 rounded-xl border border-border/70 bg-card shadow-2xs">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase block">
+                  1. Ventas Netas
+                </span>
+                <div className="font-mono text-base sm:text-lg font-bold text-foreground tabular-nums mt-1">
+                  {formatoMoneda(er.analitico.ventasNetas)}
+                </div>
+                <span className="text-[11px] text-muted-foreground/80 mt-0.5 block truncate">
+                  Ventas Brutas: {formatoMoneda(er.analitico.ventasTotales)}
+                </span>
+              </div>
+
+              <div className="p-3.5 rounded-xl border border-border/70 bg-card shadow-2xs">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase block">
+                  2. Costo de Ventas
+                </span>
+                <div className="font-mono text-base sm:text-lg font-bold text-foreground tabular-nums mt-1">
+                  {formatoMoneda(er.analitico.costoVentas)}
+                </div>
+                <span className="text-[11px] text-muted-foreground/80 mt-0.5 block truncate">
+                  Inv. Final: {formatoMoneda(er.analitico.valorInventarioFinal)}
+                </span>
+              </div>
+
+              <div className="p-3.5 rounded-xl border border-border/70 bg-card shadow-2xs">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase block">
+                  3. Utilidad Bruta
+                </span>
+                <div className="font-mono text-base sm:text-lg font-bold text-foreground tabular-nums mt-1">
+                  {formatoMoneda(er.analitico.utilidadBruta)}
+                </div>
+                <span className="text-[11px] text-muted-foreground/80 mt-0.5 block truncate">
+                  Ventas Netas - Costo
+                </span>
+              </div>
+
+              <div className="p-3.5 rounded-xl border border-border/70 bg-card shadow-2xs">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase block">
+                  4. Gastos de Operación
+                </span>
+                <div className="font-mono text-base sm:text-lg font-bold text-foreground tabular-nums mt-1">
+                  {formatoMoneda(er.totalGastosOperacion)}
+                </div>
+                <span className="text-[11px] text-muted-foreground/80 mt-0.5 block truncate">
+                  {er.gastosOperacion.length}{" "}
+                  {er.gastosOperacion.length === 1 ? "cuenta" : "cuentas"} operativas
+                </span>
+              </div>
+            </div>
+
+          </div>
+
+          {/* ========================================================= */}
+          {/* DETALLE COMPLETO (EXPANDIDO O AL IMPRIMIR)                */}
+          {/* ========================================================= */}
+          <div className={cn(erExpandido ? "block space-y-4 pt-2" : "hidden print:block", "print:pt-0")}>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-4 print:hidden">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Modo de Vista:
+                </span>
+                <div className="flex items-center gap-1 p-0.5 rounded-xl bg-muted/60 border border-border/60 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setModoVista("analitico")}
+                    className={cn(
+                      "px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5",
+                      modoVista === "analitico"
+                        ? "bg-card text-foreground shadow-2xs border border-border/80"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Calculator className="size-3 text-primary" />
+                    <span>Analítico</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModoVista("general")}
+                    className={cn(
+                      "px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5",
+                      modoVista === "general"
+                        ? "bg-card text-foreground shadow-2xs border border-border/80"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Layers className="size-3 text-primary" />
+                    <span>Ver por Cuentas</span>
+                  </button>
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setErExpandido(false)}
+                className="h-7 text-xs gap-1 text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                <ChevronUp className="size-3.5" />
+                <span>Ocultar desglose</span>
+              </Button>
+            </div>
+
           {modoVista ===
           "analitico" ? (
             <div className="overflow-x-auto rounded-lg border border-border">
@@ -1816,257 +2003,449 @@ export default function EstadosFinancierosPage() {
               />
             </div>
           )}
+
+            {/* Botón inferior para contraer a resumen */}
+            <div className="flex justify-end pt-2 print:hidden">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setErExpandido(false)}
+                className="h-8 px-3 rounded-xl border-border/80 bg-card hover:bg-muted font-medium text-xs shadow-2xs gap-1.5 cursor-pointer text-muted-foreground hover:text-foreground"
+              >
+                <ChevronUp className="size-3.5" />
+                <span>Contraer a resumen</span>
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
+    </div>
 
-      {/* ====================================================== */}
-      {/* BALANCE GENERAL */}
-      {/* ====================================================== */}
-
+    {/* ====================================================== */}
+    {/* BALANCE GENERAL                                        */}
+    {/* ====================================================== */}
+    <div className={cn(
+      tabEstado === "balance" ? "block" : "hidden print:block"
+    )}>
       <Card className="report-card">
-        <CardHeader>
-          <CardTitle>
-            Balance General
-          </CardTitle>
+        <CardHeader className="pb-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <CardTitle className="text-lg font-bold">
+                Balance General
+              </CardTitle>
+            </div>
 
-          <CardDescription>
-            Activo = Pasivo +
-            Capital Contable ·
-            Verificación de
-            cuadre contable
-          </CardDescription>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setBgExpandido(!bgExpandido)}
+              className="h-8 px-3 rounded-xl border-border/80 bg-card hover:bg-muted font-medium text-xs shadow-2xs gap-1.5 cursor-pointer print:hidden"
+            >
+              {bgExpandido ? (
+                <>
+                  <ChevronUp className="size-3.5 text-muted-foreground" />
+                  <span>Contraer a resumen</span>
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="size-3.5 text-muted-foreground" />
+                  <span>Expandir detalle completo</span>
+                </>
+              )}
+            </Button>
+          </div>
         </CardHeader>
 
-        <CardContent className="space-y-8">
-          <div className="grid gap-8 md:grid-cols-2">
-            {/* ACTIVO */}
-
-            <div className="space-y-6">
-              <div>
-                <h2 className="mb-4 text-base font-bold">
-                  ACTIVO
-                </h2>
-
-                <section>
-                  <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold">
-                    Activo
-                    corriente
-
-                    <Badge variant="muted">
-                      Código 11
-                    </Badge>
-                  </h3>
-
-                  <Renglones
-                    items={
-                      bg.activosCorrientes
-                    }
-                  />
-
-                  <TotalRow
-                    label="Total activo corriente"
-                    valor={
-                      bg.totalActivoCorriente
-                    }
-                    fuerte
-                  />
-                </section>
-
-                <section className="mt-6">
-                  <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold">
-                    Activo no
-                    corriente
-
-                    <Badge variant="muted">
-                      Código 12
-                    </Badge>
-                  </h3>
-
-                  <Renglones
-                    items={
-                      bg.activosNoCorrientes
-                    }
-                  />
-
-                  <TotalRow
-                    label="Total activo no corriente"
-                    valor={
-                      bg.totalActivoNoCorriente
-                    }
-                    fuerte
-                  />
-                </section>
-              </div>
-
-              <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-4">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold">
-                    TOTAL ACTIVO
+        <CardContent className="space-y-6">
+          {/* ========================================================= */}
+          {/* RESUMEN EJECUTIVO / ACCESO RÁPIDO (SIEMPRE VISIBLE)       */}
+          {/* ========================================================= */}
+          <div className="space-y-4">
+            {/* Ecuación Fundamental Centrada y en Grande */}
+            <div className="flex items-center justify-center p-4 sm:p-5 rounded-2xl border border-border/80 bg-card shadow-2xs">
+              <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-10 font-mono tabular-nums text-center">
+                <div className="flex flex-col items-center">
+                  <span className="text-muted-foreground block text-[11px] uppercase font-semibold tracking-wider">
+                    Total Activo
                   </span>
+                  <span className="font-mono text-2xl sm:text-3xl font-extrabold text-foreground mt-1">
+                    {formatoMoneda(bg.totalActivo)}
+                  </span>
+                </div>
 
-                  <span className="font-mono text-lg font-bold tabular-nums">
-                    {formatoMoneda(
-                      bg.totalActivo
-                    )}
+                <span className="text-muted-foreground/80 text-2xl sm:text-3xl font-bold pb-0.5 select-none">
+                  =
+                </span>
+
+                <div className="flex flex-col items-center">
+                  <span className="text-muted-foreground block text-[11px] uppercase font-semibold tracking-wider">
+                    Pasivo + Capital
+                  </span>
+                  <span className="font-mono text-2xl sm:text-3xl font-extrabold text-foreground mt-1">
+                    {formatoMoneda(bg.totalPasivoMasCapital)}
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* PASIVO + CAPITAL */}
-
-            <div className="space-y-6">
-              <div>
-                <h2 className="mb-4 text-base font-bold">
-                  PASIVO
-                </h2>
-
-                <section>
-                  <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold">
-                    Pasivo
-                    corriente
-
-                    <Badge variant="muted">
-                      Código 21
-                    </Badge>
-                  </h3>
-
-                  <Renglones
-                    items={
-                      bg.pasivosCorrientes
-                    }
-                  />
-
-                  <TotalRow
-                    label="Total pasivo corriente"
-                    valor={
-                      bg.totalPasivoCorriente
-                    }
-                    fuerte
-                  />
-                </section>
-
-                <section className="mt-6">
-                  <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold">
-                    Pasivo no
-                    corriente
-
-                    <Badge variant="muted">
-                      Código 22
-                    </Badge>
-                  </h3>
-
-                  <Renglones
-                    items={
-                      bg.pasivosNoCorrientes
-                    }
-                  />
-
-                  <TotalRow
-                    label="Total pasivo no corriente"
-                    valor={
-                      bg.totalPasivoNoCorriente
-                    }
-                    fuerte
-                  />
-                </section>
-
-                <div className="mt-6">
-                  <TotalRow
-                    label="TOTAL PASIVO"
-                    valor={
-                      bg.totalPasivo
-                    }
-                    fuerte
-                  />
+            {/* Cuadrícula de 3 pilares patrimoniales + 1 de Capital de Trabajo */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* Tarjeta 1: Total Activo */}
+              <div className="p-3.5 rounded-xl border border-blue-500/20 bg-blue-500/[0.03] shadow-2xs">
+                <span className="text-[10px] font-bold text-blue-700 dark:text-blue-400 uppercase block">
+                  1. Total Activo
+                </span>
+                <div className="font-mono text-base sm:text-lg font-bold text-foreground tabular-nums mt-1">
+                  {formatoMoneda(bg.totalActivo)}
+                </div>
+                <div className="text-[11px] text-muted-foreground/90 mt-1 space-y-0.5">
+                  <div className="flex justify-between">
+                    <span>Corriente:</span>
+                    <span className="font-mono font-medium">{formatoMoneda(bg.totalActivoCorriente)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>No Corriente:</span>
+                    <span className="font-mono font-medium">{formatoMoneda(bg.totalActivoNoCorriente)}</span>
+                  </div>
                 </div>
               </div>
 
-              <div className="border-t border-border pt-6">
-                <h2 className="mb-4 text-base font-bold">
-                  CAPITAL
-                  CONTABLE
-                </h2>
-
-                <Renglones
-                  items={
-                    bg.capital
-                  }
-                />
-
-                <div className="flex items-center justify-between gap-4 px-1 py-2 text-sm">
-                  <span className="text-muted-foreground">
-                    Utilidad del
-                    ejercicio
-                  </span>
-
-                  <span className="font-mono tabular-nums">
-                    {formatoMoneda(
-                      bg.utilidadEjercicio
-                    )}
-                  </span>
+              {/* Tarjeta 2: Total Pasivo */}
+              <div className="p-3.5 rounded-xl border border-border/70 bg-card shadow-2xs">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase block">
+                  2. Total Pasivo
+                </span>
+                <div className="font-mono text-base sm:text-lg font-bold text-foreground tabular-nums mt-1">
+                  {formatoMoneda(bg.totalPasivo)}
                 </div>
-
-                <TotalRow
-                  label="Total capital contable"
-                  valor={
-                    bg.totalCapitalContable
-                  }
-                  fuerte
-                />
+                <div className="text-[11px] text-muted-foreground/90 mt-1 space-y-0.5">
+                  <div className="flex justify-between">
+                    <span>Corriente:</span>
+                    <span className="font-mono font-medium">{formatoMoneda(bg.totalPasivoCorriente)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>No Corriente:</span>
+                    <span className="font-mono font-medium">{formatoMoneda(bg.totalPasivoNoCorriente)}</span>
+                  </div>
+                </div>
               </div>
 
-              <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4">
-                <div className="flex items-center justify-between gap-4">
-                  <span className="font-bold">
-                    TOTAL PASIVO +
-                    CAPITAL
-                  </span>
+              {/* Tarjeta 3: Capital Contable */}
+              <div className="p-3.5 rounded-xl border border-border/70 bg-card shadow-2xs">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase block">
+                  3. Capital Contable
+                </span>
+                <div className="font-mono text-base sm:text-lg font-bold text-foreground tabular-nums mt-1">
+                  {formatoMoneda(bg.totalCapitalContable)}
+                </div>
+                <div className="text-[11px] text-muted-foreground/90 mt-1 space-y-0.5">
+                  <div className="flex justify-between">
+                    <span>Utilidad Ejercicio:</span>
+                    <span className={cn("font-mono font-medium", bg.utilidadEjercicio >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
+                      {formatoMoneda(bg.utilidadEjercicio)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Patrimonio:</span>
+                    <span className="font-mono font-medium">{formatoMoneda(bg.totalCapitalCuentas ?? (bg.totalCapitalContable - bg.utilidadEjercicio))}</span>
+                  </div>
+                </div>
+              </div>
 
-                  <span className="font-mono text-lg font-bold tabular-nums">
-                    {formatoMoneda(
-                      bg.totalPasivoMasCapital
-                    )}
-                  </span>
+              {/* Tarjeta 4: Capital de Trabajo */}
+              <div className="p-3.5 rounded-xl border border-border/70 bg-card shadow-2xs">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase block">
+                  4. Capital de Trabajo
+                </span>
+                <div className="font-mono text-base sm:text-lg font-bold text-foreground tabular-nums mt-1">
+                  {formatoMoneda(bg.totalActivoCorriente - bg.totalPasivoCorriente)}
+                </div>
+                <div className="text-[11px] text-muted-foreground/90 mt-1 space-y-0.5">
+                  <div className="flex justify-between">
+                    <span>Razón Corriente:</span>
+                    <span className="font-mono font-medium">
+                      {bg.totalPasivoCorriente > 0
+                        ? `${(bg.totalActivoCorriente / bg.totalPasivoCorriente).toFixed(2)}x`
+                        : "N/A"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Endeudamiento:</span>
+                    <span className="font-mono font-medium">
+                      {bg.totalActivo > 0
+                        ? `${((bg.totalPasivo / bg.totalActivo) * 100).toFixed(1)}%`
+                        : "0%"}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
+
           </div>
 
-          <div
-            className={`flex items-center gap-3 rounded-lg border p-4 text-sm ${
-              bg.cuadra
-                ? "border-emerald-500/30 bg-emerald-500/10"
-                : "border-red-500/30 bg-red-500/10"
-            }`}
-          >
-            {bg.cuadra ? (
-              <CircleCheck className="size-5 shrink-0 text-emerald-600" />
-            ) : (
-              <TriangleAlert className="size-5 shrink-0 text-red-600" />
-            )}
+          {/* ========================================================= */}
+          {/* DETALLE COMPLETO (EXPANDIDO O AL IMPRIMIR)                */}
+          {/* ========================================================= */}
+          <div className={cn(bgExpandido ? "block space-y-6 pt-2" : "hidden print:block", "print:pt-0")}>
+            <div className="flex items-center justify-between border-t border-border/60 pt-4 print:hidden">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Desglose Detallado de Cuentas
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setBgExpandido(false)}
+                className="h-7 text-xs gap-1 text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                <ChevronUp className="size-3.5" />
+                <span>Ocultar desglose</span>
+              </Button>
+            </div>
 
-            <span className="font-medium">
-              {bg.cuadra
-                ? `Balance cuadrado: ${formatoMoneda(
-                    bg.totalActivo
-                  )} = ${formatoMoneda(
-                    bg.totalPasivoMasCapital
-                  )}`
-                : `El balance no cuadra: Activo ${formatoMoneda(
-                    bg.totalActivo
-                  )} ≠ Pasivo + Capital ${formatoMoneda(
-                    bg.totalPasivoMasCapital
-                  )}`}
-            </span>
+            <div className="grid gap-8 md:grid-cols-2">
+              {/* ACTIVO */}
+
+              <div className="space-y-6">
+                <div>
+                  <h2 className="mb-4 text-base font-bold">
+                    ACTIVO
+                  </h2>
+
+                  <section>
+                    <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold">
+                      Activo
+                      corriente
+
+                      <Badge variant="muted">
+                        Código 11
+                      </Badge>
+                    </h3>
+
+                    <Renglones
+                      items={
+                        bg.activosCorrientes
+                      }
+                    />
+
+                    <TotalRow
+                      label="Total activo corriente"
+                      valor={
+                        bg.totalActivoCorriente
+                      }
+                      fuerte
+                    />
+                  </section>
+
+                  <section className="mt-6">
+                    <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold">
+                      Activo no
+                      corriente
+
+                      <Badge variant="muted">
+                        Código 12
+                      </Badge>
+                    </h3>
+
+                    <Renglones
+                      items={
+                        bg.activosNoCorrientes
+                      }
+                    />
+
+                    <TotalRow
+                      label="Total activo no corriente"
+                      valor={
+                        bg.totalActivoNoCorriente
+                      }
+                      fuerte
+                    />
+                  </section>
+                </div>
+
+                <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold">
+                      TOTAL ACTIVO
+                    </span>
+
+                    <span className="font-mono text-lg font-bold tabular-nums">
+                      {formatoMoneda(
+                        bg.totalActivo
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* PASIVO + CAPITAL */}
+
+              <div className="space-y-6">
+                <div>
+                  <h2 className="mb-4 text-base font-bold">
+                    PASIVO
+                  </h2>
+
+                  <section>
+                    <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold">
+                      Pasivo
+                      corriente
+
+                      <Badge variant="muted">
+                        Código 21
+                      </Badge>
+                    </h3>
+
+                    <Renglones
+                      items={
+                        bg.pasivosCorrientes
+                      }
+                    />
+
+                    <TotalRow
+                      label="Total pasivo corriente"
+                      valor={
+                        bg.totalPasivoCorriente
+                      }
+                      fuerte
+                    />
+                  </section>
+
+                  <section className="mt-6">
+                    <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold">
+                      Pasivo no
+                      corriente
+
+                      <Badge variant="muted">
+                        Código 22
+                      </Badge>
+                    </h3>
+
+                    <Renglones
+                      items={
+                        bg.pasivosNoCorrientes
+                      }
+                    />
+
+                    <TotalRow
+                      label="Total pasivo no corriente"
+                      valor={
+                        bg.totalPasivoNoCorriente
+                      }
+                      fuerte
+                    />
+                  </section>
+
+                  <div className="mt-6">
+                    <TotalRow
+                      label="TOTAL PASIVO"
+                      valor={
+                        bg.totalPasivo
+                      }
+                      fuerte
+                    />
+                  </div>
+                </div>
+
+                <div className="border-t border-border pt-6">
+                  <h2 className="mb-4 text-base font-bold">
+                    CAPITAL
+                    CONTABLE
+                  </h2>
+
+                  <Renglones
+                    items={
+                      bg.capital
+                    }
+                  />
+
+                  <div className="flex items-center justify-between gap-4 px-1 py-2 text-sm">
+                    <span className="text-muted-foreground">
+                      Utilidad del
+                      ejercicio
+                    </span>
+
+                    <span className="font-mono tabular-nums">
+                      {formatoMoneda(
+                        bg.utilidadEjercicio
+                      )}
+                    </span>
+                  </div>
+
+                  <TotalRow
+                    label="Total capital contable"
+                    valor={
+                      bg.totalCapitalContable
+                    }
+                    fuerte
+                  />
+                </div>
+
+                <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="font-bold">
+                      TOTAL PASIVO +
+                      CAPITAL
+                    </span>
+
+                    <span className="font-mono text-lg font-bold tabular-nums">
+                      {formatoMoneda(
+                        bg.totalPasivoMasCapital
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ESTADO DE BALANCE CON BADGE LIMPIO */}
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl border border-border/80 bg-card shadow-2xs">
+              <div className="flex items-center gap-2.5">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Estado de Balance
+                </span>
+                <Badge
+                  variant={bg.cuadra ? "success" : "warning"}
+                  className="font-mono text-xs px-2.5 py-0.5"
+                >
+                  {bg.cuadra ? "Cuadrado" : "Diferencia detectada"}
+                </Badge>
+              </div>
+              <div className="flex items-center gap-4 text-xs font-mono tabular-nums text-muted-foreground">
+                <span>Activo: <strong className="text-foreground">{formatoMoneda(bg.totalActivo)}</strong></span>
+                <span>·</span>
+                <span>Pasivo + Capital: <strong className="text-foreground">{formatoMoneda(bg.totalPasivoMasCapital)}</strong></span>
+              </div>
+            </div>
+
+            {/* Botón inferior para contraer a resumen */}
+            <div className="flex justify-end pt-2 print:hidden">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setBgExpandido(false)}
+                className="h-8 px-3 rounded-xl border-border/80 bg-card hover:bg-muted font-medium text-xs shadow-2xs gap-1.5 cursor-pointer text-muted-foreground hover:text-foreground"
+              >
+                <ChevronUp className="size-3.5" />
+                <span>Contraer a resumen</span>
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
+    </div>
 
-      {/* ====================================================== */}
+    {/* ====================================================== */}
+    {/* CIERRE Y LIQUIDACIÓN DEL CICLO                         */}
+    {/* ====================================================== */}
+    <div className={cn(
+      tabEstado === "cierre" ? "block space-y-6" : "hidden"
+    )}>
       {/* ADMINISTRACIÓN DEL CICLO */}
-      {/* ====================================================== */}
-
       <Card className="report-card border-amber-500/30 bg-amber-500/[0.02] print:hidden">
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2599,6 +2978,8 @@ export default function EstadosFinancierosPage() {
           )}
         </CardContent>
       </Card>
+    </div>
+  </section>
 
       {/* ====================================================== */}
       {/* PIE PARA IMPRESIÓN */}

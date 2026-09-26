@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect, useCallback, useRef } from "react"
 import Link from "next/link"
 import {
   AlertTriangle,
@@ -9,33 +9,32 @@ import {
   CheckCircle2,
   FileDown,
   FileSpreadsheet,
-  Filter,
   ListTree,
   Search,
   TableProperties,
+  X,
+  ChevronDown,
+  ChevronUp,
+  ChevronLeft,
+  ChevronRight,
+  Layers,
+  LayoutGrid,
+  Maximize2,
+  Minimize2,
+  Sparkles,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/field"
 import { useContabilidad } from "@/components/contabilidad-provider"
 import { formatoMoneda, redondear } from "@/lib/contabilidad"
 import { exportarLibroExcel, type EstiloCelda } from "@/lib/excel"
-import { ETIQUETA_TIPO, type TipoCuenta } from "@/lib/types"
-
-const CATEGORIAS: { valor: string; label: string }[] = [
-  { valor: "todas", label: "Todas las cuentas" },
-  { valor: "activo", label: "1. Activos" },
-  { valor: "pasivo", label: "2. Pasivos" },
-  { valor: "capital", label: "3. Capital Contable" },
-  { valor: "gasto", label: "4. Costos y Gastos" },
-  { valor: "ingreso", label: "5. Ingresos" },
-]
+import { ETIQUETA_TIPO } from "@/lib/types"
+import { CuentaMayorFinderModal } from "@/components/contabilidad/CuentaMayorFinderModal"
+import { BotonExportarUnificado } from "@/components/contabilidad/BotonExportarUnificado"
+import { cn } from "@/lib/utils"
 
 // Cuentas que el modulo de Kardex reconoce como movimientos de inventario
-// (declaradas en app/kardex/page.tsx). El enlace "Auxiliar" solo tiene
-// sentido para estas: en Capital Social o Gastos de Sueldos el destino
-// abriria el kardex de un articulo sin relacion con la cuenta elegida.
 const CUENTAS_INVENTARIO = new Set([
   "1104",
   "4101",
@@ -77,7 +76,6 @@ const TOTAL: EstiloCelda = {
 }
 const MONEDA: EstiloCelda = { numFmt: "#,##0.00" }
 const MONEDA_TOTAL: EstiloCelda = { numFmt: "#,##0.00", font: { bold: true } }
-const CENTRO: EstiloCelda = { alignment: { horizontal: "center" } }
 
 /** Encabezado + cuerpo con bordes, y pie de totales resaltado. */
 function maquetar(
@@ -146,20 +144,96 @@ function XLSX_ENCODE_COL(n: number) {
 
 export default function LibroMayorPage() {
   const { mayor, asientos, ejercicioSeleccionado } = useContabilidad()
-  const [vista, setVista] = useState<"cuentasT" | "comprobacion">("cuentasT")
-  const [busqueda, setBusqueda] = useState("")
-  const [categoria, setCategoria] = useState("todas")
+  
+  // 3 vistas principales:
+  // - "todas": Todas las Cuentas (vista principal por defecto, inician contraídas como pastilla simple)
+  // - "individual": Cuenta T en pantalla completa con menú desplegable hacia abajo (secundaria)
+  // - "comprobacion": Balance de Comprobación formal
+  const [vista, setVista] = useState<"todas" | "individual" | "comprobacion">("todas")
+  
+  // Cuenta actualmente seleccionada para visualizar en la vista individual (inicia en null)
+  const [cuentaActivaCodigo, setCuentaActivaCodigo] = useState<string | null>(null)
+  
+  // Menú desplegable hacia abajo en vista individual (contraído de inicio)
+  const [menuAbierto, setMenuAbierto] = useState(false)
+  
+  // Modal Finder estilo Spotlight
+  const [finderOpen, setFinderOpen] = useState(false)
+
+  // -------------------------------------------------------------
+  // ESTADO DE VISTA PANORÁMICA DE CUENTAS T
+  // -------------------------------------------------------------
+  // Tarjetas expandidas medianamente (inicia vacío: todas contraídas como pastilla simple por defecto)
+  const [cuentasExpandidas, setCuentasExpandidas] = useState<Set<string>>(new Set())
+  // Tarjeta en modal centrado (sobresale enfrente y en medio tras hover de 5s con fondo blur)
+  const [cuentaModalCentrada, setCuentaModalCentrada] = useState<string | null>(null)
+  const [modalCerrando, setModalCerrando] = useState(false)
+  const mouseEnteredModalRef = useRef(false)
+  // Cuenta actualmente bajo hover para el temporizador de 5s
+  const [cuentaEnHover, setCuentaEnHover] = useState<string | null>(null)
+  const hoverTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  const cancelarHoverTimer = useCallback(() => {
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current)
+      hoverTimerRef.current = null
+    }
+    setCuentaEnHover(null)
+  }, [])
+
+  const handleCerrarModalCentrado = useCallback(() => {
+    setModalCerrando(true)
+    setTimeout(() => {
+      setCuentaModalCentrada(null)
+      setModalCerrando(false)
+      mouseEnteredModalRef.current = false
+    }, 260)
+  }, [])
+
+  // Limpiar timer y modal cuando cambie la vista o se desmonte el componente
+  useEffect(() => {
+    cancelarHoverTimer()
+    setCuentaModalCentrada(null)
+    setModalCerrando(false)
+    mouseEnteredModalRef.current = false
+    return () => {
+      cancelarHoverTimer()
+    }
+  }, [vista, cancelarHoverTimer])
+
+  // Navegar a vista individual cancelando cualquier timer activo
+  const irAVistaIndividual = useCallback((codigo: string) => {
+    cancelarHoverTimer()
+    setCuentaModalCentrada(null)
+    setModalCerrando(false)
+    mouseEnteredModalRef.current = false
+    setCuentaActivaCodigo(codigo)
+    setVista("individual")
+    setMenuAbierto(false)
+  }, [cancelarHoverTimer])
+
+  // Atajo de teclado global (⌘K o /) para abrir el Finder y Esc para cerrar modal centrado
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault()
+        setFinderOpen(true)
+      } else if (e.key === "/" && !["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement)?.tagName)) {
+        e.preventDefault()
+        setFinderOpen(true)
+      } else if (e.key === "Escape" && cuentaModalCentrada) {
+        handleCerrarModalCentrado()
+      }
+    }
+    window.addEventListener("keydown", handleGlobalKeyDown)
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown)
+  }, [cuentaModalCentrada, handleCerrarModalCentrado])
 
   // Asientos del ejercicio actual ordenados cronológicamente
   const asientosEjercicio = useMemo(() => {
     return asientos
       .filter((a) => {
         if (a.estado === "ANULADO") return false
-        // Debe replicar exactamente los filtros de calcularMayor
-        // (lib/contabilidad.ts), que recibe incluirCierre=false desde el
-        // provider. Sin esto, las partidas de cierre aparecian listadas en la
-        // Cuenta T mientras la "Suma:" del pie las excluia y las lineas
-        // visibles no cuadraban con el total de su propia tarjeta.
         if (a.tipo === "CIERRE") return false
         const ej = a.ejercicio || (a.fecha ? new Date(a.fecha).getFullYear() : undefined)
         return ej === undefined || ej === ejercicioSeleccionado
@@ -195,17 +269,29 @@ export default function LibroMayorPage() {
     return mapa
   }, [asientosEjercicio])
 
-  const cuentasFiltradas = useMemo(() => {
-    const q = busqueda.trim().toLowerCase()
-    return mayor.filter((m) => {
-      if (categoria !== "todas" && m.cuenta.tipo !== categoria) return false
-      if (!q) return true
-      return (
-        m.cuenta.codigo.toLowerCase().includes(q) ||
-        m.cuenta.nombre.toLowerCase().includes(q)
-      )
-    })
-  }, [mayor, busqueda, categoria])
+  // Datos de la cuenta seleccionada para mostrar en pantalla completa
+  const cuentaActivaMayor = useMemo(() => {
+    if (!cuentaActivaCodigo) return null
+    return mayor.find((m) => m.cuenta.codigo === cuentaActivaCodigo) || null
+  }, [mayor, cuentaActivaCodigo])
+
+  // Índice actual para navegar entre cuentas cuando hay una abierta
+  const indiceCuentaActiva = useMemo(() => {
+    if (!cuentaActivaMayor) return -1
+    return mayor.findIndex((m) => m.cuenta.codigo === cuentaActivaMayor.cuenta.codigo)
+  }, [mayor, cuentaActivaMayor])
+
+  const irACuentaAnterior = useCallback(() => {
+    if (indiceCuentaActiva > 0) {
+      setCuentaActivaCodigo(mayor[indiceCuentaActiva - 1].cuenta.codigo)
+    }
+  }, [indiceCuentaActiva, mayor])
+
+  const irACuentaSiguiente = useCallback(() => {
+    if (indiceCuentaActiva >= 0 && indiceCuentaActiva < mayor.length - 1) {
+      setCuentaActivaCodigo(mayor[indiceCuentaActiva + 1].cuenta.codigo)
+    }
+  }, [indiceCuentaActiva, mayor])
 
   const totalDebe = redondear(mayor.reduce((s, m) => s + m.debe, 0))
   const totalHaber = redondear(mayor.reduce((s, m) => s + m.haber, 0))
@@ -216,31 +302,68 @@ export default function LibroMayorPage() {
     mayor.filter((m) => m.naturalezaSaldo === "acreedora").reduce((s, m) => s + Math.abs(m.saldo), 0),
   )
 
-  // Los totales del libro completo nunca deben confundirse con las filas
-  // visibles: al filtrar por categoria o buscar texto la tabla muestra un
-  // subconjunto, pero el pie anunciaba la suma de todo. Se calculan aparte y
-  // se etiquetan de forma explicita.
-  const hayFiltroActivo = categoria !== "todas" || busqueda.trim() !== ""
+  const cuadraMovimientos = totalDebe === totalHaber
+  const cuadraSaldos = totalDeudor === totalAcreedor
 
-  const totalesVisibles = useMemo(() => {
-    const items = hayFiltroActivo ? cuentasFiltradas : mayor
-    return {
-      debe: redondear(items.reduce((s, m) => s + m.debe, 0)),
-      haber: redondear(items.reduce((s, m) => s + m.haber, 0)),
-      deudor: redondear(
-        items.filter((m) => m.naturalezaSaldo === "deudora").reduce((s, m) => s + Math.abs(m.saldo), 0),
-      ),
-      acreedor: redondear(
-        items.filter((m) => m.naturalezaSaldo === "acreedora").reduce((s, m) => s + Math.abs(m.saldo), 0),
-      ),
+  // Manejar selección desde el Finder
+  const handleSeleccionarCuentaDesdeFinder = useCallback((codigo: string | null) => {
+    setCuentaActivaCodigo(codigo)
+    setVista("individual")
+    setMenuAbierto(false)
+  }, [])
+
+  // -------------------------------------------------------------
+  // ACCIONES DE EXPANSIÓN EN VISTA PANORÁMICA
+  // -------------------------------------------------------------
+  const todasExpandidas = mayor.length > 0 && cuentasExpandidas.size === mayor.length
+
+  const handleToggleExpandirTodas = useCallback(() => {
+    cancelarHoverTimer()
+    if (todasExpandidas) {
+      setCuentasExpandidas(new Set())
+    } else {
+      setCuentasExpandidas(new Set(mayor.map((m) => m.cuenta.codigo)))
     }
-  }, [cuentasFiltradas, mayor, hayFiltroActivo])
+  }, [todasExpandidas, mayor, cancelarHoverTimer])
 
-  // La igualdad se calcula, no se escribe a mano: antes el texto imprimia los
-  // signos "=" aunque los importes no coincidieran.
-  const cuadraMovimientos = totalesVisibles.debe === totalesVisibles.haber
-  const cuadraSaldos = totalesVisibles.deudor === totalesVisibles.acreedor
-  const cuadraLibroCompleto = totalDebe === totalHaber && totalDeudor === totalAcreedor
+  const handleToggleExpandirTarjeta = useCallback((codigo: string) => {
+    cancelarHoverTimer()
+    setCuentasExpandidas((prev) => {
+      const next = new Set(prev)
+      if (next.has(codigo)) {
+        next.delete(codigo)
+      } else {
+        next.add(codigo)
+      }
+      return next
+    })
+  }, [cancelarHoverTimer])
+
+  // Temporizador de Hover 5s: sobresale enfrente y en medio de la pantalla
+  const handleCardMouseEnter = useCallback((codigo: string) => {
+    if (cuentaModalCentrada || vista !== "todas") return
+    setCuentaEnHover(codigo)
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current)
+    hoverTimerRef.current = setTimeout(() => {
+      // Validar que el usuario siga en la vista "todas"
+      setVista((currentVista) => {
+        if (currentVista === "todas") {
+          mouseEnteredModalRef.current = false
+          setCuentaModalCentrada(codigo)
+        }
+        return currentVista
+      })
+      setCuentaEnHover(null)
+    }, 4800) // ~5 segundos
+  }, [cuentaModalCentrada, vista])
+
+  const handleCardMouseLeave = useCallback((codigo: string) => {
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current)
+      hoverTimerRef.current = null
+    }
+    setCuentaEnHover((prev) => (prev === codigo ? null : prev))
+  }, [])
 
   function exportarExcel() {
     const filasMayor: (string | number | null | undefined)[][] = [
@@ -368,434 +491,1496 @@ export default function LibroMayorPage() {
 
   return (
     <div className="space-y-6">
-      <header className="space-y-2 report-header">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-primary">Mayorización Central</span>
-              <span className="text-xs text-muted-foreground">·</span>
-              <Badge variant="default" className="text-xs font-mono">
-                Ciclo Fiscal {ejercicioSeleccionado}
-              </Badge>
-              <Badge variant="success" className="text-[10px]">
-                Mayorización automática
-              </Badge>
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight md:text-3xl mt-0.5">Libro Mayor y Balanza</h1>
-            <p className="max-w-2xl text-xs sm:text-sm text-muted-foreground">
-              Consolidación automática en tiempo real de débitos y créditos en Cuentas T y Balance de Comprobación.
-            </p>
-          </div>
-          <div className="flex items-center gap-2 print:hidden">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={exportarPdf}
-              className="h-8 gap-1.5 text-xs shadow-xs"
+      {/* ===================================================================== */}
+      {/* ENCABEZADO Y CONTROLES SEGÚN MAQUETA                                  */}
+      {/* ===================================================================== */}
+      <div className="space-y-4 report-header">
+        {/* FILA SUPERIOR: TÍTULO + CICLO FISCAL Y BOTONES DE ACCIÓN */}
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight md:text-3xl text-foreground">
+              Libro Mayor y Balanza
+            </h1>
+            <Badge
+              variant="default"
+              className="text-xs font-mono bg-neutral-900 text-white dark:bg-neutral-800 dark:text-neutral-200 border border-neutral-700/60 px-2.5 py-1 rounded-full shadow-2xs"
             >
-              <FileDown className="size-3.5" />
-              Imprimir
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={exportarExcel}
-              className="h-8 gap-1.5 text-xs border-emerald-600/30 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/20 shadow-xs"
-            >
-              <FileSpreadsheet className="size-3.5 text-emerald-600" />
-              Exportar Excel
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      {/* BARRA DE HERRAMIENTAS: BÚSQUEDA, FILTRO Y ALTERNADOR DE VISTAS */}
-      <Card className="print:hidden">
-        <CardContent className="p-4 sm:p-5 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {/* Alternador de Vistas */}
-            <div className="inline-flex rounded-lg border border-border p-1 bg-muted/40">
-              <button
-                type="button"
-                onClick={() => setVista("cuentasT")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
-                  vista === "cuentasT"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <BookOpen className="size-3.5" />
-                Cuentas T (Detallado)
-              </button>
-              <button
-                type="button"
-                onClick={() => setVista("comprobacion")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
-                  vista === "comprobacion"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <TableProperties className="size-3.5" />
-                Balance de Comprobación
-              </button>
-            </div>
-
-            {/* Contador de cuentas filtradas */}
-            <Badge variant="muted" className="text-xs">
-              {cuentasFiltradas.length} de {mayor.length} cuentas con saldo
+              Ciclo Fiscal {ejercicioSeleccionado}
             </Badge>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-[1fr_220px]">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Buscar cuenta por código o nombre..."
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-                className="pl-9 h-10 text-sm"
-              />
+          <BotonExportarUnificado
+            onExportarPdf={exportarPdf}
+            textoPdf="Descargar PDF"
+            descPdf="Cuentas T y Balanza oficial"
+            onExportarExcel={exportarExcel}
+            textoExcel="Exportar Excel"
+            descExcel="Libro Mayor y saldos (.xlsx)"
+            onImprimir={() => window.print()}
+            textoImprimir="Imprimir Mayor"
+            descImprimir="Vista oficial de imprenta"
+          />
+        </div>
+
+        {/* FILA INFERIOR: ALTERNADOR DE 3 VISTAS + BOTÓN FINDER */}
+        <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Alternador de 3 Vistas: Dark Container Pill */}
+            <div className="inline-flex rounded-xl p-1 bg-neutral-900 dark:bg-neutral-900 border border-neutral-800 text-neutral-300 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => {
+                  cancelarHoverTimer()
+                  setVista("todas")
+                }}
+                className={cn(
+                  "flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer",
+                  vista === "todas"
+                    ? "bg-neutral-800 text-white shadow-xs font-bold"
+                    : "text-neutral-400 hover:text-white"
+                )}
+              >
+                <LayoutGrid className="size-3.5" />
+                <span>Todas las Cuentas</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  cancelarHoverTimer()
+                  setVista("individual")
+                }}
+                className={cn(
+                  "flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer",
+                  vista === "individual"
+                    ? "bg-neutral-800 text-white shadow-xs font-bold"
+                    : "text-neutral-400 hover:text-white"
+                )}
+              >
+                <BookOpen className="size-3.5" />
+                <span>Cuenta T (Individual)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  cancelarHoverTimer()
+                  setVista("comprobacion")
+                }}
+                className={cn(
+                  "flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer",
+                  vista === "comprobacion"
+                    ? "bg-neutral-800 text-white shadow-xs font-bold"
+                    : "text-neutral-400 hover:text-white"
+                )}
+              >
+                <TableProperties className="size-3.5" />
+                <span>Balance de Comprobación</span>
+              </button>
             </div>
 
-            <div className="relative">
-              <select
-                value={categoria}
-                onChange={(e) => setCategoria(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {CATEGORIAS.map((cat) => (
-                  <option key={cat.valor} value={cat.valor}>
-                    {cat.label}
-                  </option>
-                ))}
-              </select>
+            {/* Botón Finder: "Buscar por cuenta" */}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setFinderOpen(true)}
+              className="h-9 px-4 gap-2 text-xs font-medium rounded-xl shadow-2xs cursor-pointer transition-all bg-card hover:bg-muted/60 text-foreground border-border"
+            >
+              <Search className="size-3.5 text-muted-foreground" />
+              <span>Buscar por cuenta</span>
+              <kbd className="hidden sm:inline-block ml-1 px-1.5 py-0.5 text-[10px] font-mono rounded bg-muted text-muted-foreground border border-border/80">
+                ⌘K
+              </kbd>
+            </Button>
+          </div>
+
+          {/* Contador de cuentas */}
+          <div className="flex items-center gap-2">
+            <Badge variant="muted" className="text-xs font-mono font-medium">
+              {mayor.length} cuentas en el libro
+            </Badge>
+          </div>
+        </div>
+
+        {/* =================================================================== */}
+        {/* BARRA PROMINENTE DEL MENÚ DE CUENTAS (EN VISTA INDIVIDUAL)          */}
+        {/* Mantiene estilo oscuro/neutral consistente sin tornarse blanco      */}
+        {/* =================================================================== */}
+        {vista === "individual" && (
+          <div className="space-y-3 print:hidden pt-1">
+            <button
+              type="button"
+              onClick={() => setMenuAbierto((prev) => !prev)}
+              className={cn(
+                "w-full p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-4 text-left shadow-2xs group",
+                menuAbierto
+                  ? "bg-muted/50 dark:bg-neutral-800/80 border-primary/50 text-foreground ring-1 ring-primary/30"
+                  : cuentaActivaMayor
+                  ? "bg-card border-primary/40 text-foreground hover:bg-muted/30 hover:border-primary/60"
+                  : "bg-card border-border hover:border-primary/40 hover:bg-muted/30 text-foreground"
+              )}
+            >
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div
+                  className={cn(
+                    "size-10 rounded-xl flex items-center justify-center shrink-0 transition-colors shadow-2xs",
+                    menuAbierto
+                      ? "bg-primary/20 text-foreground ring-1 ring-primary/40"
+                      : cuentaActivaMayor
+                      ? "bg-primary/10 text-primary"
+                      : "bg-muted text-foreground group-hover:bg-primary/10 group-hover:text-primary"
+                  )}
+                >
+                  <Layers className="size-5" />
+                </div>
+
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                      {cuentaActivaMayor ? "Cuenta T en Pantalla" : "Menú de Cuentas Mayorizadas"}
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full font-semibold bg-muted text-muted-foreground">
+                      {mayor.length} cuentas
+                    </span>
+                  </div>
+
+                  <div className="text-sm sm:text-base font-bold truncate mt-0.5 text-foreground">
+                    {cuentaActivaMayor
+                      ? `${cuentaActivaMayor.cuenta.codigo} · ${cuentaActivaMayor.cuenta.nombre}`
+                      : "Haz clic aquí para desplegar el catálogo y seleccionar una Cuenta T"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5 shrink-0">
+                {cuentaActivaMayor && !menuAbierto && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setCuentaActivaCodigo(null)
+                    }}
+                    className="size-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer mr-1"
+                    title="Cerrar cuenta activa"
+                  >
+                    <X className="size-4" />
+                  </button>
+                )}
+
+                <span className="text-xs font-semibold hidden sm:inline-block text-primary">
+                  {menuAbierto ? "Contraer menú" : cuentaActivaMayor ? "Cambiar cuenta" : "Desplegar menú"}
+                </span>
+
+                <div
+                  className={cn(
+                    "size-8 rounded-xl flex items-center justify-center transition-transform duration-300",
+                    menuAbierto
+                      ? "bg-primary/15 text-primary rotate-180"
+                      : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary"
+                  )}
+                >
+                  <ChevronDown className="size-4.5" />
+                </div>
+              </div>
+            </button>
+
+            {/* MENÚ DE CUENTAS DESPLEGABLE HACIA ABAJO CON ANIMACIÓN SUAVE */}
+            <div
+              className={cn(
+                "overflow-hidden transition-all duration-300 ease-in-out",
+                menuAbierto
+                  ? "max-h-[560px] opacity-100 transform translate-y-0"
+                  : "max-h-0 opacity-0 transform -translate-y-2 pointer-events-none"
+              )}
+            >
+              <div className="rounded-2xl border border-border/80 bg-card p-4 sm:p-5 shadow-lg space-y-3">
+                <div className="flex items-center justify-between border-b border-border/60 pb-3">
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="size-4 text-primary" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-foreground">
+                      Selecciona una cuenta para visualizarla en pantalla completa
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMenuAbierto(false)}
+                    className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer font-medium"
+                  >
+                    <span>Contraer</span>
+                    <ChevronUp className="size-3.5" />
+                  </button>
+                </div>
+
+                {/* Listado de cuentas en cuadrícula limpia */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-[380px] overflow-y-auto p-1">
+                  {mayor.map((m) => {
+                    const esActiva = cuentaActivaMayor?.cuenta.codigo === m.cuenta.codigo
+                    const saldoCero = m.saldo === 0
+                    const contradiceNaturaleza =
+                      m.cuenta.naturaleza === "deudora" ? m.saldo < 0 : m.saldo > 0
+                    const sobregirada = m.cuenta.tipo === "activo" && contradiceNaturaleza
+
+                    return (
+                      <button
+                        key={m.cuenta.codigo}
+                        type="button"
+                        onClick={() => {
+                          setCuentaActivaCodigo(m.cuenta.codigo)
+                          setMenuAbierto(false)
+                        }}
+                        className={cn(
+                          "text-left p-3 rounded-xl transition-all cursor-pointer flex items-center justify-between gap-3 text-xs border",
+                          esActiva
+                            ? "bg-primary/10 border-primary text-foreground shadow-2xs font-semibold ring-1 ring-primary/30"
+                            : "border-border/70 hover:border-primary/40 hover:bg-muted/40 text-foreground"
+                        )}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span
+                            className={cn(
+                              "font-mono text-xs font-bold px-2 py-0.5 rounded-md shrink-0 shadow-2xs",
+                              esActiva
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-muted text-muted-foreground"
+                            )}
+                          >
+                            {m.cuenta.codigo}
+                          </span>
+                          <div className="min-w-0">
+                            <span className="block truncate font-semibold text-foreground text-xs">
+                              {m.cuenta.nombre}
+                            </span>
+                            <span className="block text-[10px] text-muted-foreground truncate">
+                              {ETIQUETA_TIPO[m.cuenta.tipo]} · {m.cuenta.naturaleza}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <div className="font-mono font-bold text-xs text-foreground tabular-nums">
+                            {formatoMoneda(Math.abs(m.saldo))}
+                          </div>
+                          <div>
+                            {sobregirada ? (
+                              <span className="text-[9px] font-bold text-red-600 dark:text-red-400">
+                                Sobregiro
+                              </span>
+                            ) : saldoCero ? (
+                              <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium">
+                                Saldada
+                              </span>
+                            ) : (
+                              <span className="text-[9px] text-muted-foreground uppercase font-mono">
+                                {m.naturalezaSaldo === "deudora" ? "Deudor" : "Acreedor"}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </div>
 
+      {/* ===================================================================== */}
+      {/* MODAL FINDER DE CUENTAS ESTILO SPOTLIGHT                              */}
+      {/* ===================================================================== */}
+      <CuentaMayorFinderModal
+        isOpen={finderOpen}
+        onClose={() => setFinderOpen(false)}
+        cuentasMayor={mayor}
+        cuentaFiltroCodigo={cuentaActivaCodigo}
+        busquedaTexto=""
+        categoriaFiltro="todas"
+        onSeleccionarCuenta={handleSeleccionarCuentaDesdeFinder}
+        onAplicarFiltroTexto={(q) => {
+          const coincidencia = mayor.find(
+            (m) =>
+              m.cuenta.codigo.toLowerCase().includes(q.toLowerCase()) ||
+              m.cuenta.nombre.toLowerCase().includes(q.toLowerCase())
+          )
+          if (coincidencia) {
+            setCuentaActivaCodigo(coincidencia.cuenta.codigo)
+            setVista("individual")
+          }
+        }}
+        onLimpiarFiltros={() => setCuentaActivaCodigo(null)}
+      />
+
+      {/* ===================================================================== */}
+      {/* CONTENIDO PRINCIPAL SEGÚN LA VISTA SELECCIONADA                       */}
+      {/* ===================================================================== */}
       {mayor.length === 0 ? (
-        <Card>
+        <Card className="rounded-2xl border-border/80 shadow-2xs">
           <CardContent className="p-12 text-center text-sm text-muted-foreground">
             <ListTree className="mx-auto size-10 text-muted-foreground/40 mb-3" />
-            <p className="font-semibold text-foreground">No hay movimientos en este ejercicio</p>
-            <p className="text-xs mt-1">Registra asientos en el Libro Diario para generar la mayorización automática.</p>
+            <p className="font-semibold text-foreground text-base">No hay movimientos en este ejercicio</p>
+            <p className="text-xs mt-1 max-w-md mx-auto">
+              Registra asientos en el Libro Diario para generar la mayorización automática de débitos y créditos.
+            </p>
           </CardContent>
         </Card>
-      ) : vista === "cuentasT" ? (
-        /* VISTA: CUENTAS T REALES Y DETALLADAS */
-        <section className="grid gap-4 sm:grid-cols-2">
-          {cuentasFiltradas.map((m) => {
+      ) : vista === "individual" ? (
+        /* =================================================================== */
+        /* VISTA 1: CUENTA T INDIVIDUAL EN PANTALLA COMPLETA                   */
+        /* =================================================================== */
+        !cuentaActivaMayor ? (
+          <div className="rounded-2xl border border-dashed border-border/80 p-12 sm:p-16 text-center space-y-4 bg-muted/5 print:hidden">
+            <div className="size-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto shadow-2xs">
+              <BookOpen className="size-7" />
+            </div>
+            <div className="space-y-1.5 max-w-md mx-auto">
+              <h3 className="text-base sm:text-lg font-bold text-foreground">
+                Ninguna Cuenta T en pantalla
+              </h3>
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Haz clic en la barra <strong>Menú de Cuentas</strong> superior o utiliza el <strong>Buscador (⌘K)</strong> para desplegar y seleccionar cualquier cuenta.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
+              <Button
+                type="button"
+                onClick={() => setMenuAbierto(true)}
+                className="h-10 px-5 gap-2 text-xs font-semibold cursor-pointer shadow-xs"
+              >
+                <Layers className="size-4" />
+                <span>Desplegar menú de cuentas</span>
+                <ChevronDown className="size-3.5" />
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setFinderOpen(true)}
+                className="h-10 px-5 gap-2 text-xs font-medium cursor-pointer"
+              >
+                <Search className="size-4 text-muted-foreground" />
+                <span>Buscar cuenta (⌘K)</span>
+              </Button>
+            </div>
+          </div>
+        ) : (
+          /* TARJETA EN PANTALLA COMPLETA CON ESPACIO ESPACIOSO Y REFINADO */
+          (() => {
+            const m = cuentaActivaMayor
             const movs = movimientosPorCuenta.get(m.cuenta.codigo) || { debe: [], haber: [] }
-            // Deteccion de anomalias contables
-            //
-            // Un saldo solo es anomalo cuando el signo CONTRADICE la naturaleza
-            // configurada de la cuenta. Antes se comparaba contra el signo del
-            // saldo, lo que marcaba como sobregiro a toda cuenta acreedora de
-            // tipo activo (p.ej. 1206 Depreciacion acumulada), que son
-            // precisamente las que acumulan saldo en el haber por diseno.
             const saldoCero = m.saldo === 0
             const contradiceNaturaleza =
               m.cuenta.naturaleza === "deudora" ? m.saldo < 0 : m.saldo > 0
             const sobregirada = m.cuenta.tipo === "activo" && contradiceNaturaleza
+            const totalMovimientos = movs.debe.length + movs.haber.length
 
             return (
-              <Card
+              <div
                 key={m.cuenta.codigo}
-                className={`report-card ${sobregirada ? "border-red-500/40 bg-red-500/[0.02]" : ""}`}
+                className={cn(
+                  "rounded-2xl border bg-card text-card-foreground shadow-xs transition-all overflow-hidden flex flex-col justify-between report-card",
+                  sobregirada
+                    ? "border-red-500/40 bg-red-500/[0.015]"
+                    : "border-border/80"
+                )}
               >
-                <CardHeader className="pb-3 border-b border-border/60">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <span className="font-mono text-primary font-bold">{m.cuenta.codigo}</span>
-                        <span>{m.cuenta.nombre}</span>
-                      </CardTitle>
-                      <CardDescription className="text-xs mt-0.5">
-                        {ETIQUETA_TIPO[m.cuenta.tipo]} · Naturaleza {m.cuenta.naturaleza}
-                      </CardDescription>
-                    </div>
+                {/* BARRA SUPERIOR DE CONTROL Y NAVEGACIÓN */}
+                <div className="p-4 sm:p-6 border-b border-border/70 flex flex-wrap items-center justify-between gap-4 bg-muted/15">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="font-mono text-base font-extrabold px-3 py-1 rounded-xl bg-primary/10 text-primary shrink-0 shadow-2xs">
+                      {m.cuenta.codigo}
+                    </span>
 
+                    <div className="min-w-0">
+                      <h2 className="text-lg sm:text-xl font-bold text-foreground truncate">
+                        {m.cuenta.nombre}
+                      </h2>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap mt-0.5">
+                        <span>{ETIQUETA_TIPO[m.cuenta.tipo]}</span>
+                        <span>·</span>
+                        <span className="capitalize">Naturaleza {m.cuenta.naturaleza}</span>
+                        <span>·</span>
+                        <span>{totalMovimientos} {totalMovimientos === 1 ? "movimiento registrado" : "movimientos registrados"}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Botones de navegación Anterior / Siguiente y enlace Auxiliar */}
+                  <div className="flex items-center gap-2 print:hidden ml-auto">
                     {CUENTAS_INVENTARIO.has(m.cuenta.codigo) && (
                       <Link
                         href={`/kardex?codigo=${m.cuenta.codigo}`}
-                        className="text-xs text-primary hover:underline inline-flex items-center gap-1 font-medium bg-primary/10 hover:bg-primary/20 px-2 py-1 rounded"
+                        className="text-xs font-semibold text-primary hover:underline inline-flex items-center gap-1.5 bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-xl transition-colors"
                         title="Abrir extracto auxiliar de esta cuenta"
                       >
-                        Auxiliar <ArrowRight className="size-3" />
+                        <span>Auxiliar Kardex</span>
+                        <ArrowRight className="size-3.5" />
                       </Link>
                     )}
-                  </div>
-                </CardHeader>
 
-                <CardContent className="p-4 space-y-3">
-                  {/* Estructura formal de Cuenta T */}
-                  <div className="grid grid-cols-2 rounded-lg border border-border overflow-hidden text-xs print-accounting-table">
-                    {/* Columna DEBE */}
-                    <div className="border-r border-border flex flex-col justify-between">
-                      <div>
-                        <div className="bg-muted/60 p-2 text-center font-bold text-muted-foreground uppercase border-b border-border text-[11px]">
-                          Debe (Cargos)
-                        </div>
-                        <div className="p-2 space-y-1 max-h-36 overflow-y-auto divide-y divide-border/40">
-                          {movs.debe.length === 0 ? (
-                            <p className="text-center text-muted-foreground/40 py-2">-</p>
-                          ) : (
-                            movs.debe.map((item, idx) => (
-                              <div key={idx} className="flex items-start justify-between gap-2 pt-1">
-                                <div className="min-w-0">
-                                  <span className="block font-mono text-[10px] text-muted-foreground">
-                                    #{item.numero} ({item.fecha.slice(5)})
-                                  </span>
-                                  <span className="mt-0.5 block truncate text-[10px] text-foreground" title={item.concepto}>
-                                    {item.concepto}
-                                  </span>
-                                </div>
-                                <span className="shrink-0 font-mono font-medium text-foreground">
-                                  {formatoMoneda(item.monto)}
-                                </span>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </div>
-                      <div className="bg-muted/30 p-2 border-t border-border flex justify-between font-mono font-bold">
-                        <span className="text-muted-foreground text-[10px]">Suma:</span>
-                        <span>{formatoMoneda(m.debe)}</span>
-                      </div>
-                    </div>
+                    <div className="flex items-center gap-1 border border-border/80 rounded-xl p-1 bg-background">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={indiceCuentaActiva <= 0}
+                        onClick={irACuentaAnterior}
+                        className="h-7 px-2 text-xs cursor-pointer gap-1"
+                        title="Cuenta anterior"
+                      >
+                        <ChevronLeft className="size-3.5" />
+                        <span className="hidden sm:inline">Anterior</span>
+                      </Button>
 
-                    {/* Columna HABER */}
-                    <div className="flex flex-col justify-between">
-                      <div>
-                        <div className="bg-muted/60 p-2 text-center font-bold text-muted-foreground uppercase border-b border-border text-[11px]">
-                          Haber (Abonos)
-                        </div>
-                        <div className="p-2 space-y-1 max-h-36 overflow-y-auto divide-y divide-border/40">
-                          {movs.haber.length === 0 ? (
-                            <p className="text-center text-muted-foreground/40 py-2">-</p>
-                          ) : (
-                            movs.haber.map((item, idx) => (
-                              <div key={idx} className="flex items-start justify-between gap-2 pt-1">
-                                <div className="min-w-0">
-                                  <span className="block font-mono text-[10px] text-muted-foreground">
-                                    #{item.numero} ({item.fecha.slice(5)})
-                                  </span>
-                                  <span className="mt-0.5 block truncate text-[10px] text-foreground" title={item.concepto}>
-                                    {item.concepto}
-                                  </span>
-                                </div>
-                                <span className="shrink-0 font-mono font-medium text-foreground">
-                                  {formatoMoneda(item.monto)}
-                                </span>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </div>
-                      <div className="bg-muted/30 p-2 border-t border-border flex justify-between font-mono font-bold">
-                        <span className="text-muted-foreground text-[10px]">Suma:</span>
-                        <span>{formatoMoneda(m.haber)}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Saldo Final y Estado */}
-                  <div className="flex items-center justify-between pt-1 text-xs saldo-doble-linea">
-                    <span className="text-muted-foreground font-medium">Saldo Neto:</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-sm text-foreground">
-                        {formatoMoneda(Math.abs(m.saldo))}
+                      <span className="px-2 text-xs font-mono text-muted-foreground font-medium">
+                        {indiceCuentaActiva + 1} de {mayor.length}
                       </span>
 
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={indiceCuentaActiva >= mayor.length - 1}
+                        onClick={irACuentaSiguiente}
+                        className="h-7 px-2 text-xs cursor-pointer gap-1"
+                        title="Cuenta siguiente"
+                      >
+                        <span className="hidden sm:inline">Siguiente</span>
+                        <ChevronRight className="size-3.5" />
+                      </Button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setCuentaActivaCodigo(null)}
+                      className="p-1.5 rounded-xl border border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                      title="Cerrar cuenta"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* TIRA DE MÉTRICAS RÁPIDAS DE LA CUENTA ACTIVA */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 sm:p-6 pb-2 print:hidden">
+                  <div className="p-3.5 rounded-xl border border-border/70 bg-background shadow-2xs space-y-1">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+                      Total Debe (Cargos)
+                    </span>
+                    <div className="font-mono text-lg font-bold text-foreground tabular-nums">
+                      {formatoMoneda(m.debe)}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      {movs.debe.length} {movs.debe.length === 1 ? "cargo" : "cargos"} aplicados
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl border border-border/70 bg-background shadow-2xs space-y-1">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+                      Total Haber (Abonos)
+                    </span>
+                    <div className="font-mono text-lg font-bold text-foreground tabular-nums">
+                      {formatoMoneda(m.haber)}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      {movs.haber.length} {movs.haber.length === 1 ? "abono" : "abonos"} aplicados
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl border border-border/70 bg-background shadow-2xs space-y-1">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+                      Saldo Neto Resultante
+                    </span>
+                    <div className="font-mono text-lg font-extrabold text-foreground tabular-nums">
+                      {formatoMoneda(Math.abs(m.saldo))}
+                    </div>
+                    <div>
                       {sobregirada ? (
-                        <Badge variant="warning" className="text-[10px] flex items-center gap-1 font-bold">
-                          <AlertTriangle className="size-3" />
-                          {`¡Sobregiro! (Saldo ${m.naturalezaSaldo === "deudora" ? "Deudor" : "Acreedor"})`}
+                        <Badge variant="warning" className="text-[10px] font-bold">
+                          ¡Sobregiro Anómalo!
                         </Badge>
                       ) : saldoCero ? (
-                        <Badge variant="muted" className="text-[10px] flex items-center gap-1">
-                          <CheckCircle2 className="size-3 text-emerald-600" />
-                          Saldada
+                        <Badge variant="muted" className="text-[10px]">
+                          Cuenta Saldada ($0.00)
                         </Badge>
                       ) : m.naturalezaSaldo === "deudora" ? (
                         <Badge variant="deudora" className="text-[10px]">
                           Saldo Deudor
                         </Badge>
                       ) : (
-                        <Badge variant="default" className="text-[10px] bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200">
+                        <Badge
+                          variant="default"
+                          className="text-[10px] bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200"
+                        >
                           Saldo Acreedor
                         </Badge>
                       )}
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </section>
-      ) : (
-        /* VISTA: BALANCE DE COMPROBACIÓN FORMAL */
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold">
-              Balance de Comprobación de Sumas y Saldos
-            </CardTitle>
-            <CardDescription>
-              Comprobación estricta de igualdad matemática entre movimientos y saldos deudores y acreedores.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full min-w-[700px] text-sm print-accounting-table">
-                <thead className="bg-muted/60 text-xs uppercase tracking-wide text-muted-foreground">
-                  <tr className="border-b border-border">
-                    <th rowSpan={2} className="py-2.5 px-3 text-left">Código</th>
-                    <th rowSpan={2} className="py-2.5 px-3 text-left">Nombre de la Cuenta</th>
-                    <th colSpan={2} className="py-1 px-3 text-center border-b border-border">
-                      Movimientos
-                    </th>
-                    <th colSpan={2} className="py-1 px-3 text-center border-b border-border">
-                      Saldos
-                    </th>
-                  </tr>
-                  <tr className="border-b border-border text-[11px]">
-                    <th className="py-1.5 px-3 text-right">Debe</th>
-                    <th className="py-1.5 px-3 text-right">Haber</th>
-                    <th className="py-1.5 px-3 text-right">Deudor</th>
-                    <th className="py-1.5 px-3 text-right">Acreedor</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/60">
-                  {cuentasFiltradas.map((m) => {
-                    const deudor = m.naturalezaSaldo === "deudora" ? Math.abs(m.saldo) : 0
-                    const acreedor = m.naturalezaSaldo === "acreedora" ? Math.abs(m.saldo) : 0
-                    return (
-                      <tr key={m.cuenta.codigo} className="hover:bg-muted/30 transition-colors group">
-                        <td className="py-2.5 px-3 font-mono font-medium text-xs">
-                          <Link
-                            href={`/kardex?codigo=${m.cuenta.codigo}`}
-                            className="text-primary hover:underline font-bold inline-flex items-center gap-1"
-                            title="Abrir extracto en Libro Auxiliar"
-                          >
-                            <span>{m.cuenta.codigo}</span>
-                            <ArrowRight className="size-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </Link>
-                        </td>
-                        <td className="py-2.5 px-3 text-foreground">
-                          <Link
-                            href={`/kardex?codigo=${m.cuenta.codigo}`}
-                            className="hover:underline"
-                            title="Abrir extracto en Libro Auxiliar"
-                          >
-                            {m.cuenta.nombre}
-                          </Link>
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono tabular-nums">
-                          {m.debe > 0 ? formatoMoneda(m.debe) : "-"}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono tabular-nums">
-                          {m.haber > 0 ? formatoMoneda(m.haber) : "-"}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono tabular-nums font-semibold text-foreground">
-                          {deudor > 0 ? formatoMoneda(deudor) : "-"}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono tabular-nums font-semibold text-foreground">
-                          {acreedor > 0 ? formatoMoneda(acreedor) : "-"}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-                <tfoot className="border-t-2 border-border bg-muted/40 font-bold border-b-4 border-double border-foreground/30">
-                  <tr>
-                    <td colSpan={2} className="py-3 px-3 uppercase text-xs tracking-wider text-muted-foreground">
-                      {hayFiltroActivo ? "Suma de cuentas filtradas" : "Sumas Iguales"}
-                    </td>
-                    <td className="py-3 px-3 text-right font-mono tabular-nums">
-                      {formatoMoneda(totalesVisibles.debe)}
-                    </td>
-                    <td className="py-3 px-3 text-right font-mono tabular-nums">
-                      {formatoMoneda(totalesVisibles.haber)}
-                    </td>
-                    <td className="py-3 px-3 text-right font-mono tabular-nums text-foreground">
-                      {formatoMoneda(totalesVisibles.deudor)}
-                    </td>
-                    <td className="py-3 px-3 text-right font-mono tabular-nums text-foreground">
-                      {formatoMoneda(totalesVisibles.acreedor)}
-                    </td>
-                  </tr>
+                </div>
 
-                  {/* Los totales generales se muestran aparte y rotulados, para
-                      que con un filtro activo nunca se confundan con la suma de
-                      las filas visibles. */}
-                  {hayFiltroActivo && (
-                    <tr className="border-t border-border/60">
-                      <td colSpan={2} className="py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground/80">
-                        Totales generales (Libro Completo)
+                {/* CUERPO: ESTRUCTURA FORMAL Y ESPACIOSA DE CUENTA T */}
+                <div className="p-4 sm:p-6 space-y-4">
+                  <div className="rounded-xl border border-border/80 overflow-hidden text-xs print-accounting-table">
+                    {/* ENCABEZADOS DEBE Y HABER */}
+                    <div className="grid grid-cols-2 border-b border-border/80 bg-muted/40 text-xs font-bold text-muted-foreground uppercase tracking-wider text-center divide-x divide-border/80">
+                      <div className="py-2.5 px-4 flex items-center justify-between">
+                        <span>DEBE (DÉBITOS / CARGOS)</span>
+                        <span className="font-mono text-[11px] text-muted-foreground font-normal">
+                          {movs.debe.length} movs
+                        </span>
+                      </div>
+                      <div className="py-2.5 px-4 flex items-center justify-between">
+                        <span>HABER (CRÉDITOS / ABONOS)</span>
+                        <span className="font-mono text-[11px] text-muted-foreground font-normal">
+                          {movs.haber.length} movs
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* COLUMNAS DE MOVIMIENTOS EN T EXPANDIDAS */}
+                    <div className="grid grid-cols-2 divide-x divide-border/80 min-h-[220px]">
+                      {/* LADO DEBE */}
+                      <div className="flex flex-col justify-between">
+                        <div className="p-3 space-y-2 max-h-[460px] overflow-y-auto divide-y divide-border/30">
+                          {movs.debe.length === 0 ? (
+                            <div className="py-16 text-center text-muted-foreground/30 text-xs italic">
+                              No se registran cargos en el DEBE para este ejercicio
+                            </div>
+                          ) : (
+                            movs.debe.map((item, idx) => (
+                              <div
+                                key={idx}
+                                className="flex items-start justify-between gap-3 pt-2 first:pt-0 group hover:bg-muted/40 p-1.5 rounded-lg transition-colors"
+                              >
+                                <div className="min-w-0 pr-2 space-y-0.5">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono text-[11px] font-bold text-primary px-1.5 py-0.2 rounded bg-primary/10">
+                                      #{item.numero}
+                                    </span>
+                                    <span className="text-[11px] text-muted-foreground font-mono">
+                                      {item.fecha}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-foreground font-medium leading-relaxed">
+                                    {item.concepto}
+                                  </p>
+                                </div>
+                                <span className="shrink-0 font-mono font-bold tabular-nums text-foreground text-right text-xs sm:text-sm pt-0.5">
+                                  {formatoMoneda(item.monto)}
+                                </span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                        {/* TOTAL DEBE */}
+                        <div className="bg-muted/40 px-4 py-3 border-t border-border/80 flex items-center justify-between font-mono font-bold text-xs sm:text-sm">
+                          <span className="text-muted-foreground text-xs uppercase font-semibold">
+                            Total Debe (Suma Débitos)
+                          </span>
+                          <span className="tabular-nums text-foreground">{formatoMoneda(m.debe)}</span>
+                        </div>
+                      </div>
+
+                      {/* LADO HABER */}
+                      <div className="flex flex-col justify-between">
+                        <div className="p-3 space-y-2 max-h-[460px] overflow-y-auto divide-y divide-border/30">
+                          {movs.haber.length === 0 ? (
+                            <div className="py-16 text-center text-muted-foreground/30 text-xs italic">
+                              No se registran abonos en el HABER para este ejercicio
+                            </div>
+                          ) : (
+                            movs.haber.map((item, idx) => (
+                              <div
+                                key={idx}
+                                className="flex items-start justify-between gap-3 pt-2 first:pt-0 group hover:bg-muted/40 p-1.5 rounded-lg transition-colors"
+                              >
+                                <div className="min-w-0 pr-2 space-y-0.5">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono text-[11px] font-bold text-primary px-1.5 py-0.2 rounded bg-primary/10">
+                                      #{item.numero}
+                                    </span>
+                                    <span className="text-[11px] text-muted-foreground font-mono">
+                                      {item.fecha}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-foreground font-medium leading-relaxed">
+                                    {item.concepto}
+                                  </p>
+                                </div>
+                                <span className="shrink-0 font-mono font-bold tabular-nums text-foreground text-right text-xs sm:text-sm pt-0.5">
+                                  {formatoMoneda(item.monto)}
+                                </span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                        {/* TOTAL HABER */}
+                        <div className="bg-muted/40 px-4 py-3 border-t border-border/80 flex items-center justify-between font-mono font-bold text-xs sm:text-sm">
+                          <span className="text-muted-foreground text-xs uppercase font-semibold">
+                            Total Haber (Suma Créditos)
+                          </span>
+                          <span className="tabular-nums text-foreground">{formatoMoneda(m.haber)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* PIE DE LA TARJETA: CERTIFICACIÓN DE SALDO NETO */}
+                <div className="px-4 sm:px-6 py-4 bg-muted/25 dark:bg-muted/15 border-t border-border/70 flex flex-wrap items-center justify-between gap-4 text-xs saldo-doble-linea">
+                  <div className="flex items-center gap-3">
+                    <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wider">
+                      Saldo Final de la Cuenta:
+                    </span>
+                    <span className="font-mono font-extrabold text-base sm:text-lg text-foreground tabular-nums">
+                      {formatoMoneda(Math.abs(m.saldo))}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {sobregirada ? (
+                      <Badge variant="warning" className="text-xs font-bold flex items-center gap-1 px-3 py-1">
+                        <AlertTriangle className="size-3.5" />
+                        <span>Sobregiro anómalo detectado</span>
+                      </Badge>
+                    ) : saldoCero ? (
+                      <Badge variant="muted" className="text-xs flex items-center gap-1 px-3 py-1">
+                        <CheckCircle2 className="size-3.5 text-emerald-600" />
+                        <span>Cuenta Balanceada / Saldada en Cero</span>
+                      </Badge>
+                    ) : m.naturalezaSaldo === "deudora" ? (
+                      <Badge variant="deudora" className="text-xs px-3 py-1">
+                        Saldo Final Deudor (Débito)
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant="default"
+                        className="text-xs px-3 py-1 bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200"
+                      >
+                        Saldo Final Acreedor (Crédito)
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )
+          })()
+        )
+      ) : vista === "todas" ? (
+        /* =================================================================== */
+        /* VISTA 1: TODAS LAS CUENTAS (VISTA PRINCIPAL)                        */
+        /* Inician contraídas como pastilla simple, expandibles individual      */
+        /* o en bloque, con modal centrado y fondo blur tras hover de 5s       */
+        /* =================================================================== */
+        <div className="space-y-4">
+          {/* BARRA DE HERRAMIENTAS: OPCIÓN SOLA A LA IZQUIERDA PARA EXPANDIR TODAS */}
+          <div className="flex items-center justify-start print:hidden">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleToggleExpandirTodas}
+              className="h-8 gap-2 text-xs font-semibold rounded-xl cursor-pointer shadow-2xs border-border/80 bg-card hover:bg-muted/60"
+            >
+              {todasExpandidas ? (
+                <>
+                  <Minimize2 className="size-3.5" />
+                  <span>Contraer todas</span>
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="size-3.5" />
+                  <span>Expandir todas ({mayor.length})</span>
+                </>
+              )}
+            </Button>
+          </div>
+
+          {/* CUADRÍCULA SIMÉTRICA DE TARJETAS */}
+          <div
+            className={cn(
+              "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3.5 sm:gap-4",
+              todasExpandidas ? "items-stretch" : "items-start"
+            )}
+          >
+            {mayor.map((m) => {
+              const movs = movimientosPorCuenta.get(m.cuenta.codigo) || { debe: [], haber: [] }
+              const saldoCero = m.saldo === 0
+              const contradiceNaturaleza =
+                m.cuenta.naturaleza === "deudora" ? m.saldo < 0 : m.saldo > 0
+              const sobregirada = m.cuenta.tipo === "activo" && contradiceNaturaleza
+              const totalMovimientos = movs.debe.length + movs.haber.length
+
+              const estaExpandida = cuentasExpandidas.has(m.cuenta.codigo)
+              const estaEnHover = cuentaEnHover === m.cuenta.codigo
+
+              return (
+                <div
+                  key={m.cuenta.codigo}
+                  onMouseEnter={() => handleCardMouseEnter(m.cuenta.codigo)}
+                  onMouseLeave={() => handleCardMouseLeave(m.cuenta.codigo)}
+                  className={cn(
+                    "relative transition-all duration-300",
+                    estaExpandida ? "col-span-1 md:col-span-2 h-full" : "col-span-1"
+                  )}
+                >
+                  {/* ========================================================= */}
+                  {/* ESTADO 1: PASTILLA CONTRAÍDA (MINIMALISTA)                 */}
+                  {/* ========================================================= */}
+                  {!estaExpandida ? (
+                    <div
+                      onClick={() => handleToggleExpandirTarjeta(m.cuenta.codigo)}
+                      className={cn(
+                        "rounded-2xl border bg-card text-card-foreground p-3 transition-all relative overflow-hidden group shadow-2xs cursor-pointer select-none report-card",
+                        sobregirada
+                          ? "border-red-500/40 bg-red-500/[0.015] hover:border-red-500/70"
+                          : estaEnHover
+                          ? "border-primary/60 shadow-xs ring-1 ring-primary/20"
+                          : "border-border/80 hover:border-primary/40 hover:shadow-xs"
+                      )}
+                    >
+                      {/* Micro barra de progreso hover 5s */}
+                      {estaEnHover && (
+                        <div className="absolute top-0 left-0 right-0 h-1 bg-primary/10 overflow-hidden z-20">
+                          <div className="h-full bg-primary animate-progress-5s" />
+                        </div>
+                      )}
+
+                      {/* Fila 1: Código, Nombre y Opciones */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-lg bg-muted text-foreground shrink-0">
+                            {m.cuenta.codigo}
+                          </span>
+                          <h4 className="font-semibold text-xs sm:text-sm text-foreground truncate" title={m.cuenta.nombre}>
+                            {m.cuenta.nombre}
+                          </h4>
+                        </div>
+
+                        <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() => irAVistaIndividual(m.cuenta.codigo)}
+                            className="size-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer"
+                            title="Ver en vista individual"
+                          >
+                            <ArrowRight className="size-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleExpandirTarjeta(m.cuenta.codigo)}
+                            className="size-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                            title="Expandir cuenta"
+                          >
+                            <ChevronDown className="size-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Fila 2: Saldo Neto y Condición (Deudor / Acreedor) */}
+                      <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-border/40">
+                        <div className="flex items-baseline gap-1.5 min-w-0">
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground shrink-0">
+                            Saldo:
+                          </span>
+                          <span className="font-mono font-extrabold text-sm text-foreground tabular-nums truncate">
+                            {formatoMoneda(Math.abs(m.saldo))}
+                          </span>
+                        </div>
+
+                        <div className="shrink-0">
+                          {sobregirada ? (
+                            <Badge variant="warning" className="text-[9px] font-bold px-1.5 py-0.5">
+                              Sobregiro
+                            </Badge>
+                          ) : saldoCero ? (
+                            <Badge variant="muted" className="text-[9px] font-medium px-1.5 py-0.5">
+                              Saldada
+                            </Badge>
+                          ) : m.naturalezaSaldo === "deudora" ? (
+                            <Badge variant="deudora" className="text-[9px] font-semibold px-2 py-0.5">
+                              Deudor
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant="default"
+                              className="text-[9px] font-semibold px-2 py-0.5 bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200"
+                            >
+                              Acreedor
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    /* ========================================================= */
+                    /* ESTADO 2: EXPANDIDA MEDIANAMENTE (CUENTA T AMPLIA Y CLARA) */
+                    /* ========================================================= */
+                    <div
+                      className={cn(
+                        "rounded-2xl border bg-card text-card-foreground shadow-xs transition-all relative overflow-hidden flex flex-col justify-between report-card h-full",
+                        sobregirada ? "border-red-500/40 bg-red-500/[0.015]" : "border-primary/50 ring-1 ring-primary/20"
+                      )}
+                    >
+                      {/* Micro barra hover 5s */}
+                      {estaEnHover && (
+                        <div className="absolute top-0 left-0 right-0 h-1 bg-primary/10 overflow-hidden z-20">
+                          <div className="h-full bg-primary animate-progress-5s" />
+                        </div>
+                      )}
+
+                      {/* Cabecera de la tarjeta expandida */}
+                      <div className="p-3.5 sm:p-4 border-b border-border/60 flex items-center justify-between gap-3 bg-muted/10 shrink-0">
+                        <div className="min-w-0 flex items-center gap-2.5">
+                          <span className="font-mono text-xs sm:text-sm font-extrabold px-2.5 py-1 rounded-lg bg-primary/10 text-primary shrink-0">
+                            {m.cuenta.codigo}
+                          </span>
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-sm sm:text-base text-foreground truncate" title={m.cuenta.nombre}>
+                              {m.cuenta.nombre}
+                            </h4>
+                            <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5 truncate whitespace-nowrap">
+                              <span>{ETIQUETA_TIPO[m.cuenta.tipo]}</span>
+                              <span>·</span>
+                              <span className="capitalize">{m.cuenta.naturaleza}</span>
+                              <span>·</span>
+                              <span>{totalMovimientos} {totalMovimientos === 1 ? "movimiento" : "movimientos"}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {sobregirada ? (
+                            <Badge variant="warning" className="text-[10px] font-bold px-2 py-0.5 shrink-0">Sobregiro</Badge>
+                          ) : saldoCero ? (
+                            <Badge variant="muted" className="text-[10px] px-2 py-0.5 shrink-0">Saldada</Badge>
+                          ) : m.naturalezaSaldo === "deudora" ? (
+                            <Badge variant="deudora" className="text-[10px] font-semibold px-2.5 py-0.5 shrink-0">Deudor</Badge>
+                          ) : (
+                            <Badge variant="default" className="text-[10px] font-semibold px-2.5 py-0.5 bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 shrink-0">Acreedor</Badge>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleExpandirTarjeta(m.cuenta.codigo)}
+                            className="size-8 rounded-xl flex items-center justify-center text-primary bg-primary/10 hover:bg-primary/20 transition-colors cursor-pointer ml-1 shrink-0"
+                            title="Contraer tarjeta"
+                          >
+                            <ChevronUp className="size-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Cuenta T amplia y proporcionada */}
+                      <div className="p-3.5 sm:p-4 space-y-3 flex-1 flex flex-col justify-between">
+                        <div className="rounded-xl border border-border/70 overflow-hidden text-xs flex flex-col flex-1">
+                          {/* Encabezado columnas Debe y Haber */}
+                          <div className="grid grid-cols-2 border-b border-border/70 bg-muted/40 text-xs font-bold text-muted-foreground uppercase text-center divide-x divide-border/70 shrink-0">
+                            <div className="py-2 px-3 flex justify-between items-center">
+                              <span>DEBE (DÉBITOS)</span>
+                              <span className="font-mono text-[11px] font-normal">{movs.debe.length} cargos</span>
+                            </div>
+                            <div className="py-2 px-3 flex justify-between items-center">
+                              <span>HABER (CRÉDITOS)</span>
+                              <span className="font-mono text-[11px] font-normal">{movs.haber.length} abonos</span>
+                            </div>
+                          </div>
+
+                          {/* Lista con altura fija uniforme idéntica para todas */}
+                          <div className="grid grid-cols-2 divide-x divide-border/70 h-[210px] overflow-y-auto">
+                            {/* Lado Debe */}
+                            <div className={cn("p-2.5 space-y-2 divide-y divide-border/30", movs.debe.length === 0 && "h-full flex items-center justify-center p-0")}>
+                              {movs.debe.length === 0 ? (
+                                <div className="text-center text-muted-foreground/35 text-xs italic p-4">
+                                  Sin cargos en este ejercicio
+                                </div>
+                              ) : (
+                                movs.debe.map((d, i) => (
+                                  <div key={i} className="flex items-start justify-between gap-2.5 pt-2 first:pt-0">
+                                    <div className="min-w-0 flex-1 space-y-0.5">
+                                      {/* Fecha y partida arriba */}
+                                      <div className="flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground">
+                                        <span className="font-bold text-primary px-1.5 py-0.2 rounded bg-primary/10 text-[10px]">
+                                          #{d.numero}
+                                        </span>
+                                        <span>{d.fecha}</span>
+                                      </div>
+                                      {/* Concepto / Cuenta completo abajo */}
+                                      <p className="text-xs text-foreground font-medium leading-snug break-words">
+                                        {d.concepto}
+                                      </p>
+                                    </div>
+                                    <span className="font-mono font-bold text-xs sm:text-sm text-foreground shrink-0 tabular-nums pt-0.5">
+                                      {formatoMoneda(d.monto)}
+                                    </span>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+
+                            {/* Lado Haber */}
+                            <div className={cn("p-2.5 space-y-2 divide-y divide-border/30", movs.haber.length === 0 && "h-full flex items-center justify-center p-0")}>
+                              {movs.haber.length === 0 ? (
+                                <div className="text-center text-muted-foreground/35 text-xs italic p-4">
+                                  Sin abonos en este ejercicio
+                                </div>
+                              ) : (
+                                movs.haber.map((h, i) => (
+                                  <div key={i} className="flex items-start justify-between gap-2.5 pt-2 first:pt-0">
+                                    <div className="min-w-0 flex-1 space-y-0.5">
+                                      {/* Fecha y partida arriba */}
+                                      <div className="flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground">
+                                        <span className="font-bold text-primary px-1.5 py-0.2 rounded bg-primary/10 text-[10px]">
+                                          #{h.numero}
+                                        </span>
+                                        <span>{h.fecha}</span>
+                                      </div>
+                                      {/* Concepto / Cuenta completo abajo */}
+                                      <p className="text-xs text-foreground font-medium leading-snug break-words">
+                                        {h.concepto}
+                                      </p>
+                                    </div>
+                                    <span className="font-mono font-bold text-xs sm:text-sm text-foreground shrink-0 tabular-nums pt-0.5">
+                                      {formatoMoneda(h.monto)}
+                                    </span>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Totales Debe y Haber */}
+                          <div className="grid grid-cols-2 divide-x divide-border/70 border-t border-border/70 bg-muted/25 p-2.5 font-mono font-bold text-xs sm:text-sm shrink-0">
+                            <div className="flex justify-between items-center pr-2">
+                              <span className="text-muted-foreground text-[10px] sm:text-xs uppercase font-semibold">Total Debe:</span>
+                              <span className="tabular-nums text-foreground">{formatoMoneda(m.debe)}</span>
+                            </div>
+                            <div className="flex justify-between items-center pl-2">
+                              <span className="text-muted-foreground text-[10px] sm:text-xs uppercase font-semibold">Total Haber:</span>
+                              <span className="tabular-nums text-foreground">{formatoMoneda(m.haber)}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Fila de Saldo y Acciones */}
+                        <div className="flex items-center justify-between gap-3 pt-1 shrink-0">
+                          <div className="flex items-baseline gap-2 min-w-0">
+                            <span className="text-xs font-semibold text-muted-foreground shrink-0">Saldo Neto:</span>
+                            <span className="font-mono font-extrabold text-base sm:text-lg text-foreground tabular-nums truncate">
+                              {formatoMoneda(Math.abs(m.saldo))}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleToggleExpandirTarjeta(m.cuenta.codigo)}
+                              className="h-8 px-2.5 text-xs cursor-pointer font-medium"
+                            >
+                              Contraer
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => irAVistaIndividual(m.cuenta.codigo)}
+                              className="h-8 px-3 gap-1.5 text-xs font-semibold cursor-pointer"
+                            >
+                              <span>Ver individual</span>
+                              <ArrowRight className="size-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* =================================================================== */}
+          {/* MODAL / LIGHTBOX CENTRADO CON ANIMACIÓN SUAVE Y FONDO BLUR          */}
+          {/* Sobresale enfrente y en medio tras mantener el cursor 5s             */}
+          {/* =================================================================== */}
+          {cuentaModalCentrada && (() => {
+            const m = mayor.find((c) => c.cuenta.codigo === cuentaModalCentrada)
+            if (!m) return null
+            const movs = movimientosPorCuenta.get(m.cuenta.codigo) || { debe: [], haber: [] }
+            const saldoCero = m.saldo === 0
+            const contradiceNaturaleza =
+              m.cuenta.naturaleza === "deudora" ? m.saldo < 0 : m.saldo > 0
+            const sobregirada = m.cuenta.tipo === "activo" && contradiceNaturaleza
+            const totalMovimientos = movs.debe.length + movs.haber.length
+
+            return (
+              <div
+                className={cn(
+                  "fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 dark:bg-black/80",
+                  modalCerrando
+                    ? "animate-modal-backdrop-out pointer-events-none"
+                    : "animate-modal-backdrop-in"
+                )}
+                onClick={handleCerrarModalCentrado}
+              >
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  onMouseEnter={() => {
+                    mouseEnteredModalRef.current = true
+                  }}
+                  onMouseLeave={() => {
+                    if (mouseEnteredModalRef.current) {
+                      handleCerrarModalCentrado()
+                    }
+                  }}
+                  className={cn(
+                    "w-full max-w-3xl max-h-[90vh] bg-card rounded-3xl border border-primary/40 shadow-2xl overflow-hidden flex flex-col justify-between",
+                    modalCerrando
+                      ? "animate-modal-zoom-out pointer-events-none"
+                      : "animate-modal-zoom-in"
+                  )}
+                >
+                  {/* CABECERA MODAL */}
+                  <div className="p-4 sm:p-5 border-b border-border/70 flex items-center justify-between gap-4 bg-muted/20">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="font-mono text-sm sm:text-base font-extrabold px-3 py-1 rounded-xl bg-primary/10 text-primary shrink-0 shadow-2xs">
+                        {m.cuenta.codigo}
+                      </span>
+                      <div className="min-w-0">
+                        <h3 className="text-base sm:text-lg font-bold text-foreground truncate">
+                          {m.cuenta.nombre}
+                        </h3>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                          <span>{ETIQUETA_TIPO[m.cuenta.tipo]}</span>
+                          <span>·</span>
+                          <span className="capitalize">Naturaleza {m.cuenta.naturaleza}</span>
+                          <span>·</span>
+                          <span>{totalMovimientos} movimientos</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      {sobregirada ? (
+                        <Badge variant="warning" className="text-xs font-bold">
+                          Sobregiro
+                        </Badge>
+                      ) : saldoCero ? (
+                        <Badge variant="muted" className="text-xs">
+                          Saldada
+                        </Badge>
+                      ) : m.naturalezaSaldo === "deudora" ? (
+                        <Badge variant="deudora" className="text-xs">
+                          Saldo Deudor
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="default"
+                          className="text-xs bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200"
+                        >
+                          Saldo Acreedor
+                        </Badge>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={handleCerrarModalCentrado}
+                        className="size-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer ml-1"
+                        title="Cerrar y regresar"
+                      >
+                        <X className="size-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* MÉTRICAS RÁPIDAS EN MODAL */}
+                  <div className="grid grid-cols-3 gap-3 p-4 sm:p-5 pb-2 bg-muted/5 border-b border-border/50 text-xs">
+                    <div className="p-3 rounded-xl border border-border/70 bg-card shadow-2xs">
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase block">
+                        Total Debe (Cargos)
+                      </span>
+                      <div className="font-mono text-base font-bold text-foreground tabular-nums mt-0.5">
+                        {formatoMoneda(m.debe)}
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">{movs.debe.length} cargos</span>
+                    </div>
+
+                    <div className="p-3 rounded-xl border border-border/70 bg-card shadow-2xs">
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase block">
+                        Total Haber (Abonos)
+                      </span>
+                      <div className="font-mono text-base font-bold text-foreground tabular-nums mt-0.5">
+                        {formatoMoneda(m.haber)}
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">{movs.haber.length} abonos</span>
+                    </div>
+
+                    <div className="p-3 rounded-xl border border-border/70 bg-card shadow-2xs">
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase block">
+                        Saldo Neto
+                      </span>
+                      <div className="font-mono text-base font-extrabold text-foreground tabular-nums mt-0.5">
+                        {formatoMoneda(Math.abs(m.saldo))}
+                      </div>
+                      <span className="text-[10px] text-muted-foreground capitalize">
+                        {m.naturalezaSaldo || "Saldada"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* CUERPO T EXPANDIDA CON DETALLE COMPLETO Y LEGIBLE */}
+                  <div className="p-4 sm:p-5 overflow-y-auto max-h-[46vh]">
+                    <div className="rounded-2xl border border-border/80 overflow-hidden text-xs">
+                      <div className="grid grid-cols-2 border-b border-border/80 bg-muted/40 text-xs font-bold text-muted-foreground uppercase text-center divide-x divide-border/80">
+                        <div className="py-2.5 px-3 flex justify-between items-center">
+                          <span>DEBE (DÉBITOS)</span>
+                          <span className="font-mono text-[11px] font-normal">{movs.debe.length} cargos</span>
+                        </div>
+                        <div className="py-2.5 px-3 flex justify-between items-center">
+                          <span>HABER (CRÉDITOS)</span>
+                          <span className="font-mono text-[11px] font-normal">{movs.haber.length} abonos</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 divide-x divide-border/80 min-h-[140px] max-h-[280px] overflow-y-auto">
+                        {/* Lado Debe Amplio */}
+                        <div className="p-3 space-y-2 divide-y divide-border/30">
+                          {movs.debe.length === 0 ? (
+                            <div className="py-12 text-center text-muted-foreground/30 text-xs italic">
+                              Sin cargos registrados
+                            </div>
+                          ) : (
+                            movs.debe.map((d, i) => (
+                              <div key={i} className="flex justify-between items-start gap-2.5 pt-2 first:pt-0">
+                                <div className="min-w-0 pr-1 space-y-0.5">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-mono text-[10px] font-bold text-primary px-1.5 py-0.2 rounded bg-primary/10">
+                                      #{d.numero}
+                                    </span>
+                                    <span className="text-[10px] text-muted-foreground font-mono">
+                                      {d.fecha}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-foreground font-medium leading-relaxed">
+                                    {d.concepto}
+                                  </p>
+                                </div>
+                                <span className="font-mono font-bold text-xs text-foreground shrink-0 tabular-nums pt-0.5">
+                                  {formatoMoneda(d.monto)}
+                                </span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+
+                        {/* Lado Haber Amplio */}
+                        <div className="p-3 space-y-2 divide-y divide-border/30">
+                          {movs.haber.length === 0 ? (
+                            <div className="py-12 text-center text-muted-foreground/30 text-xs italic">
+                              Sin abonos registrados
+                            </div>
+                          ) : (
+                            movs.haber.map((h, i) => (
+                              <div key={i} className="flex justify-between items-start gap-2.5 pt-2 first:pt-0">
+                                <div className="min-w-0 pr-1 space-y-0.5">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-mono text-[10px] font-bold text-primary px-1.5 py-0.2 rounded bg-primary/10">
+                                      #{h.numero}
+                                    </span>
+                                    <span className="text-[10px] text-muted-foreground font-mono">
+                                      {h.fecha}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-foreground font-medium leading-relaxed">
+                                    {h.concepto}
+                                  </p>
+                                </div>
+                                <span className="font-mono font-bold text-xs text-foreground shrink-0 tabular-nums pt-0.5">
+                                  {formatoMoneda(h.monto)}
+                                </span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Totales Debe y Haber */}
+                      <div className="grid grid-cols-2 divide-x divide-border/80 border-t border-border/80 bg-muted/30 p-3 font-mono font-bold text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground text-[11px] uppercase">Total Debe:</span>
+                          <span className="tabular-nums text-foreground">{formatoMoneda(m.debe)}</span>
+                        </div>
+                        <div className="flex justify-between pl-3">
+                          <span className="text-muted-foreground text-[11px] uppercase">Total Haber:</span>
+                          <span className="tabular-nums text-foreground">{formatoMoneda(m.haber)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* PIE DEL MODAL */}
+                  <div className="p-4 sm:p-5 bg-muted/20 border-t border-border/70 flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">Saldo resultante:</span>
+                      <span className="font-mono font-extrabold text-base text-foreground tabular-nums">
+                        {formatoMoneda(Math.abs(m.saldo))}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleCerrarModalCentrado}
+                        className="h-8 px-3 text-xs cursor-pointer"
+                      >
+                        Regresar
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => {
+                          irAVistaIndividual(m.cuenta.codigo)
+                          handleCerrarModalCentrado()
+                        }}
+                        className="h-8 px-3 gap-1.5 text-xs font-semibold cursor-pointer"
+                      >
+                        <span>Ver en pantalla completa</span>
+                        <ArrowRight className="size-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+        </div>
+      ) : (
+        /* =================================================================== */
+        /* VISTA 3: BALANCE DE COMPROBACIÓN FORMAL Y MINIMALISTA                */
+        /* =================================================================== */
+        <div className="space-y-4">
+          {/* TIRA DE MÉTRICAS / RESUMEN EJECUTIVO DE COMPROBACIÓN */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 print:hidden">
+            <div className="rounded-2xl border border-border/80 bg-card p-4 shadow-2xs space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                Total Movimientos
+              </span>
+              <div className="text-base sm:text-lg font-bold font-mono tabular-nums text-foreground">
+                {formatoMoneda(totalDebe)}
+              </div>
+              {!cuadraMovimientos && (
+                <div className="text-[11px] text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
+                  <AlertTriangle className="size-3" /> Diferencia detectada
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-border/80 bg-card p-4 shadow-2xs space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                Total Saldos
+              </span>
+              <div className="text-base sm:text-lg font-bold font-mono tabular-nums text-foreground">
+                {formatoMoneda(totalDeudor)}
+              </div>
+              {!cuadraSaldos && (
+                <div className="text-[11px] text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
+                  <AlertTriangle className="size-3" /> Diferencia en saldos
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-border/80 bg-card p-4 shadow-2xs space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                Estado de Balance
+              </span>
+              <div className="pt-0.5">
+                <Badge
+                  variant={cuadraMovimientos && cuadraSaldos ? "success" : "warning"}
+                  className="font-mono text-xs px-2.5 py-0.5"
+                >
+                  {cuadraMovimientos && cuadraSaldos ? "Cuadrado" : "Descuadrado"}
+                </Badge>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                {cuadraMovimientos && cuadraSaldos
+                  ? "Cumple estricta igualdad contable"
+                  : "Revisar asientos del ejercicio"}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-border/80 bg-card p-4 shadow-2xs space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                Cuentas en Balanza
+              </span>
+              <div className="text-base sm:text-lg font-bold font-mono tabular-nums text-foreground">
+                {mayor.length}
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Cuentas con saldo en el ejercicio
+              </p>
+            </div>
+          </div>
+
+          {/* TABLA PRINCIPAL DE BALANCE DE COMPROBACIÓN */}
+          <Card className="rounded-2xl border-border/80 overflow-hidden shadow-2xs">
+            <CardHeader className="pb-3 border-b border-border/60">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <CardTitle className="text-base font-bold text-foreground">
+                    Balance de Comprobación de Sumas y Saldos
+                  </CardTitle>
+                  <CardDescription className="text-xs mt-0.5">
+                    Comprobación rigurosa de igualdad matemática entre movimientos (débitos/créditos) y saldos (deudores/acreedores).
+                  </CardDescription>
+                </div>
+
+                <Badge variant="muted" className="text-xs font-mono font-medium">
+                  {mayor.length} cuentas
+                </Badge>
+              </div>
+            </CardHeader>
+
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[700px] text-sm print-accounting-table">
+                  <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground font-semibold">
+                    <tr className="border-b border-border">
+                      <th rowSpan={2} className="py-2.5 px-3.5 text-left font-bold">
+                        Código
+                      </th>
+                      <th rowSpan={2} className="py-2.5 px-3.5 text-left font-bold">
+                        Nombre de la Cuenta
+                      </th>
+                      <th colSpan={2} className="py-1 px-3.5 text-center border-b border-border font-bold">
+                        Movimientos
+                      </th>
+                      <th colSpan={2} className="py-1 px-3.5 text-center border-b border-border font-bold">
+                        Saldos
+                      </th>
+                    </tr>
+                    <tr className="border-b border-border text-[11px]">
+                      <th className="py-1.5 px-3.5 text-right font-bold">Debe</th>
+                      <th className="py-1.5 px-3.5 text-right font-bold">Haber</th>
+                      <th className="py-1.5 px-3.5 text-right font-bold">Deudor</th>
+                      <th className="py-1.5 px-3.5 text-right font-bold">Acreedor</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {mayor.map((m) => {
+                      const deudor = m.naturalezaSaldo === "deudora" ? Math.abs(m.saldo) : 0
+                      const acreedor = m.naturalezaSaldo === "acreedora" ? Math.abs(m.saldo) : 0
+                      return (
+                        <tr
+                          key={m.cuenta.codigo}
+                          className="hover:bg-muted/30 transition-colors group"
+                        >
+                          <td className="py-2.5 px-3.5 font-mono font-semibold text-xs">
+                            <Link
+                              href={`/kardex?codigo=${m.cuenta.codigo}`}
+                              className="text-primary hover:underline font-bold inline-flex items-center gap-1"
+                              title="Abrir extracto en Libro Auxiliar"
+                            >
+                              <span>{m.cuenta.codigo}</span>
+                              <ArrowRight className="size-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </Link>
+                          </td>
+                          <td className="py-2.5 px-3.5 text-foreground font-medium">
+                            <Link
+                              href={`/kardex?codigo=${m.cuenta.codigo}`}
+                              className="hover:underline"
+                              title="Abrir extracto en Libro Auxiliar"
+                            >
+                              {m.cuenta.nombre}
+                            </Link>
+                          </td>
+                          <td className="py-2.5 px-3.5 text-right font-mono tabular-nums text-xs">
+                            {m.debe > 0 ? (
+                              formatoMoneda(m.debe)
+                            ) : (
+                              <span className="text-muted-foreground/40">-</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3.5 text-right font-mono tabular-nums text-xs">
+                            {m.haber > 0 ? (
+                              formatoMoneda(m.haber)
+                            ) : (
+                              <span className="text-muted-foreground/40">-</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3.5 text-right font-mono tabular-nums font-semibold text-foreground text-xs">
+                            {deudor > 0 ? (
+                              formatoMoneda(deudor)
+                            ) : (
+                              <span className="text-muted-foreground/40 font-normal">-</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3.5 text-right font-mono tabular-nums font-semibold text-foreground text-xs">
+                            {acreedor > 0 ? (
+                              formatoMoneda(acreedor)
+                            ) : (
+                              <span className="text-muted-foreground/40 font-normal">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                  <tfoot className="border-t-2 border-border bg-muted/40 font-bold border-b-4 border-double border-foreground/30">
+                    <tr>
+                      <td
+                        colSpan={2}
+                        className="py-3 px-3.5 uppercase text-xs tracking-wider text-muted-foreground font-bold"
+                      >
+                        Sumas Iguales
                       </td>
-                      <td className="py-2 px-3 text-right font-mono tabular-nums text-xs text-muted-foreground">
+                      <td className="py-3 px-3.5 text-right font-mono tabular-nums text-xs">
                         {formatoMoneda(totalDebe)}
                       </td>
-                      <td className="py-2 px-3 text-right font-mono tabular-nums text-xs text-muted-foreground">
+                      <td className="py-3 px-3.5 text-right font-mono tabular-nums text-xs">
                         {formatoMoneda(totalHaber)}
                       </td>
-                      <td className="py-2 px-3 text-right font-mono tabular-nums text-xs text-muted-foreground">
+                      <td className="py-3 px-3.5 text-right font-mono tabular-nums text-foreground text-xs">
                         {formatoMoneda(totalDeudor)}
                       </td>
-                      <td className="py-2 px-3 text-right font-mono tabular-nums text-xs text-muted-foreground">
+                      <td className="py-3 px-3.5 text-right font-mono tabular-nums text-foreground text-xs">
                         {formatoMoneda(totalAcreedor)}
                       </td>
                     </tr>
-                  )}
-                </tfoot>
-              </table>
+                  </tfoot>
+                </table>
 
-              {/* BANDA DE VERIFICACIÓN DE CUADRE DE BALANZA */}
-              <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-muted/20 border-t border-border text-xs text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  {cuadraMovimientos && cuadraSaldos ? (
-                    <CheckCircle2 className="size-4 text-emerald-600" />
-                  ) : (
-                    <AlertTriangle className="size-4 text-amber-600" />
-                  )}
-                  <span>
-                    <strong>
-                      {hayFiltroActivo
-                        ? "Verificación de la vista filtrada:"
-                        : "Verificación de Partida Doble:"}
-                    </strong>{" "}
-                    Débitos ({formatoMoneda(totalesVisibles.debe)}){" "}
-                    {cuadraMovimientos ? "=" : "≠"} Créditos ({formatoMoneda(totalesVisibles.haber)}) ·
-                    Saldos Deudores ({formatoMoneda(totalesVisibles.deudor)}){" "}
-                    {cuadraSaldos ? "=" : "≠"} Saldos Acreedores ({formatoMoneda(totalesVisibles.acreedor)})
-                  </span>
+                {/* BANDA DE VERIFICACIÓN DE CUADRE DE BALANZA */}
+                <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-muted/20 border-t border-border text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    {cuadraMovimientos && cuadraSaldos ? (
+                      <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
+                    ) : (
+                      <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400" />
+                    )}
+                    <span>
+                      <strong>Verificación de Partida Doble:</strong>{" "}
+                      Débitos ({formatoMoneda(totalDebe)}){" "}
+                      {cuadraMovimientos ? "=" : "≠"} Créditos ({formatoMoneda(totalHaber)}) ·
+                      Saldos Deudores ({formatoMoneda(totalDeudor)}){" "}
+                      {cuadraSaldos ? "=" : "≠"} Saldos Acreedores ({formatoMoneda(totalAcreedor)})
+                    </span>
+                  </div>
+
+                  <Badge
+                    variant={cuadraMovimientos && cuadraSaldos ? "success" : "warning"}
+                    className="font-mono text-[10px]"
+                  >
+                    {cuadraMovimientos && cuadraSaldos
+                      ? "Balanza Cuadrada al Centavo ✓"
+                      : "Diferencia detectada"}
+                  </Badge>
                 </div>
-
-                {/* Con un filtro activo la comprobacion parcial no certifica el
-                    libro entero, asi que se informa tambien del total general. */}
-                {hayFiltroActivo && (
-                  <span className="text-[10px] text-muted-foreground/80">
-                    Libro completo: {formatoMoneda(totalDebe)} {cuadraLibroCompleto ? "=" : "≠"}{" "}
-                    {formatoMoneda(totalHaber)}
-                  </span>
-                )}
-
-                <Badge
-                  variant={cuadraMovimientos && cuadraSaldos ? "success" : "warning"}
-                  className="font-mono text-[10px]"
-                >
-                  {cuadraMovimientos && cuadraSaldos
-                    ? "Balanza Cuadrada al Centavo ✓"
-                    : "Diferencia detectada"}
-                </Badge>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* PIE DE FIRMAS DE AUDITORÍA (IMPRESIÓN OFICIAL) */}

@@ -23,6 +23,7 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { BotonExportarUnificado } from "@/components/contabilidad/BotonExportarUnificado"
 
 import {
   Card,
@@ -3795,34 +3796,19 @@ ${filasBalance.join("")}
 
               <div className="flex flex-wrap justify-end gap-3 border-t border-border pt-6">
 
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    exportarExcel(
-                      ejercicioActivo
-                        .ejercicio.anio
-                    )
+                <BotonExportarUnificado
+                  label="Exportar Ejercicio"
+                  onExportarPdf={() =>
+                    exportarPdf(ejercicioActivo.ejercicio.anio)
                   }
-                >
-
-                  <FileSpreadsheet className="size-4" />
-
-                  Exportar a Excel
-                </Button>
-
-                <Button
-                  onClick={() =>
-                    exportarPdf(
-                      ejercicioActivo
-                        .ejercicio.anio
-                    )
+                  textoPdf="Generar Reporte PDF"
+                  descPdf="Libro diario, mayor y estados en PDF"
+                  onExportarExcel={() =>
+                    exportarExcel(ejercicioActivo.ejercicio.anio)
                   }
-                >
-
-                  <Download className="size-4" />
-
-                  Generar reporte PDF
-                </Button>
+                  textoExcel="Exportar a Excel"
+                  descExcel="Libros y balanza completa (.xlsx)"
+                />
 
               </div>
 

@@ -124,7 +124,33 @@ export async function GET(req: Request) {
     }));
 
     // 4. Calcular sumas y cuadratura del folio considerando partidas activas
-    const partidasActivas = partidas.filter((p) => p.estado !== "ANULADO")
+    // Identificar números de partidas originales que fueron modificadas o sustituidas por un Asiento de Ajuste
+    const numerosAjustados = new Set<number>()
+    for (const a of partidas) {
+      if (a.tipo === "AJUSTE") {
+        const matchDoc = a.documento_soporte?.match(/(?:Ajuste|Reversión)\s+P-(\d+)/i)
+        if (matchDoc) numerosAjustados.add(parseInt(matchDoc[1], 10))
+        const matchCon = a.concepto?.match(/Ajuste\s+a\s+Partida\s+#(\d+)/i)
+        if (matchCon) numerosAjustados.add(parseInt(matchCon[1], 10))
+      }
+    }
+
+    // Sincronizar en base de datos las partidas sustituidas para que queden marcadas como ANULADO
+    for (const num of numerosAjustados) {
+      const pOrig = partidas.find((p) => p.numero === num)
+      if (pOrig && pOrig.estado !== "ANULADO") {
+        pOrig.estado = "ANULADO"
+        pOrig.motivo_anulacion = pOrig.motivo_anulacion || "Modificada y sustituida por Asiento de Ajuste"
+        pool.query(
+          "UPDATE asiento SET estado = 'ANULADO', anulado_en = COALESCE(anulado_en, CURRENT_TIMESTAMP), motivo_anulacion = COALESCE(motivo_anulacion, 'Modificada y sustituida por Asiento de Ajuste') WHERE id = $1",
+          [pOrig.id]
+        ).catch(() => {})
+      }
+    }
+
+    const partidasActivas = partidas.filter(
+      (p) => p.estado !== "ANULADO" && !numerosAjustados.has(p.numero)
+    )
     let debeCents = 0
     let haberCents = 0
     let partidasCuadradas = 0
@@ -168,7 +194,7 @@ export async function GET(req: Request) {
         cuadrado,
         partidasCuadradas,
         partidasActivas: partidasActivas.length,
-        totalPartidas: partidas.length,
+        totalPartidas: partidasActivas.length,
       },
       foliosPreviosAbiertos: resPrevOpen.rows.map((r) => ({
         id: r.id,
