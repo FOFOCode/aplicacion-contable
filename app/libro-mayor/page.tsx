@@ -1160,13 +1160,14 @@ export default function LibroMayorPage() {
           </div>
 
           {/* CUADRÍCULA SIMÉTRICA DE TARJETAS */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-3.5 items-start">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3.5 sm:gap-4 items-start">
             {mayor.map((m) => {
               const movs = movimientosPorCuenta.get(m.cuenta.codigo) || { debe: [], haber: [] }
               const saldoCero = m.saldo === 0
               const contradiceNaturaleza =
                 m.cuenta.naturaleza === "deudora" ? m.saldo < 0 : m.saldo > 0
               const sobregirada = m.cuenta.tipo === "activo" && contradiceNaturaleza
+              const totalMovimientos = movs.debe.length + movs.haber.length
 
               const estaExpandida = cuentasExpandidas.has(m.cuenta.codigo)
               const estaEnHover = cuentaEnHover === m.cuenta.codigo
@@ -1176,7 +1177,10 @@ export default function LibroMayorPage() {
                   key={m.cuenta.codigo}
                   onMouseEnter={() => handleCardMouseEnter(m.cuenta.codigo)}
                   onMouseLeave={() => handleCardMouseLeave(m.cuenta.codigo)}
-                  className="relative"
+                  className={cn(
+                    "relative transition-all duration-300",
+                    estaExpandida ? "col-span-1 md:col-span-2" : "col-span-1"
+                  )}
                 >
                   {/* ========================================================= */}
                   {/* ESTADO 1: PASTILLA CONTRAÍDA (MINIMALISTA)                 */}
@@ -1271,12 +1275,12 @@ export default function LibroMayorPage() {
                     </div>
                   ) : (
                     /* ========================================================= */
-                    /* ESTADO 2: EXPANDIDA MEDIANAMENTE (CUENTA T SIMPLIFICADA)  */
+                    /* ESTADO 2: EXPANDIDA MEDIANAMENTE (CUENTA T AMPLIA Y CLARA) */
                     /* ========================================================= */
                     <div
                       className={cn(
                         "rounded-2xl border bg-card text-card-foreground shadow-xs transition-all relative overflow-hidden flex flex-col justify-between report-card",
-                        sobregirada ? "border-red-500/40 bg-red-500/[0.015]" : "border-primary/50"
+                        sobregirada ? "border-red-500/40 bg-red-500/[0.015]" : "border-primary/50 ring-1 ring-primary/20"
                       )}
                     >
                       {/* Micro barra hover 5s */}
@@ -1287,30 +1291,39 @@ export default function LibroMayorPage() {
                       )}
 
                       {/* Cabecera de la tarjeta expandida */}
-                      <div className="p-3 border-b border-border/60 flex items-center justify-between gap-2">
-                        <div className="min-w-0 flex items-center gap-2">
-                          <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-lg bg-muted text-foreground shrink-0">
+                      <div className="p-3.5 sm:p-4 border-b border-border/60 flex items-center justify-between gap-3 bg-muted/10">
+                        <div className="min-w-0 flex items-center gap-2.5">
+                          <span className="font-mono text-xs sm:text-sm font-extrabold px-2.5 py-1 rounded-lg bg-primary/10 text-primary shrink-0">
                             {m.cuenta.codigo}
                           </span>
-                          <h4 className="font-bold text-xs sm:text-sm text-foreground truncate" title={m.cuenta.nombre}>
-                            {m.cuenta.nombre}
-                          </h4>
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-sm sm:text-base text-foreground truncate" title={m.cuenta.nombre}>
+                              {m.cuenta.nombre}
+                            </h4>
+                            <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
+                              <span>{ETIQUETA_TIPO[m.cuenta.tipo]}</span>
+                              <span>·</span>
+                              <span className="capitalize">{m.cuenta.naturaleza}</span>
+                              <span>·</span>
+                              <span>{totalMovimientos} {totalMovimientos === 1 ? "movimiento" : "movimientos"}</span>
+                            </div>
+                          </div>
                         </div>
 
-                        <div className="flex items-center gap-1 shrink-0">
+                        <div className="flex items-center gap-1.5 shrink-0">
                           {sobregirada ? (
-                            <Badge variant="warning" className="text-[9px] font-bold px-1.5 py-0.5">Sobregiro</Badge>
+                            <Badge variant="warning" className="text-[10px] font-bold px-2 py-0.5">Sobregiro</Badge>
                           ) : saldoCero ? (
-                            <Badge variant="muted" className="text-[9px] px-1.5 py-0.5">Saldada</Badge>
+                            <Badge variant="muted" className="text-[10px] px-2 py-0.5">Saldada</Badge>
                           ) : m.naturalezaSaldo === "deudora" ? (
-                            <Badge variant="deudora" className="text-[9px] font-semibold px-2 py-0.5">Deudor</Badge>
+                            <Badge variant="deudora" className="text-[10px] font-semibold px-2.5 py-0.5">Deudor</Badge>
                           ) : (
-                            <Badge variant="default" className="text-[9px] font-semibold px-2 py-0.5 bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200">Acreedor</Badge>
+                            <Badge variant="default" className="text-[10px] font-semibold px-2.5 py-0.5 bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200">Acreedor</Badge>
                           )}
                           <button
                             type="button"
                             onClick={() => handleToggleExpandirTarjeta(m.cuenta.codigo)}
-                            className="size-7 rounded-lg flex items-center justify-center text-primary bg-primary/10 hover:bg-primary/20 transition-colors cursor-pointer"
+                            className="size-8 rounded-xl flex items-center justify-center text-primary bg-primary/10 hover:bg-primary/20 transition-colors cursor-pointer ml-1"
                             title="Contraer tarjeta"
                           >
                             <ChevronUp className="size-4" />
@@ -1318,98 +1331,126 @@ export default function LibroMayorPage() {
                         </div>
                       </div>
 
-                      {/* Mini Cuenta T simplificada */}
-                      <div className="p-3 space-y-2.5">
-                        <div className="rounded-xl border border-border/70 overflow-hidden text-[11px]">
-                          <div className="grid grid-cols-2 border-b border-border/70 bg-muted/40 text-[10px] font-bold text-muted-foreground uppercase text-center divide-x divide-border/70">
-                            <div className="py-1 px-2">Debe ({movs.debe.length})</div>
-                            <div className="py-1 px-2">Haber ({movs.haber.length})</div>
+                      {/* Cuenta T amplia y proporcionada */}
+                      <div className="p-3.5 sm:p-4 space-y-3">
+                        <div className="rounded-xl border border-border/70 overflow-hidden text-xs">
+                          {/* Encabezado columnas Debe y Haber */}
+                          <div className="grid grid-cols-2 border-b border-border/70 bg-muted/40 text-xs font-bold text-muted-foreground uppercase text-center divide-x divide-border/70">
+                            <div className="py-2 px-3 flex justify-between items-center">
+                              <span>DEBE (DÉBITOS)</span>
+                              <span className="font-mono text-[11px] font-normal">{movs.debe.length} cargos</span>
+                            </div>
+                            <div className="py-2 px-3 flex justify-between items-center">
+                              <span>HABER (CRÉDITOS)</span>
+                              <span className="font-mono text-[11px] font-normal">{movs.haber.length} abonos</span>
+                            </div>
                           </div>
 
-                          <div className="grid grid-cols-2 divide-x divide-border/70 min-h-[80px] max-h-[150px] overflow-y-auto">
+                          {/* Lista con altura ampliada cómodamente */}
+                          <div className="grid grid-cols-2 divide-x divide-border/70 min-h-[120px] max-h-[220px] overflow-y-auto">
                             {/* Lado Debe */}
-                            <div className="p-1.5 space-y-1">
+                            <div className="p-2 space-y-1.5 divide-y divide-border/30">
                               {movs.debe.length === 0 ? (
-                                <div className="py-6 text-center text-muted-foreground/30 text-[10px] italic">-</div>
+                                <div className="py-10 text-center text-muted-foreground/35 text-xs italic">
+                                  Sin cargos en este ejercicio
+                                </div>
                               ) : (
-                                movs.debe.slice(0, 5).map((d, i) => (
-                                  <div key={i} className="flex justify-between items-center text-[10px]">
-                                    <span className="text-muted-foreground/70 font-mono">#{d.numero}</span>
-                                    <span className="font-mono font-medium text-foreground tabular-nums">
+                                movs.debe.map((d, i) => (
+                                  <div key={i} className="flex justify-between items-center gap-2 pt-1.5 first:pt-0">
+                                    <div className="flex items-center gap-1.5 min-w-0 pr-1">
+                                      <span className="font-mono text-[11px] font-bold text-primary px-1.5 py-0.2 rounded bg-primary/10 shrink-0">
+                                        #{d.numero}
+                                      </span>
+                                      <span className="text-[11px] text-muted-foreground font-mono shrink-0 hidden sm:inline">
+                                        {d.fecha}
+                                      </span>
+                                      <span className="text-xs text-foreground font-medium truncate max-w-[110px] sm:max-w-[180px]" title={d.concepto}>
+                                        {d.concepto}
+                                      </span>
+                                    </div>
+                                    <span className="font-mono font-bold text-xs sm:text-sm text-foreground shrink-0 tabular-nums">
                                       {formatoMoneda(d.monto)}
                                     </span>
                                   </div>
                                 ))
                               )}
-                              {movs.debe.length > 5 && (
-                                <div className="text-[9px] text-muted-foreground/60 text-center font-mono">
-                                  +{movs.debe.length - 5} más
-                                </div>
-                              )}
                             </div>
 
                             {/* Lado Haber */}
-                            <div className="p-1.5 space-y-1">
+                            <div className="p-2 space-y-1.5 divide-y divide-border/30">
                               {movs.haber.length === 0 ? (
-                                <div className="py-6 text-center text-muted-foreground/30 text-[10px] italic">-</div>
+                                <div className="py-10 text-center text-muted-foreground/35 text-xs italic">
+                                  Sin abonos en este ejercicio
+                                </div>
                               ) : (
-                                movs.haber.slice(0, 5).map((h, i) => (
-                                  <div key={i} className="flex justify-between items-center text-[10px]">
-                                    <span className="text-muted-foreground/70 font-mono">#{h.numero}</span>
-                                    <span className="font-mono font-medium text-foreground tabular-nums">
+                                movs.haber.map((h, i) => (
+                                  <div key={i} className="flex justify-between items-center gap-2 pt-1.5 first:pt-0">
+                                    <div className="flex items-center gap-1.5 min-w-0 pr-1">
+                                      <span className="font-mono text-[11px] font-bold text-primary px-1.5 py-0.2 rounded bg-primary/10 shrink-0">
+                                        #{h.numero}
+                                      </span>
+                                      <span className="text-[11px] text-muted-foreground font-mono shrink-0 hidden sm:inline">
+                                        {h.fecha}
+                                      </span>
+                                      <span className="text-xs text-foreground font-medium truncate max-w-[110px] sm:max-w-[180px]" title={h.concepto}>
+                                        {h.concepto}
+                                      </span>
+                                    </div>
+                                    <span className="font-mono font-bold text-xs sm:text-sm text-foreground shrink-0 tabular-nums">
                                       {formatoMoneda(h.monto)}
                                     </span>
                                   </div>
                                 ))
                               )}
-                              {movs.haber.length > 5 && (
-                                <div className="text-[9px] text-muted-foreground/60 text-center font-mono">
-                                  +{movs.haber.length - 5} más
-                                </div>
-                              )}
                             </div>
                           </div>
 
-                          {/* Totales */}
-                          <div className="grid grid-cols-2 divide-x divide-border/70 border-t border-border/70 bg-muted/20 text-[10px] font-mono font-bold">
-                            <div className="py-1 px-1.5 text-right tabular-nums text-foreground">
-                              {formatoMoneda(m.debe)}
+                          {/* Totales Debe y Haber */}
+                          <div className="grid grid-cols-2 divide-x divide-border/70 border-t border-border/70 bg-muted/25 p-2.5 font-mono font-bold text-xs sm:text-sm">
+                            <div className="flex justify-between items-center pr-2">
+                              <span className="text-muted-foreground text-[10px] sm:text-xs uppercase font-semibold">Total Debe:</span>
+                              <span className="tabular-nums text-foreground">{formatoMoneda(m.debe)}</span>
                             </div>
-                            <div className="py-1 px-1.5 text-right tabular-nums text-foreground">
-                              {formatoMoneda(m.haber)}
+                            <div className="flex justify-between items-center pl-2">
+                              <span className="text-muted-foreground text-[10px] sm:text-xs uppercase font-semibold">Total Haber:</span>
+                              <span className="tabular-nums text-foreground">{formatoMoneda(m.haber)}</span>
                             </div>
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between text-xs pt-0.5">
-                          <span className="text-muted-foreground text-[11px] font-medium">Saldo Neto:</span>
-                          <span className="font-mono font-bold text-sm text-foreground tabular-nums">
-                            {formatoMoneda(Math.abs(m.saldo))}
-                          </span>
+                        {/* Fila de Saldo y Acciones */}
+                        <div className="flex items-center justify-between gap-3 pt-1">
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-xs font-semibold text-muted-foreground">Saldo Neto:</span>
+                            <span className="font-mono font-extrabold text-base sm:text-lg text-foreground tabular-nums">
+                              {formatoMoneda(Math.abs(m.saldo))}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleToggleExpandirTarjeta(m.cuenta.codigo)}
+                              className="h-8 px-2.5 text-xs cursor-pointer font-medium"
+                            >
+                              Contraer
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => {
+                                setCuentaActivaCodigo(m.cuenta.codigo)
+                                setVista("individual")
+                              }}
+                              className="h-8 px-3 gap-1.5 text-xs font-semibold cursor-pointer"
+                            >
+                              <span>Ver individual</span>
+                              <ArrowRight className="size-3.5" />
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-
-                      {/* Pie con opciones */}
-                      <div className="px-3 py-1.5 bg-muted/20 border-t border-border/60 flex items-center justify-between text-xs">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleExpandirTarjeta(m.cuenta.codigo)}
-                          className="text-[11px] text-muted-foreground hover:text-foreground font-medium cursor-pointer"
-                        >
-                          Contraer
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCuentaActivaCodigo(m.cuenta.codigo)
-                            setVista("individual")
-                          }}
-                          className="text-[11px] text-primary hover:underline font-medium inline-flex items-center gap-1 cursor-pointer"
-                        >
-                          <span>Abrir individual</span>
-                          <ArrowRight className="size-3" />
-                        </button>
                       </div>
                     </div>
                   )}
