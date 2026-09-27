@@ -210,6 +210,7 @@ export async function POST(req: Request) {
           const costoUnit = Math.max(0, parseFloat(m.costoUnitario || 0))
           const debe = Math.max(0, parseFloat(m.debe || 0))
           const haber = Math.max(0, parseFloat(m.haber || 0))
+          const saldo = Math.max(0, parseFloat(m.saldo || 0))
           const fecha = m.fecha ? String(m.fecha).slice(0, 10) : `${ejercicio}-01-01`
           // Validar que la fecha pertenezca al ejercicio fiscal solicitado
           if (fecha.slice(0, 4) !== String(ejercicio)) {
