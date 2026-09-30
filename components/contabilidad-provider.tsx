@@ -938,6 +938,14 @@ export function ContabilidadProvider({
                     ?.ejercicio ??
                   dbEjercicios[0]
                     .ejercicio
+
+                if (typeof window !== "undefined") {
+                  try {
+                    localStorage.setItem(STORAGE_EJERCICIO, ejercicioActivo.toString())
+                  } catch {
+                    // ignore
+                  }
+                }
               }
 
               setEjercicioSeleccionadoState(
@@ -2157,6 +2165,8 @@ export function ContabilidadProvider({
             await ejerciciosRes.json()
           )
         }
+
+        await recargarCierres()
 
         if (
           opciones?.aperturarSiguiente &&

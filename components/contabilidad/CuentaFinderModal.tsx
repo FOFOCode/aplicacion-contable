@@ -178,6 +178,7 @@ export function CuentaFinderModal({
       const nat = normalizarNaturaleza(c.naturaleza)
 
       // Sugerir operación según naturaleza y sugerencia de faltante
+      const infoIva = esCuentaSujetaAIVA(c.codigo)
       if (sugerenciaFaltante) {
         if (modoCaptura === "SMART") {
           if (sugerenciaFaltante.lado === "DEBE") {
@@ -188,13 +189,15 @@ export function CuentaFinderModal({
         } else {
           setLadoClasico(sugerenciaFaltante.lado)
         }
+      } else if (infoIva.esDevolucion) {
+        setLadoClasico(infoIva.ladoCuentaPrincipal)
+        setOperacionSmart("AUMENTA")
       } else {
         setOperacionSmart("AUMENTA")
         setLadoClasico(nat === "deudora" ? "DEBE" : "HABER")
       }
 
       // Si la cuenta es sujeta a IVA por defecto sugerir IVA Incluido o evaluarlo
-      const infoIva = esCuentaSujetaAIVA(c.codigo)
       if (infoIva.esSujeta) {
         // Dejar listo para que el usuario elija "No", "Más IVA" o "IVA Incluido"
         setModoIVA("IVA_INCLUIDO")
@@ -210,7 +213,17 @@ export function CuentaFinderModal({
   // Info de IVA para la cuenta seleccionada
   const infoIva = useMemo(() => {
     if (!cuentaSeleccionada) {
-      return { esSujeta: false, tipo: null, cuentaIvaCodigo: "", cuentaIvaNombre: "", impuestoNombre: "" }
+      return {
+        esSujeta: false,
+        tipo: null,
+        esDevolucion: false,
+        cuentaIvaCodigo: "",
+        cuentaIvaNombre: "",
+        impuestoNombre: "",
+        ladoCuentaPrincipal: "DEBE" as const,
+        ladoIva: "DEBE" as const,
+        operacionIvaSmart: "AUMENTA" as const,
+      }
     }
     return esCuentaSujetaAIVA(cuentaSeleccionada.codigo)
   }, [cuentaSeleccionada])
@@ -263,16 +276,17 @@ export function CuentaFinderModal({
       }
 
       // Si la cuenta es sujeta a IVA y se seleccionó modo IVA distinto de NO
+      // En compras regulares: 1105 al DEBE
+      // En devoluciones sobre compra: 1105 disminuye al HABER
+      // En ventas regulares: 2103 al HABER
+      // En devoluciones sobre venta: 2103 se debita al DEBE
       if (infoIva.esSujeta && modoIVA !== "NO" && ivaFinal > 0 && infoIva.cuentaIvaCodigo) {
-        const esCompraOActivo = infoIva.tipo === "COMPRA"
-        // En compras/activos: IVA Crédito Fiscal (1105) es cuenta deudora -> Aumenta al DEBE
-        // En ventas/ingresos: IVA Débito Fiscal (2103) es cuenta acreedora -> Aumenta al HABER
         resultado.lineaIva = {
           codigo: infoIva.cuentaIvaCodigo,
           monto: ivaFinal,
-          operacion: "AUMENTA",
-          debeDirecto: esCompraOActivo ? ivaFinal : undefined,
-          haberDirecto: esCompraOActivo ? undefined : ivaFinal,
+          operacion: infoIva.operacionIvaSmart,
+          debeDirecto: infoIva.ladoIva === "DEBE" ? ivaFinal : undefined,
+          haberDirecto: infoIva.ladoIva === "HABER" ? ivaFinal : undefined,
         }
       }
 
@@ -707,12 +721,16 @@ export function CuentaFinderModal({
                       <Zap className="size-4 text-amber-500 shrink-0" />
                       <div>
                         <h4 className="text-xs font-bold text-foreground">
-                          Asistente de IVA 13% ({infoIva.tipo === "COMPRA" ? "Crédito Fiscal" : "Débito Fiscal"})
+                          Asistente de IVA 13% ({infoIva.cuentaIvaNombre})
                         </h4>
                         <p className="text-[10px] text-muted-foreground">
-                          {infoIva.tipo === "COMPRA"
-                            ? "Adquisiciones y gastos aplican automáticamente a IVA Crédito Fiscal (1105)"
-                            : "Ventas e ingresos aplican automáticamente a IVA Débito Fiscal (2103)"}
+                          {infoIva.esDevolucion
+                            ? infoIva.tipo === "DEVOLUCION_COMPRA"
+                              ? "Devolución s/Compra: IVA Crédito Fiscal (1105) disminuye al HABER"
+                              : "Devolución s/Venta: IVA Débito Fiscal (2103) se debita al DEBE"
+                            : infoIva.tipo === "COMPRA"
+                              ? "Adquisiciones y gastos aplican automáticamente a IVA Crédito Fiscal (1105 al DEBE)"
+                              : "Ventas e ingresos aplican automáticamente a IVA Débito Fiscal (2103 al HABER)"}
                         </p>
                       </div>
                     </div>
@@ -764,12 +782,12 @@ export function CuentaFinderModal({
                   {modoIVA !== "NO" && montoNumerico > 0 && (
                     <div className="rounded-lg bg-background/80 border border-border p-2.5 text-xs font-mono tabular-nums space-y-1">
                       <div className="flex justify-between text-muted-foreground text-[11px]">
-                        <span>Base Neta ({cuentaSeleccionada.nombre}):</span>
+                        <span>Base Neta ({cuentaSeleccionada.nombre}) [{infoIva.ladoCuentaPrincipal}]:</span>
                         <strong className="text-foreground">{formatoMoneda(desgloseIVA.base)}</strong>
                       </div>
                       <div className="flex justify-between text-amber-600 dark:text-amber-400 text-[11px]">
                         <span>
-                          + {infoIva.tipo === "COMPRA" ? "IVA Crédito Fiscal (1105)" : "IVA Débito Fiscal (2103)"}:
+                          + {infoIva.cuentaIvaNombre} ({infoIva.cuentaIvaCodigo}) [{infoIva.ladoIva}]:
                         </span>
                         <strong>{formatoMoneda(desgloseIVA.iva)}</strong>
                       </div>

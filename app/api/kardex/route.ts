@@ -204,9 +204,9 @@ export async function POST(req: Request) {
         }
 
         for (const m of uniqueMovs) {
-          const uEntrada = Math.max(0, parseFloat(m.unidadesEntrada || 0))
-          const uSalida = Math.max(0, parseFloat(m.unidadesSalida || 0))
-          const uSaldo = Math.max(0, parseFloat(m.unidadesSaldo || 0))
+          const uEntrada = Math.ceil(Math.max(0, parseFloat(m.unidadesEntrada || 0)))
+          const uSalida = Math.ceil(Math.max(0, parseFloat(m.unidadesSalida || 0)))
+          const uSaldo = Math.ceil(Math.max(0, parseFloat(m.unidadesSaldo || 0)))
           const costoUnit = Math.max(0, parseFloat(m.costoUnitario || 0))
           const debe = Math.max(0, parseFloat(m.debe || 0))
           const haber = Math.max(0, parseFloat(m.haber || 0))
@@ -322,12 +322,15 @@ export async function POST(req: Request) {
     // ACCIÓN: Registrar nuevo movimiento de Kardex con Costo Promedio Ponderado
     const ejercicio = body.ejercicio ? parseInt(body.ejercicio, 10) : new Date().getFullYear()
     const articuloCodigo = body.articuloCodigo || "ART-001"
-    const fecha = body.fecha || new Date().toISOString().slice(0, 10)
+    let fecha = body.fecha ? String(body.fecha).slice(0, 10) : `${ejercicio}-12-31`
+    if (fecha.slice(0, 4) !== String(ejercicio)) {
+      fecha = `${ejercicio}-12-31`
+    }
     const comprobante = body.comprobante ? String(body.comprobante).trim() : "COMP-001"
     const concepto = body.concepto ? String(body.concepto).trim() : "Movimiento de almacén"
     const tipo = body.tipo || "ENTRADA"
-    const unidadesEntrada = Math.max(0, parseFloat(body.unidadesEntrada || 0))
-    const unidadesSalida = Math.max(0, parseFloat(body.unidadesSalida || 0))
+    const unidadesEntrada = Math.ceil(Math.max(0, parseFloat(body.unidadesEntrada || 0)))
+    const unidadesSalida = Math.ceil(Math.max(0, parseFloat(body.unidadesSalida || 0)))
     const costoInput = Math.max(0, parseFloat(body.costoUnitario || 0))
 
     // Validar existencia del artículo
@@ -353,7 +356,7 @@ export async function POST(req: Request) {
     let uSaldoAnt = 0
     let mSaldoAnt = 0
     if (resUltimo.rows.length > 0) {
-      uSaldoAnt = resUltimo.rows[0].unidades_saldo
+      uSaldoAnt = Math.ceil(resUltimo.rows[0].unidades_saldo || 0)
       mSaldoAnt = resUltimo.rows[0].saldo
     }
 
@@ -364,7 +367,7 @@ export async function POST(req: Request) {
     let haber = 0
 
     if (tipo === "ENTRADA" || tipo === "DEVOLUCION_VENTA") {
-      uSaldoNuevo = uSaldoAnt + unidadesEntrada
+      uSaldoNuevo = Math.ceil(uSaldoAnt + unidadesEntrada)
       debe = Math.round(unidadesEntrada * costoUnitario * 100) / 100
       mSaldoNuevo = Math.round((mSaldoAnt + debe) * 100) / 100
       costoUnitario = uSaldoNuevo > 0 ? Math.round((mSaldoNuevo / uSaldoNuevo) * 10000) / 10000 : costoInput
@@ -372,16 +375,30 @@ export async function POST(req: Request) {
       if (uSaldoAnt > 0 && mSaldoAnt > 0) {
         costoUnitario = Math.round((mSaldoAnt / uSaldoAnt) * 10000) / 10000
       }
-      uSaldoNuevo = Math.max(0, uSaldoAnt - unidadesSalida)
+      uSaldoNuevo = Math.max(0, Math.ceil(uSaldoAnt - unidadesSalida))
       haber = Math.round(unidadesSalida * costoUnitario * 100) / 100
       mSaldoNuevo = Math.max(0, Math.round((mSaldoAnt - haber) * 100) / 100)
     } else if (tipo === "AJUSTE") {
-      if (unidadesEntrada > 0) {
-        uSaldoNuevo = uSaldoAnt + unidadesEntrada
+      if (body.saldo !== undefined && body.saldo !== null) {
+        const saldoDeseado = Math.max(0, parseFloat(body.saldo || 0))
+        mSaldoNuevo = saldoDeseado
+        const diff = Math.round((saldoDeseado - mSaldoAnt) * 100) / 100
+        if (diff >= 0) {
+          debe = diff
+          haber = 0
+          uSaldoNuevo = unidadesEntrada > 0 ? Math.ceil(uSaldoAnt + unidadesEntrada) : uSaldoAnt
+        } else {
+          debe = 0
+          haber = Math.abs(diff)
+          uSaldoNuevo = unidadesSalida > 0 ? Math.max(0, Math.ceil(uSaldoAnt - unidadesSalida)) : uSaldoAnt
+        }
+        costoUnitario = uSaldoNuevo > 0 ? Math.round((mSaldoNuevo / uSaldoNuevo) * 10000) / 10000 : costoInput
+      } else if (unidadesEntrada > 0) {
+        uSaldoNuevo = Math.ceil(uSaldoAnt + unidadesEntrada)
         debe = Math.round(unidadesEntrada * costoUnitario * 100) / 100
         mSaldoNuevo = Math.round((mSaldoAnt + debe) * 100) / 100
       } else {
-        uSaldoNuevo = Math.max(0, uSaldoAnt - unidadesSalida)
+        uSaldoNuevo = Math.max(0, Math.ceil(uSaldoAnt - unidadesSalida))
         haber = Math.round(unidadesSalida * costoUnitario * 100) / 100
         mSaldoNuevo = Math.max(0, Math.round((mSaldoAnt - haber) * 100) / 100)
       }
