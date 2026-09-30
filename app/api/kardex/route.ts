@@ -322,7 +322,10 @@ export async function POST(req: Request) {
     // ACCIÓN: Registrar nuevo movimiento de Kardex con Costo Promedio Ponderado
     const ejercicio = body.ejercicio ? parseInt(body.ejercicio, 10) : new Date().getFullYear()
     const articuloCodigo = body.articuloCodigo || "ART-001"
-    const fecha = body.fecha || new Date().toISOString().slice(0, 10)
+    let fecha = body.fecha ? String(body.fecha).slice(0, 10) : `${ejercicio}-12-31`
+    if (fecha.slice(0, 4) !== String(ejercicio)) {
+      fecha = `${ejercicio}-12-31`
+    }
     const comprobante = body.comprobante ? String(body.comprobante).trim() : "COMP-001"
     const concepto = body.concepto ? String(body.concepto).trim() : "Movimiento de almacén"
     const tipo = body.tipo || "ENTRADA"
@@ -376,7 +379,21 @@ export async function POST(req: Request) {
       haber = Math.round(unidadesSalida * costoUnitario * 100) / 100
       mSaldoNuevo = Math.max(0, Math.round((mSaldoAnt - haber) * 100) / 100)
     } else if (tipo === "AJUSTE") {
-      if (unidadesEntrada > 0) {
+      if (body.saldo !== undefined && body.saldo !== null) {
+        const saldoDeseado = Math.max(0, parseFloat(body.saldo || 0))
+        mSaldoNuevo = saldoDeseado
+        const diff = Math.round((saldoDeseado - mSaldoAnt) * 100) / 100
+        if (diff >= 0) {
+          debe = diff
+          haber = 0
+          uSaldoNuevo = unidadesEntrada > 0 ? uSaldoAnt + unidadesEntrada : uSaldoAnt
+        } else {
+          debe = 0
+          haber = Math.abs(diff)
+          uSaldoNuevo = unidadesSalida > 0 ? Math.max(0, uSaldoAnt - unidadesSalida) : uSaldoAnt
+        }
+        costoUnitario = uSaldoNuevo > 0 ? Math.round((mSaldoNuevo / uSaldoNuevo) * 10000) / 10000 : costoInput
+      } else if (unidadesEntrada > 0) {
         uSaldoNuevo = uSaldoAnt + unidadesEntrada
         debe = Math.round(unidadesEntrada * costoUnitario * 100) / 100
         mSaldoNuevo = Math.round((mSaldoAnt + debe) * 100) / 100

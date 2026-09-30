@@ -72,7 +72,10 @@ export async function POST(req: Request) {
     const ejercicio = body.ejercicio
       ? parseInt(body.ejercicio, 10)
       : new Date().getFullYear();
-    const fechaToma = body.fecha_toma || new Date().toISOString().slice(0, 10);
+    let fechaToma = body.fecha_toma ? String(body.fecha_toma).slice(0, 10) : `${ejercicio}-12-31`;
+    if (fechaToma.slice(0, 4) !== String(ejercicio)) {
+      fechaToma = `${ejercicio}-12-31`;
+    }
     const valor =
       typeof body.valor_inventario_final === "number"
         ? body.valor_inventario_final

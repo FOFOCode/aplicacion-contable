@@ -899,7 +899,11 @@ function KardexContent() {
         : totalesKardex.saldoFinal || 0;
     setValorFijarInv(saldoActual > 0 ? saldoActual.toFixed(2) : "");
     setUnidadesFijarInv(totalesKardex.saldoUnidades > 0 ? totalesKardex.saldoUnidades.toString() : "");
-    setFechaFijarInv(tomaFisica?.fecha_toma || `${ejercicioSeleccionado}-12-31`);
+    const fTomaRaw = tomaFisica?.fecha_toma ? String(tomaFisica.fecha_toma).slice(0, 10) : "";
+    const fTomaValida = fTomaRaw && fTomaRaw.slice(0, 4) === String(ejercicioSeleccionado)
+      ? fTomaRaw
+      : `${ejercicioSeleccionado}-12-31`;
+    setFechaFijarInv(fTomaValida);
     setResponsableFijarInv(tomaFisica?.responsable || "Control de Almacén y Auditoría");
     setObsFijarInv(tomaFisica?.observaciones || "Toma física de inventario al cierre del ejercicio");
     setModalFijarInvFinal(true);
@@ -915,10 +919,14 @@ function KardexContent() {
     }
     setGuardandoFijarInv(true);
     try {
+      const fechaNormalizada = fechaFijarInv && fechaFijarInv.slice(0, 4) === String(ejercicioSeleccionado)
+        ? fechaFijarInv.slice(0, 10)
+        : `${ejercicioSeleccionado}-12-31`;
+
       // 1. Guardar en Toma Física Oficial (impacta de inmediato Estados Financieros, Costo de Ventas y Balance)
-      await guardarTomaFisica({
+      const exitoToma = await guardarTomaFisica({
         ejercicio: ejercicioSeleccionado,
-        fecha_toma: fechaFijarInv || `${ejercicioSeleccionado}-12-31`,
+        fecha_toma: fechaNormalizada,
         valor_inventario_final: valorNum,
         responsable: responsableFijarInv || "Control de Almacén y Auditoría",
         observaciones: obsFijarInv || "Toma física directa desde Kardex",
@@ -926,45 +934,59 @@ function KardexContent() {
         origen: "KARDEX_DIRECTO",
       });
 
-      // 2. Si la base de datos está conectada y estamos en modo automático, registrar o calibrar en Kardex
+      if (!exitoToma) {
+        console.warn("No se pudo persistir toma física en BD, continuando...");
+      }
+
+      // 2. Si la base de datos está conectada, asentar el movimiento calibrador en Kardex
       if (dbConnected) {
         const deltaValor = valorNum - totalesKardex.saldoFinal;
         const deltaUnidades = uNum > 0 ? uNum - totalesKardex.saldoUnidades : 0;
         const costoUnitario = uNum > 0 ? redondear(valorNum / uNum) : (totalesKardex.costoPromedioActual || 5);
 
         if (movimientosKardex.length === 0) {
-          await fetch("/api/kardex", {
+          const res = await fetch("/api/kardex", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               articuloCodigo: articuloActual.codigo,
               ejercicio: ejercicioSeleccionado,
-              fecha: fechaFijarInv || `${ejercicioSeleccionado}-12-31`,
+              fecha: fechaNormalizada,
               comprobante: `TF-${ejercicioSeleccionado}`,
-              concepto: `Inventario final según toma física de auditoría (${responsableFijarInv})`,
+              concepto: `Inventario inicial/final según toma física (${responsableFijarInv})`,
               tipo: "ENTRADA",
+              saldo: valorNum,
               unidadesEntrada: uNum > 0 ? uNum : 100,
               unidadesSalida: 0,
               costoUnitario: costoUnitario,
             }),
           });
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || "Error al inicializar movimiento en Kardex.");
+          }
         } else if (Math.abs(deltaValor) >= 0.01) {
           const esEntrada = deltaValor > 0;
-          await fetch("/api/kardex", {
+          const res = await fetch("/api/kardex", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               articuloCodigo: articuloActual.codigo,
               ejercicio: ejercicioSeleccionado,
-              fecha: fechaFijarInv || `${ejercicioSeleccionado}-12-31`,
+              fecha: fechaNormalizada,
               comprobante: `AJU-${ejercicioSeleccionado}`,
               concepto: `Ajuste por toma física final (${responsableFijarInv})`,
               tipo: "AJUSTE",
-              unidadesEntrada: esEntrada ? Math.abs(deltaUnidades) : 0,
-              unidadesSalida: !esEntrada ? Math.abs(deltaUnidades) : 0,
+              saldo: valorNum,
+              unidadesEntrada: esEntrada && deltaUnidades > 0 ? Math.abs(deltaUnidades) : 0,
+              unidadesSalida: !esEntrada && deltaUnidades < 0 ? Math.abs(deltaUnidades) : 0,
               costoUnitario: costoUnitario,
             }),
           });
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || "Error al registrar ajuste en Kardex.");
+          }
         }
 
         const res = await fetch(`/api/kardex?ejercicio=${ejercicioSeleccionado}&articulo=${articuloId}`);
@@ -979,9 +1001,10 @@ function KardexContent() {
       setModalFijarInvFinal(false);
       setMensajeExitoAuto(`✅ Inventario final fijado en ${formatoMoneda(valorNum)} de un solo golpe.`);
       setTimeout(() => setMensajeExitoAuto(null), 6000);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Error al fijar inventario final:", err);
-      alert("Error al fijar inventario final.");
+      const msg = err instanceof Error ? err.message : "Error al fijar inventario final.";
+      alert(msg);
     } finally {
       setGuardandoFijarInv(false);
     }
