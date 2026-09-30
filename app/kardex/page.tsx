@@ -999,7 +999,7 @@ function KardexContent() {
       }
 
       setModalFijarInvFinal(false);
-      setMensajeExitoAuto(`✅ Inventario final fijado en ${formatoMoneda(valorNum)} de un solo golpe.`);
+      setMensajeExitoAuto(`✅ Inventario final fijado en ${formatoMoneda(valorNum)}.`);
       setTimeout(() => setMensajeExitoAuto(null), 6000);
     } catch (err: unknown) {
       console.error("Error al fijar inventario final:", err);
@@ -2118,10 +2118,10 @@ function KardexContent() {
                 variant="outline"
                 onClick={abrirModalFijarInvFinal}
                 className="h-8 gap-1.5 text-xs font-semibold border-emerald-500/40 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 hover:text-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-500/20 cursor-pointer shadow-2xs"
-                title="Fijar el inventario final de un solo golpe según conteo físico de almacén"
+                title="Fijar inventario final según conteo físico"
               >
                 <ClipboardCheck className="size-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span>Fijar Inv. Final</span>
+                <span>Inventario Final</span>
               </Button>
               <BotonExportarUnificado
                 onExportarPdf={exportarPdf}
@@ -4246,7 +4246,7 @@ function KardexContent() {
       )}
 
       {/* ======================================================== */}
-      {/* 6.1. MODAL PARA FIJAR INVENTARIO FINAL DE UN SOLO GOLPE  */}
+      {/* 6.1. MODAL PARA FIJAR INVENTARIO FINAL                   */}
       {/* ======================================================== */}
       {modalFijarInvFinal && (
         <div
@@ -4266,7 +4266,7 @@ function KardexContent() {
                 </div>
                 <div>
                   <h3 className="font-bold text-base text-foreground leading-tight">
-                    Fijar Inventario Final (De un Solo Golpe)
+                    Fijar Inventario Final
                   </h3>
                   <p className="text-xs text-muted-foreground">
                     Ciclo Fiscal {ejercicioSeleccionado} · Conteo físico oficial de auditoría
