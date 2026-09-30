@@ -11,6 +11,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ClipboardCheck,
   ClipboardList,
   ExternalLink,
   Eye,
@@ -297,6 +298,15 @@ function KardexContent() {
   >("idle");
   const [guardandoMovimientoAuto, setGuardandoMovimientoAuto] = useState(false);
   const [mensajeExitoAuto, setMensajeExitoAuto] = useState<string | null>(null);
+
+  // Estados para modal Fijar Inventario Final de un Solo
+  const [modalFijarInvFinal, setModalFijarInvFinal] = useState(false);
+  const [valorFijarInv, setValorFijarInv] = useState<string>("");
+  const [unidadesFijarInv, setUnidadesFijarInv] = useState<string>("");
+  const [fechaFijarInv, setFechaFijarInv] = useState<string>(`${ejercicioSeleccionado}-12-31`);
+  const [responsableFijarInv, setResponsableFijarInv] = useState<string>("Control de Almacén y Auditoría");
+  const [obsFijarInv, setObsFijarInv] = useState<string>("Toma física de inventario al cierre del ejercicio");
+  const [guardandoFijarInv, setGuardandoFijarInv] = useState(false);
 
   function handleCambioTipoAuto(tipo: MovimientoKardexInventario["tipo"]) {
     setNuevoTipo(tipo);
@@ -881,6 +891,101 @@ function KardexContent() {
       costoPromedioActual: costoUnitarioMedio,
     };
   }, [movimientosKardexVista]);
+
+  function abrirModalFijarInvFinal() {
+    const saldoActual =
+      (tomaFisica?.valor_inventario_final && tomaFisica.valor_inventario_final > 0)
+        ? tomaFisica.valor_inventario_final
+        : totalesKardex.saldoFinal || 0;
+    setValorFijarInv(saldoActual > 0 ? saldoActual.toFixed(2) : "");
+    setUnidadesFijarInv(totalesKardex.saldoUnidades > 0 ? totalesKardex.saldoUnidades.toString() : "");
+    setFechaFijarInv(tomaFisica?.fecha_toma || `${ejercicioSeleccionado}-12-31`);
+    setResponsableFijarInv(tomaFisica?.responsable || "Control de Almacén y Auditoría");
+    setObsFijarInv(tomaFisica?.observaciones || "Toma física de inventario al cierre del ejercicio");
+    setModalFijarInvFinal(true);
+  }
+
+  async function handleGuardarFijarInvFinal(e: React.FormEvent) {
+    e.preventDefault();
+    const valorNum = Math.max(0, parseFloat(valorFijarInv) || 0);
+    const uNum = Math.max(0, parseFloat(unidadesFijarInv) || 0);
+    if (valorNum <= 0) {
+      alert("Por favor ingrese un valor de inventario final válido mayor a $0.00");
+      return;
+    }
+    setGuardandoFijarInv(true);
+    try {
+      // 1. Guardar en Toma Física Oficial (impacta de inmediato Estados Financieros, Costo de Ventas y Balance)
+      await guardarTomaFisica({
+        ejercicio: ejercicioSeleccionado,
+        fecha_toma: fechaFijarInv || `${ejercicioSeleccionado}-12-31`,
+        valor_inventario_final: valorNum,
+        responsable: responsableFijarInv || "Control de Almacén y Auditoría",
+        observaciones: obsFijarInv || "Toma física directa desde Kardex",
+        es_manual: true,
+        origen: "KARDEX_DIRECTO",
+      });
+
+      // 2. Si la base de datos está conectada y estamos en modo automático, registrar o calibrar en Kardex
+      if (dbConnected) {
+        const deltaValor = valorNum - totalesKardex.saldoFinal;
+        const deltaUnidades = uNum > 0 ? uNum - totalesKardex.saldoUnidades : 0;
+        const costoUnitario = uNum > 0 ? redondear(valorNum / uNum) : (totalesKardex.costoPromedioActual || 5);
+
+        if (movimientosKardex.length === 0) {
+          await fetch("/api/kardex", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              articuloCodigo: articuloActual.codigo,
+              ejercicio: ejercicioSeleccionado,
+              fecha: fechaFijarInv || `${ejercicioSeleccionado}-12-31`,
+              comprobante: `TF-${ejercicioSeleccionado}`,
+              concepto: `Inventario final según toma física de auditoría (${responsableFijarInv})`,
+              tipo: "ENTRADA",
+              unidadesEntrada: uNum > 0 ? uNum : 100,
+              unidadesSalida: 0,
+              costoUnitario: costoUnitario,
+            }),
+          });
+        } else if (Math.abs(deltaValor) >= 0.01) {
+          const esEntrada = deltaValor > 0;
+          await fetch("/api/kardex", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              articuloCodigo: articuloActual.codigo,
+              ejercicio: ejercicioSeleccionado,
+              fecha: fechaFijarInv || `${ejercicioSeleccionado}-12-31`,
+              comprobante: `AJU-${ejercicioSeleccionado}`,
+              concepto: `Ajuste por toma física final (${responsableFijarInv})`,
+              tipo: "AJUSTE",
+              unidadesEntrada: esEntrada ? Math.abs(deltaUnidades) : 0,
+              unidadesSalida: !esEntrada ? Math.abs(deltaUnidades) : 0,
+              costoUnitario: costoUnitario,
+            }),
+          });
+        }
+
+        const res = await fetch(`/api/kardex?ejercicio=${ejercicioSeleccionado}&articulo=${articuloId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.movimientos)) {
+            setMovimientosKardex(data.movimientos);
+          }
+        }
+      }
+
+      setModalFijarInvFinal(false);
+      setMensajeExitoAuto(`✅ Inventario final fijado en ${formatoMoneda(valorNum)} de un solo golpe.`);
+      setTimeout(() => setMensajeExitoAuto(null), 6000);
+    } catch (err) {
+      console.error("Error al fijar inventario final:", err);
+      alert("Error al fijar inventario final.");
+    } finally {
+      setGuardandoFijarInv(false);
+    }
+  }
 
   async function agregarMovimientoKardex(e: React.FormEvent) {
     e.preventDefault();
@@ -1984,6 +2089,17 @@ function KardexContent() {
                   Registrar Movimiento
                 </Button>
               )}
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={abrirModalFijarInvFinal}
+                className="h-8 gap-1.5 text-xs font-semibold border-emerald-500/40 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 hover:text-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-500/20 cursor-pointer shadow-2xs"
+                title="Fijar el inventario final de un solo golpe según conteo físico de almacén"
+              >
+                <ClipboardCheck className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>Fijar Inv. Final</span>
+              </Button>
               <BotonExportarUnificado
                 onExportarPdf={exportarPdf}
                 textoPdf="Imprimir / PDF"
@@ -4102,6 +4218,172 @@ function KardexContent() {
                 </form>
               );
             })()}
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* 6.1. MODAL PARA FIJAR INVENTARIO FINAL DE UN SOLO GOLPE  */}
+      {/* ======================================================== */}
+      {modalFijarInvFinal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in"
+          onClick={() => setModalFijarInvFinal(false)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="w-full max-w-lg rounded-xl border border-border bg-card p-5 sm:p-6 shadow-2xl space-y-4 animate-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <div className="flex size-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <ClipboardCheck className="size-4.5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-foreground leading-tight">
+                    Fijar Inventario Final (De un Solo Golpe)
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Ciclo Fiscal {ejercicioSeleccionado} · Conteo físico oficial de auditoría
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalFijarInvFinal(false)}
+                className="text-muted-foreground hover:text-foreground rounded-lg p-1 cursor-pointer"
+                aria-label="Cerrar modal"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleGuardarFijarInvFinal} className="space-y-4 text-xs">
+              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-emerald-900 dark:text-emerald-200 space-y-1">
+                <p className="font-semibold text-xs flex items-center gap-1.5">
+                  <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
+                  Impacto Inmediato en Todo el Sistema:
+                </p>
+                <p className="text-[11px] text-emerald-800/80 dark:text-emerald-300/80 leading-relaxed">
+                  Este valor se asienta como la <strong>Toma Física Oficial</strong> del año, actualizando de inmediato el <strong>Costo de Ventas</strong>, la <strong>Utilidad Bruta</strong> y el <strong>Balance General</strong>, y calibra la tarjeta de Kardex sin obligarte a registrar póliza por póliza.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="font-semibold text-foreground">
+                    Valor Total del Inventario ($ USD) *
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 font-bold text-muted-foreground">
+                      $
+                    </span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      placeholder="0.00"
+                      value={valorFijarInv}
+                      onChange={(e) => setValorFijarInv(e.target.value)}
+                      required
+                      autoFocus
+                      className="w-full rounded-lg border border-border bg-background pl-7 pr-3 py-2 font-mono font-bold text-sm text-foreground focus:ring-1 focus:ring-primary focus:outline-hidden"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-medium text-foreground">
+                    Unidades en Existencia ({articuloActual.unidad}):
+                  </label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    placeholder="Ej. 982"
+                    value={unidadesFijarInv}
+                    onChange={(e) => setUnidadesFijarInv(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs focus:ring-1 focus:ring-primary focus:outline-hidden"
+                  />
+                  <span className="text-[10px] text-muted-foreground block">
+                    Opcional para cálculo de CPP
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="font-medium text-foreground">
+                    Fecha de Conteo / Corte:
+                  </label>
+                  <input
+                    type="date"
+                    value={fechaFijarInv}
+                    onChange={(e) => setFechaFijarInv(e.target.value)}
+                    required
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs focus:ring-1 focus:ring-primary focus:outline-hidden"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-medium text-foreground">
+                    Responsable de Auditoría:
+                  </label>
+                  <input
+                    type="text"
+                    value={responsableFijarInv}
+                    onChange={(e) => setResponsableFijarInv(e.target.value)}
+                    required
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs focus:ring-1 focus:ring-primary focus:outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-medium text-foreground">
+                  Observaciones / Acta de Conteo:
+                </label>
+                <input
+                  type="text"
+                  value={obsFijarInv}
+                  onChange={(e) => setObsFijarInv(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs focus:ring-1 focus:ring-primary focus:outline-hidden"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 border-t border-border pt-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setModalFijarInvFinal(false)}
+                  disabled={guardandoFijarInv}
+                  className="cursor-pointer"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={guardandoFijarInv}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer font-semibold"
+                >
+                  {guardandoFijarInv ? (
+                    <>
+                      <RotateCcw className="size-3.5 animate-spin mr-1.5" />
+                      Guardando...
+                    </>
+                  ) : (
+                    <>
+                      <ClipboardCheck className="size-3.5 mr-1.5" />
+                      Fijar Inventario Final
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
       )}
