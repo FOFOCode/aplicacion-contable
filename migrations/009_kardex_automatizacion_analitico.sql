@@ -91,14 +91,14 @@ BEGIN
         v_costo_ant := 5.0000; -- Costo base de respaldo si está en cero
     END IF;
 
-    -- Calcular unidades y montos según tipo
+    -- Calcular unidades y montos según tipo (redondeando unidades siempre a entero hacia arriba si hay decimal > 0: CEIL)
     IF v_tipo = 'ENTRADA' THEN
         IF p_cantidad IS NOT NULL AND p_cantidad > 0 THEN
-            v_u_entrada := p_cantidad;
-            v_costo_operacion := ROUND(p_monto / p_cantidad, 4);
+            v_u_entrada := CEIL(p_cantidad);
+            v_costo_operacion := ROUND(p_monto / v_u_entrada, 4);
         ELSE
-            -- Estimar unidades según costo vigente
-            v_u_entrada := ROUND(p_monto / v_costo_ant, 2);
+            -- Estimar unidades según costo vigente redondeando hacia arriba a entero
+            v_u_entrada := CEIL(p_monto / v_costo_ant);
             v_costo_operacion := v_costo_ant;
         END IF;
         v_debe := p_monto;
@@ -111,10 +111,10 @@ BEGIN
 
     ELSIF v_tipo = 'SALIDA' THEN
         IF p_cantidad IS NOT NULL AND p_cantidad > 0 THEN
-            v_u_salida := p_cantidad;
+            v_u_salida := CEIL(p_cantidad);
         ELSE
-            -- En ventas p_monto es precio comercial (estimar unidades con margen 35%)
-            v_u_salida := ROUND(p_monto / (v_costo_ant * 1.35), 2);
+            -- En ventas p_monto es precio comercial (estimar unidades con margen 35% y redondear hacia arriba)
+            v_u_salida := CEIL(p_monto / (v_costo_ant * 1.35));
         END IF;
         v_costo_operacion := v_costo_ant;
         v_haber := ROUND(v_u_salida * v_costo_operacion, 2);
@@ -123,7 +123,7 @@ BEGIN
         v_m_saldo_nuevo := GREATEST(0, v_m_saldo_ant - v_haber);
 
     ELSIF v_tipo = 'DEVOLUCION_COMPRA' THEN
-        v_u_salida := COALESCE(p_cantidad, ROUND(p_monto / v_costo_ant, 2));
+        v_u_salida := CEIL(COALESCE(p_cantidad, p_monto / v_costo_ant));
         v_costo_operacion := v_costo_ant;
         v_haber := ROUND(v_u_salida * v_costo_operacion, 2);
         v_debe := 0.00;
@@ -131,7 +131,7 @@ BEGIN
         v_m_saldo_nuevo := GREATEST(0, v_m_saldo_ant - v_haber);
 
     ELSIF v_tipo = 'DEVOLUCION_VENTA' THEN
-        v_u_entrada := COALESCE(p_cantidad, ROUND(p_monto / (v_costo_ant * 1.35), 2));
+        v_u_entrada := CEIL(COALESCE(p_cantidad, p_monto / (v_costo_ant * 1.35)));
         v_costo_operacion := v_costo_ant;
         v_debe := ROUND(v_u_entrada * v_costo_operacion, 2);
         v_haber := 0.00;

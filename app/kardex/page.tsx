@@ -144,26 +144,28 @@ function recalcularKardexMovimientos(
     let costoUnit = m.costoUnitario;
     let debe = 0;
     let haber = 0;
+    const uIn = Math.ceil(m.unidadesEntrada || 0);
+    const uOut = Math.ceil(m.unidadesSalida || 0);
 
     if (m.tipo === "ENTRADA" || m.tipo === "DEVOLUCION_VENTA") {
-      uSaldo += m.unidadesEntrada;
-      debe = redondear(m.unidadesEntrada * costoUnit);
+      uSaldo += uIn;
+      debe = redondear(uIn * costoUnit);
       mSaldo = redondear(mSaldo + debe);
     } else if (m.tipo === "SALIDA" || m.tipo === "DEVOLUCION_COMPRA") {
       if (uSaldo > 0 && mSaldo > 0) {
         costoUnit = Math.round((mSaldo / uSaldo) * 10000) / 10000;
       }
-      uSaldo -= m.unidadesSalida;
-      haber = redondear(m.unidadesSalida * costoUnit);
+      uSaldo = Math.max(0, uSaldo - uOut);
+      haber = redondear(uOut * costoUnit);
       mSaldo = redondear(mSaldo - haber);
     } else if (m.tipo === "AJUSTE") {
-      if (m.unidadesEntrada > 0) {
-        uSaldo += m.unidadesEntrada;
-        debe = redondear(m.unidadesEntrada * costoUnit);
+      if (uIn > 0) {
+        uSaldo += uIn;
+        debe = redondear(uIn * costoUnit);
         mSaldo = redondear(mSaldo + debe);
       } else {
-        uSaldo -= m.unidadesSalida;
-        haber = redondear(m.unidadesSalida * costoUnit);
+        uSaldo = Math.max(0, uSaldo - uOut);
+        haber = redondear(uOut * costoUnit);
         mSaldo = redondear(mSaldo - haber);
       }
     }
@@ -174,9 +176,9 @@ function recalcularKardexMovimientos(
       comprobante: m.comprobante,
       concepto: m.concepto,
       tipo: m.tipo,
-      unidadesEntrada: m.unidadesEntrada,
-      unidadesSalida: m.unidadesSalida,
-      unidadesSaldo: Math.max(0, uSaldo),
+      unidadesEntrada: uIn,
+      unidadesSalida: uOut,
+      unidadesSaldo: Math.max(0, Math.ceil(uSaldo)),
       costoUnitario: costoUnit,
       debe,
       haber,
@@ -366,7 +368,8 @@ function KardexContent() {
     const movimientos: MovimientoKardexInventario[] = [];
 
     for (const [indice, fila] of filasManuales.entries()) {
-      const cantidad = Number(fila.unidades);
+      const cantidadRaw = Number(fila.unidades);
+      const cantidad = Number.isFinite(cantidadRaw) && cantidadRaw > 0 ? Math.ceil(cantidadRaw) : 0;
       const costo = Number(fila.costoUnitario);
       const montoDirecto = Number(fila.montoContable);
       const debeManual = fila.debe !== undefined && fila.debe !== "" ? Number(fila.debe) : NaN;
@@ -412,7 +415,7 @@ function KardexContent() {
         }
       }
 
-      unidades = Math.max(0, unidades + entrada - salida);
+      unidades = Math.max(0, Math.ceil(unidades + entrada - salida));
       saldo = redondear(Math.max(0, saldo + valorDebe - valorHaber));
       debe = redondear(debe + valorDebe);
       haber = redondear(haber + valorHaber);
@@ -2589,7 +2592,7 @@ function KardexContent() {
                               <Input
                                 type="number"
                                 min="0"
-                                step="any"
+                                step="1"
                                 value={
                                   fila.tipo === "SALIDA" ||
                                   fila.tipo === "DEVOLUCION_COMPRA"
@@ -2603,6 +2606,12 @@ function KardexContent() {
                                     e.target.value,
                                   )
                                 }
+                                onBlur={(e) => {
+                                  const val = parseFloat(e.target.value);
+                                  if (Number.isFinite(val) && val > 0 && Math.floor(val) !== val) {
+                                    actualizarFilaManual(fila.id, "unidades", String(Math.ceil(val)));
+                                  }
+                                }}
                                 placeholder="0"
                                 className="h-8 min-w-[75px] text-right text-[11px] bg-muted/20 border border-transparent hover:border-border hover:bg-muted/40 focus:bg-background focus:border-primary placeholder:text-muted-foreground/70 transition-colors"
                               />
@@ -2611,7 +2620,7 @@ function KardexContent() {
                               <Input
                                 type="number"
                                 min="0"
-                                step="any"
+                                step="1"
                                 value={
                                   fila.tipo === "SALIDA" ||
                                   fila.tipo === "DEVOLUCION_COMPRA"
@@ -2625,6 +2634,12 @@ function KardexContent() {
                                     e.target.value,
                                   )
                                 }
+                                onBlur={(e) => {
+                                  const val = parseFloat(e.target.value);
+                                  if (Number.isFinite(val) && val > 0 && Math.floor(val) !== val) {
+                                    actualizarFilaManual(fila.id, "unidades", String(Math.ceil(val)));
+                                  }
+                                }}
                                 placeholder="0"
                                 className="h-8 min-w-[75px] text-right text-[11px] bg-muted/20 border border-transparent hover:border-border hover:bg-muted/40 focus:bg-background focus:border-primary placeholder:text-muted-foreground/70 transition-colors"
                               />

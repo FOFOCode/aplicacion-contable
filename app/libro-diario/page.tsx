@@ -630,28 +630,33 @@ export default function LibroDiarioPage() {
         // Base = $X / 1.13 -> IVA = Base * 0.13
         const { base, iva, total } = calcularDesgloseIVA(montoBruto);
         const updated = [...prevLineas];
-        const esCompraOActivo = infoIva.tipo === "COMPRA";
+        const ladoCuenta = infoIva.ladoCuentaPrincipal;
+        const ladoIva = infoIva.ladoIva;
 
-        // 1. Ajustar la línea de compra/activo/venta al monto neto (disminuido en el monto del IVA)
+        // 1. Ajustar la línea de compra/activo/venta/devolución al monto neto
         // Mantener sincronizados AMBOS formatos (Smart y Clásico)
         updated[targetIndex] = {
           ...targetLinea,
           codigo,
           monto: base,
           operacion: "AUMENTA",
-          debeDirecto: esCompraOActivo ? base : "",
-          haberDirecto: esCompraOActivo ? "" : base,
+          debeDirecto: ladoCuenta === "DEBE" ? base : "",
+          haberDirecto: ladoCuenta === "HABER" ? base : "",
         };
 
         // 2. Insertar o actualizar la línea de IVA correspondiente (1105 o 2103)
+        // En compras regulares: 1105 al Debe
+        // En devolución sobre compra: 1105 disminuye al Haber
+        // En ventas regulares: 2103 al Haber
+        // En devolución sobre venta: 2103 se debita al Debe
         if (ivaIndex !== -1) {
           updated[ivaIndex] = {
             ...updated[ivaIndex],
             codigo: infoIva.cuentaIvaCodigo,
             monto: iva,
-            operacion: "AUMENTA",
-            debeDirecto: esCompraOActivo ? iva : "",
-            haberDirecto: esCompraOActivo ? "" : iva,
+            operacion: infoIva.operacionIvaSmart,
+            debeDirecto: ladoIva === "DEBE" ? iva : "",
+            haberDirecto: ladoIva === "HABER" ? iva : "",
           };
         } else {
           // Si la línea siguiente está vacía, usarla; si no, insertar una nueva línea inmediatamente después
@@ -670,9 +675,9 @@ export default function LibroDiarioPage() {
               : String(Date.now() + Math.random()),
             codigo: infoIva.cuentaIvaCodigo,
             monto: iva,
-            operacion: "AUMENTA",
-            debeDirecto: esCompraOActivo ? iva : "",
-            haberDirecto: esCompraOActivo ? "" : iva,
+            operacion: infoIva.operacionIvaSmart,
+            debeDirecto: ladoIva === "DEBE" ? iva : "",
+            haberDirecto: ladoIva === "HABER" ? iva : "",
           };
 
           if (nextEsVacia) {
@@ -683,8 +688,9 @@ export default function LibroDiarioPage() {
         }
 
         // 3. Si no hay renglones vacíos disponibles para la contrapartida (Caja/Bancos), agregar uno
-        // En compras/activos: se pagará salida de dinero (Caja/Banco DISMINUYE -> Haber)
-        // En ventas: se cobrará entrada de dinero (Caja/Banco AUMENTA -> Debe)
+        // En compras y devolución sobre venta: contrapartida al Haber (pago o desembolso)
+        // En ventas y devolución sobre compra: contrapartida al Debe (ingreso o cobro)
+        const contrapartidaDebe = infoIva.tipo === "VENTA" || infoIva.tipo === "DEVOLUCION_COMPRA";
         const hayRenglonVacio = updated.some(
           (l) => !l.codigo && !l.monto && !l.debeDirecto && !l.haberDirecto,
         );
@@ -693,7 +699,7 @@ export default function LibroDiarioPage() {
             key: String(Date.now() + Math.random() + 1),
             codigo: "",
             monto: "",
-            operacion: esCompraOActivo ? "DISMINUYE" : "AUMENTA",
+            operacion: contrapartidaDebe ? "AUMENTA" : "DISMINUYE",
             debeDirecto: "",
             haberDirecto: "",
           });

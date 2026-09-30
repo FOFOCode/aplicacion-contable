@@ -1824,245 +1824,166 @@ export function formatearCuentaJerarquica(
 
 export interface InfoCuentaIVA {
   esSujeta: boolean
-
-  tipo:
-    | "COMPRA"
-    | "VENTA"
-    | null
-
-  cuentaIvaCodigo:
-    string
-
-  cuentaIvaNombre:
-    string
-
-  impuestoNombre:
-    string
+  tipo: "COMPRA" | "VENTA" | "DEVOLUCION_COMPRA" | "DEVOLUCION_VENTA" | null
+  esDevolucion: boolean
+  cuentaIvaCodigo: string
+  cuentaIvaNombre: string
+  impuestoNombre: string
+  ladoCuentaPrincipal: "DEBE" | "HABER"
+  ladoIva: "DEBE" | "HABER"
+  operacionIvaSmart: "AUMENTA" | "DISMINUYE"
 }
 
 export function esCuentaSujetaAIVA(
   codigo: string
 ): InfoCuentaIVA {
-  const cod =
-    (
-      codigo ||
-      ""
-    ).trim()
+  const cod = (codigo || "").trim()
 
-  const esAdquisicionConIVA =
-    cod === "4101" ||
-    cod.startsWith(
-      "4101"
-    ) ||
-    cod === "4102" ||
-    cod.startsWith(
-      "4102"
-    ) ||
-    cod === "4105" ||
-    cod.startsWith(
-      "4105"
-    ) ||
-    cod === "1201" ||
-    cod.startsWith(
-      "1201"
-    ) ||
-    cod === "1202" ||
-    cod.startsWith(
-      "1202"
-    ) ||
-    cod === "1203" ||
-    cod.startsWith(
-      "1203"
-    ) ||
-    cod === "1204" ||
-    cod.startsWith(
-      "1204"
-    ) ||
-    cod === "1107" ||
-    cod.startsWith(
-      "1107"
-    ) ||
-    cod === "4201" ||
-    cod.startsWith(
-      "4201"
-    ) ||
-    cod === "4202" ||
-    cod.startsWith(
-      "4202"
-    ) ||
-    cod === "4204" ||
-    cod.startsWith(
-      "4204"
-    ) ||
-    cod === "4205" ||
-    cod.startsWith(
-      "4205"
-    ) ||
-    cod === "4207" ||
-    cod.startsWith(
-      "4207"
-    ) ||
-    cod === "4208" ||
-    cod.startsWith(
-      "4208"
-    ) ||
-    cod === "4303" ||
-    cod.startsWith(
-      "4303"
-    ) ||
-    cod === "5102" ||
-    cod.startsWith(
-      "5102"
-    ) ||
-    cod === "5103" ||
-    cod.startsWith(
-      "5103"
-    )
-
+  // 1. DEVOLUCIÓN O REBAJA SOBRE COMPRAS (5102, 4106, 5103)
+  // Cuenta principal (5102): Naturaleza acreedora -> HABER
+  // IVA Crédito Fiscal (1105): Se revierte / disminuye -> HABER
   if (
-    esAdquisicionConIVA
+    cod === "5102" ||
+    cod.startsWith("5102") ||
+    cod === "4106" ||
+    cod.startsWith("4106") ||
+    cod === "5103" ||
+    cod.startsWith("5103")
   ) {
-    let detalle =
-      "Compra / Adquisición"
-
-    if (
-      cod.startsWith(
-        "1203"
-      )
-    ) {
-      detalle =
-        "Equipo de Cómputo"
-    } else if (
-      cod.startsWith(
-        "1202"
-      )
-    ) {
-      detalle =
-        "Equipo de Transporte"
-    } else if (
-      cod.startsWith(
-        "1201"
-      )
-    ) {
-      detalle =
-        "Mobiliario y Equipo"
-    } else if (
-      cod.startsWith(
-        "1204"
-      )
-    ) {
-      detalle =
-        "Edificios e Instalaciones"
-    } else if (
-      cod.startsWith(
-        "4101"
-      )
-    ) {
-      detalle =
-        "Compra de Mercadería"
-    } else if (
-      cod.startsWith(
-        "4303"
-      )
-    ) {
-      detalle =
-        "Comisiones Bancarias"
-    } else if (
-      cod.startsWith(
-        "5102"
-      ) ||
-      cod.startsWith(
-        "5103"
-      )
-    ) {
-      detalle =
-        "Ajuste / Devolución sobre Compras"
-    }
-
     return {
       esSujeta: true,
-
-      tipo:
-        "COMPRA",
-
-      cuentaIvaCodigo:
-        "1105",
-
-      cuentaIvaNombre:
-        "IVA crédito fiscal",
-
-      impuestoNombre:
-        `IVA Crédito Fiscal 13% (${detalle})`,
+      tipo: "DEVOLUCION_COMPRA",
+      esDevolucion: true,
+      cuentaIvaCodigo: "1105",
+      cuentaIvaNombre: "IVA crédito fiscal",
+      impuestoNombre: "IVA Crédito Fiscal 13% (Reversión Devolución s/Compra - Haber)",
+      ladoCuentaPrincipal: "HABER",
+      ladoIva: "HABER",
+      operacionIvaSmart: "DISMINUYE",
     }
   }
 
-  const esVentaOIngresoConIVA =
-    cod === "5101" ||
-    cod.startsWith(
-      "5101"
-    ) ||
-    cod === "5104" ||
-    cod.startsWith(
-      "5104"
-    ) ||
-    cod === "5105" ||
-    cod.startsWith(
-      "5105"
-    ) ||
-    cod === "5203" ||
-    cod.startsWith(
-      "5203"
-    ) ||
-    cod === "4103" ||
-    cod.startsWith(
-      "4103"
-    ) ||
-    cod === "4104" ||
-    cod.startsWith(
-      "4104"
-    )
-
+  // 2. DEVOLUCIÓN O REBAJA SOBRE VENTAS (4103, 4104)
+  // Cuenta principal (4103): Naturaleza deudora -> DEBE
+  // IVA Débito Fiscal (2103): Se revierte / se debita -> DEBE
   if (
-    esVentaOIngresoConIVA
+    cod === "4103" ||
+    cod.startsWith("4103") ||
+    cod === "4104" ||
+    cod.startsWith("4104")
   ) {
-    let detalleVenta = "Venta / Ingreso"
-    if (
-      cod.startsWith("4103") ||
-      cod.startsWith("4104")
-    ) {
-      detalleVenta = "Ajuste / Devolución sobre Ventas"
+    return {
+      esSujeta: true,
+      tipo: "DEVOLUCION_VENTA",
+      esDevolucion: true,
+      cuentaIvaCodigo: "2103",
+      cuentaIvaNombre: "IVA débito fiscal",
+      impuestoNombre: "IVA Débito Fiscal 13% (Reversión Devolución s/Venta - Debe)",
+      ladoCuentaPrincipal: "DEBE",
+      ladoIva: "DEBE",
+      operacionIvaSmart: "DISMINUYE",
+    }
+  }
+
+  // 3. COMPRAS, ADQUISICIONES DE ACTIVO Y GASTOS SUJETOS A IVA
+  const esAdquisicionConIVA =
+    cod === "4101" ||
+    cod.startsWith("4101") ||
+    cod === "4102" ||
+    cod.startsWith("4102") ||
+    cod === "4105" ||
+    cod.startsWith("4105") ||
+    cod === "1201" ||
+    cod.startsWith("1201") ||
+    cod === "1202" ||
+    cod.startsWith("1202") ||
+    cod === "1203" ||
+    cod.startsWith("1203") ||
+    cod === "1204" ||
+    cod.startsWith("1204") ||
+    cod === "1107" ||
+    cod.startsWith("1107") ||
+    cod === "4201" ||
+    cod.startsWith("4201") ||
+    cod === "4202" ||
+    cod.startsWith("4202") ||
+    cod === "4204" ||
+    cod.startsWith("4204") ||
+    cod === "4205" ||
+    cod.startsWith("4205") ||
+    cod === "4207" ||
+    cod.startsWith("4207") ||
+    cod === "4208" ||
+    cod.startsWith("4208") ||
+    cod === "4303" ||
+    cod.startsWith("4303")
+
+  if (esAdquisicionConIVA) {
+    let detalle = "Compra / Adquisición"
+    if (cod.startsWith("1203")) {
+      detalle = "Equipo de Cómputo"
+    } else if (cod.startsWith("1202")) {
+      detalle = "Equipo de Transporte"
+    } else if (cod.startsWith("1201")) {
+      detalle = "Mobiliario y Equipo"
+    } else if (cod.startsWith("1204")) {
+      detalle = "Edificios e Instalaciones"
+    } else if (cod.startsWith("4101")) {
+      detalle = "Compra de Mercadería"
+    } else if (cod.startsWith("4102")) {
+      detalle = "Gastos sobre Compras"
+    } else if (cod.startsWith("4303")) {
+      detalle = "Comisiones Bancarias"
     }
 
     return {
       esSujeta: true,
+      tipo: "COMPRA",
+      esDevolucion: false,
+      cuentaIvaCodigo: "1105",
+      cuentaIvaNombre: "IVA crédito fiscal",
+      impuestoNombre: `IVA Crédito Fiscal 13% (${detalle})`,
+      ladoCuentaPrincipal: "DEBE",
+      ladoIva: "DEBE",
+      operacionIvaSmart: "AUMENTA",
+    }
+  }
 
-      tipo:
-        "VENTA",
+  // 4. VENTAS E INGRESOS REGULARES CON IVA
+  const esVentaOIngresoConIVA =
+    cod === "5101" ||
+    cod.startsWith("5101") ||
+    cod === "5104" ||
+    cod.startsWith("5104") ||
+    cod === "5105" ||
+    cod.startsWith("5105") ||
+    cod === "5203" ||
+    cod.startsWith("5203")
 
-      cuentaIvaCodigo:
-        "2103",
-
-      cuentaIvaNombre:
-        "IVA débito fiscal",
-
-      impuestoNombre:
-        `IVA Débito Fiscal 13% (${detalleVenta})`,
+  if (esVentaOIngresoConIVA) {
+    return {
+      esSujeta: true,
+      tipo: "VENTA",
+      esDevolucion: false,
+      cuentaIvaCodigo: "2103",
+      cuentaIvaNombre: "IVA débito fiscal",
+      impuestoNombre: "IVA Débito Fiscal 13% (Venta / Ingreso)",
+      ladoCuentaPrincipal: "HABER",
+      ladoIva: "HABER",
+      operacionIvaSmart: "AUMENTA",
     }
   }
 
   return {
     esSujeta: false,
-
     tipo: null,
-
-    cuentaIvaCodigo:
-      "",
-
-    cuentaIvaNombre:
-      "",
-
-    impuestoNombre:
-      "",
+    esDevolucion: false,
+    cuentaIvaCodigo: "",
+    cuentaIvaNombre: "",
+    impuestoNombre: "",
+    ladoCuentaPrincipal: "DEBE",
+    ladoIva: "DEBE",
+    operacionIvaSmart: "AUMENTA",
   }
 }
 
