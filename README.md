@@ -16,8 +16,7 @@
 ### Pasos para Ingresar:
 1. Abre tu navegador web habitual.
 2. Ingresa a la dirección del sistema:
-   - **Enlace de Producción (Vercel)**: `https://<tu-proyecto>.vercel.app`
-   - *(Entorno local de desarrollo: `http://localhost:3000`)*
+   - **Enlace**: `https://aplicacion-contable.vercel.app`
 3. Inicia sesión haciendo clic en el icono de usuario (arriba a la derecha) con tus credenciales asignadas.
 
 ---
